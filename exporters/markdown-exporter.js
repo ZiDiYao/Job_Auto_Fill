@@ -19,16 +19,17 @@ export function createJobNote(job = {}) {
   const location = cleanText(job.location, "Not detected");
   const url = cleanText(job.url);
   const resumeName = cleanText(job.resumeName, "Not recorded");
+  const applicationStatus = cleanText(job.status, "Saved");
   const description = String(job.jobDescription || "").trim();
   if (!description) throw new Error("Add or detect a job description before saving a note.");
 
   return [
     "---", `title: ${yamlValue(title)}`, `company: ${yamlValue(company)}`, `location: ${yamlValue(location)}`,
     `source_url: ${yamlValue(url)}`, `saved_at: ${yamlValue(timestamp)}`, `application_date: ${yamlValue(date)}`,
-    `resume: ${yamlValue(resumeName)}`, 'status: "saved"', "tags:", "  - job-application", "---", "",
+    `resume: ${yamlValue(resumeName)}`, `status: ${yamlValue(applicationStatus)}`, "tags:", "  - job-application", "---", "",
     `# ${company} — ${title}`, "", "## Application snapshot", "", `- **Location:** ${location}`,
     `- **Original posting:** ${url ? `[Open job posting](${url})` : "Not detected"}`, `- **Saved:** ${timestamp}`,
-    `- **Resume used:** ${resumeName}`, "- **Application status:** Saved / Applied / Interview / Offer / Closed", "",
+    `- **Resume used:** ${resumeName}`, `- **Application status:** ${applicationStatus}`, "",
     "## Summary", "", createJobSummary(job), "", "## Interview preparation", "", "### Why this role", "", "- ", "",
     "### Most relevant experience", "", "1. ", "2. ", "3. ", "", "### Questions to ask", "", "1. ", "2. ", "",
     "### Interview notes", "", "- ", "", "## Original job description", "", description, "",

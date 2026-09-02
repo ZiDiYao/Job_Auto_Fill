@@ -47,11 +47,13 @@ test("uses different stable identities for different posting URLs", () => {
 });
 
 test("generates a complete Markdown interview note", () => {
-  const note = createJobNote(sampleJob);
+  const note = createJobNote({ ...sampleJob, status: "Submitted" });
   assert.match(note, /title: "Software Developer, AI"/);
   assert.match(note, /company: "Example \/ Engineering: Inc\."/);
   assert.match(note, /source_url: "https:\/\/example\.com\/jobs\/123"/);
   assert.match(note, /resume: "Resume_2027\.pdf"/);
+  assert.match(note, /status: "Submitted"/);
+  assert.match(note, /Application status:\*\* Submitted/);
   assert.match(note, /## Interview preparation/);
   assert.match(note, /## Summary/);
   assert.match(note, /## Original job description/);
@@ -186,14 +188,20 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(popupSource, /saveCurrentJobNote/);
   assert.match(popupSource, /jobAutofillOnboardingVisited/);
   assert.match(popupSource, /renderSetupState/);
-  assert.match(popupSource, /autoSaveOnFill/);
+  assert.match(popupSource, /historySaveTrigger === "fill"/);
   assert.match(optionsHtml, /id="chooseMarkdownFolder"/);
   assert.match(optionsHtml, /id="chooseExcelFolder"/);
-  assert.match(optionsHtml, /id="autoSaveJobNotes"/);
+  assert.match(optionsHtml, /id="historySaveTrigger"/);
+  assert.match(optionsHtml, /After I submit an application/);
+  assert.match(optionsHtml, /Only when I click Save application/);
   assert.match(optionsHtml, /id="exportNotion"/);
   assert.match(optionsHtml, /id="exportSpreadsheet"/);
   assert.match(optionsHtml, /data-settings-target="profile"/);
+  assert.match(optionsHtml, /data-settings-target="overview"/);
   assert.match(optionsHtml, /data-settings-target="ai"/);
+  assert.match(optionsHtml, /data-settings-page="overview"[^>]*hidden>[\s\S]*?<h2>Resume upload<\/h2>/);
+  assert.match(optionsHtml, /data-settings-page="overview"[^>]*hidden>[\s\S]*?<h2>Behaviour<\/h2>/);
+  assert.match(optionsHtml, /id="profileFooter" data-settings-page="profile"/);
   assert.doesNotMatch(optionsHtml, /data-ai-target|data-ai-page|Mock job description skills|Mock resume\/profile skills|Run skills preview/);
   assert.match(optionsHtml, /id="previewSelectedSkills"/);
   assert.match(optionsHtml, /Skills selected from your CV \+ JD/);
@@ -234,6 +242,8 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(manifestSource, /"https:\/\/\*\/\*"/);
   assert.match(watcherSource, /MutationObserver/);
   assert.match(watcherSource, /job-page-observed/);
+  assert.match(watcherSource, /application-submitted/);
+  assert.match(watcherSource, /document\.addEventListener\("submit"/);
   assert.match(watcherSource, /INSPECTION_DELAY_MS = 350/);
   assert.doesNotMatch(watcherSource, /clearTimeout\(timer\)/);
   assert.match(watcherSource, /JobPosting structured data/);

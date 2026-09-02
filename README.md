@@ -15,6 +15,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Fills the current application without opening the popup through `Command+Shift+Y` on macOS or `Ctrl+Shift+Y` on Windows/Linux.
 - Optionally watches full navigations and single-page application step changes, recognizes application forms, and fills each new page automatically after one-time website access is approved.
 - Automatically saves Profile, AI, and Application History settings after editing stops; slow writes are serialized so older data cannot overwrite newer changes.
+- Separates candidate data into Profile and keeps resume management plus automatic-fill controls on a focused Overview page.
 - Syncs the saved profile and resume from a backend bound to `127.0.0.1`.
 - Uses structured Workday mappings for repeated experience, education, language, and skill controls instead of asking AI to guess field boundaries.
 - Scans unresolved visible controls into a compact semantic DOM schema containing labels, sections, control types, requirements, and exact available options.
@@ -41,6 +42,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Supports Workday tenants that identify the school control as either `schoolName` or `school`, detects Education From/To years both by stable field IDs and row order, and verifies the React-controlled values after filling.
 - Lets users drop a PDF into the popup and persists it in the local Docker-mounted resume file until another PDF replaces it.
 - Gives Markdown, Excel, and Notion separate collapsible Application History sections that reveal their settings only when enabled.
+- Lets users save application history manually, when autofill runs, or automatically after their own final Submit action; the extension records the status as `Submitted` without clicking Submit itself.
 - Lets Markdown and Excel use independent remembered folders instead of coupling both formats to one destination.
 - Supports Notion OAuth sign-in in a Chrome authorization window, while retaining internal-integration tokens as an optional local developer mode.
 - Creates a user-named Notion root page with an inline **Application List** whose rows open into job-detail pages containing a
@@ -64,7 +66,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 6. Open the extension and choose **Edit profile**.
 7. Enter your information—it saves automatically—then open an application form and click **Fill with CV + JD** or use the configured keyboard shortcut.
 
-To fill each newly displayed application page automatically, enable **Automatically recognize and fill new application pages** under **Profile & Settings → Behaviour** and approve Chrome's one-time website-access request. This mode recognizes both full page loads and application steps rendered without a navigation. It never clicks a final Submit control. Keyboard shortcuts can be changed at `chrome://extensions/shortcuts`.
+To fill each newly displayed application page automatically, enable **Automatically recognize and fill new application pages** under **Overview → Behaviour** and approve Chrome's one-time website-access request. This mode recognizes both full page loads and application steps rendered without a navigation. It never clicks a final Submit control. Keyboard shortcuts can be changed at `chrome://extensions/shortcuts`.
 
 The same process works in Edge or another Chromium browser from its extensions management page.
 
@@ -120,12 +122,14 @@ The suite exercises provider Strategy/Factory adapters, HTTP endpoints with isol
 
 ## Application history: Markdown, Excel, and Notion
 
-The extension settings are separated into **Profile & Settings**, **AI**, and **Application History** tabs. Application History
-has independent **Markdown**, **Excel**, and **Notion** subpages. Each destination is implemented as its own exporter strategy,
+The extension settings are separated into **Profile**, **Overview**, **AI**, and **Application History** tabs. Application History
+has independent **Markdown**, **Excel**, and **Notion** sections. Each destination is implemented as its own exporter strategy,
 selected by a small factory when a record is saved. Markdown and Excel remember independent folders through the browser's
 directory picker. The `.csv` file is UTF-8 Excel-compatible and stores one row per
 posting with application date, month, company, role, location, status, URL, resume, summary, complete JD, and last-saved time.
-Saving the same posting again updates its row.
+Saving the same posting again updates its row. The save trigger is configurable: manual only, when autofill runs, or after the
+user clicks the final Submit control. Submit-triggered records use the `Submitted` status; the extension only observes that user
+action and never performs the submission.
 
 For Notion OAuth:
 

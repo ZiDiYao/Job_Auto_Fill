@@ -24,7 +24,7 @@ const addLanguageButton = document.querySelector("#addLanguage");
 const saveStatus = document.querySelector("#saveStatus");
 const markdownFolderStatus = document.querySelector("#markdownFolderStatus");
 const excelFolderStatus = document.querySelector("#excelFolderStatus");
-const autoSaveJobNotes = document.querySelector("#autoSaveJobNotes");
+const historySaveTrigger = document.querySelector("#historySaveTrigger");
 const exportMarkdown = document.querySelector("#exportMarkdown");
 const exportSpreadsheet = document.querySelector("#exportSpreadsheet");
 const exportNotion = document.querySelector("#exportNotion");
@@ -40,8 +40,13 @@ const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 const SETTINGS_PAGES = {
   profile: {
     hash: "#profile",
-    title: "Profile & settings",
-    description: "Personal details, education, reusable answers, resume, and autofill behaviour.",
+    title: "Profile",
+    description: "Personal details, education, languages, and reusable application answers.",
+  },
+  overview: {
+    hash: "#overview",
+    title: "Overview",
+    description: "Manage your saved resume and choose how autofill behaves while you browse.",
   },
   ai: {
     hash: "#ai/settings",
@@ -56,6 +61,7 @@ const SETTINGS_PAGES = {
 };
 
 function pageFromHash(hash = location.hash) {
+  if (hash.startsWith("#overview")) return "overview";
   if (hash.startsWith("#ai")) return "ai";
   if (hash.startsWith("#application-history") || hash === "#interview-notes") return "history";
   return "profile";
@@ -73,7 +79,6 @@ function showSettingsPage(page, { updateHash = false } = {}) {
   }
   document.querySelector("#settingsTitle").textContent = SETTINGS_PAGES[selected].title;
   document.querySelector("#settingsDescription").textContent = SETTINGS_PAGES[selected].description;
-  document.querySelector("#profileFooter").hidden = selected === "history";
   document.querySelector("#syncBackend").hidden = selected === "history";
   if (updateHash && location.hash !== SETTINGS_PAGES[selected].hash) {
     history.replaceState(null, "", SETTINGS_PAGES[selected].hash);
@@ -91,8 +96,14 @@ window.addEventListener("hashchange", () => {
 showSettingsPage(pageFromHash());
 
 function normalizeExportSettings(value = {}) {
+  const legacyTrigger = Object.hasOwn(value, "autoSaveOnFill")
+    ? (value.autoSaveOnFill === false ? "manual" : "fill")
+    : "submit";
+  const selectedTrigger = ["submit", "fill", "manual"].includes(value.historySaveTrigger)
+    ? value.historySaveTrigger
+    : legacyTrigger;
   return {
-    autoSaveOnFill: value.autoSaveOnFill !== false,
+    historySaveTrigger: selectedTrigger,
     destinations: {
       markdown: value.destinations?.markdown !== false,
       spreadsheet: value.destinations?.spreadsheet === true,
@@ -146,7 +157,7 @@ for (const [, control] of exportDestinationControls) {
 
 function renderExportSettings(value) {
   const settings = normalizeExportSettings(value);
-  autoSaveJobNotes.checked = settings.autoSaveOnFill;
+  historySaveTrigger.value = settings.historySaveTrigger;
   exportMarkdown.checked = settings.destinations.markdown;
   exportSpreadsheet.checked = settings.destinations.spreadsheet;
   exportNotion.checked = settings.destinations.notion;
@@ -168,7 +179,7 @@ async function collectExportSettings() {
   const current = normalizeExportSettings(cached[NOTE_SETTINGS_KEY]);
   return {
     ...current,
-    autoSaveOnFill: autoSaveJobNotes.checked,
+    historySaveTrigger: historySaveTrigger.value,
     destinations: {
       markdown: exportMarkdown.checked,
       spreadsheet: exportSpreadsheet.checked,

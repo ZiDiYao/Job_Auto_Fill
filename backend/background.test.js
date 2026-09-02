@@ -3,9 +3,10 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
-const source = await readFile(new URL("../background.js", import.meta.url), "utf8");
+const source = (await readFile(new URL("../background.js", import.meta.url), "utf8"))
+  .replace(/^import .*;\n/gm, "");
 
-function loadBackground({ fetchImpl, initialStorage = {}, scripting, tabs, permissions, setTimeoutImpl = setTimeout } = {}) {
+function loadBackground({ fetchImpl, initialStorage = {}, scripting, tabs, permissions, setTimeoutImpl = setTimeout, historyDependencies } = {}) {
   const listeners = [];
   const commandListeners = [];
   const storage = structuredClone(initialStorage);
@@ -50,6 +51,8 @@ function loadBackground({ fetchImpl, initialStorage = {}, scripting, tabs, permi
     Response,
     setTimeout: setTimeoutImpl,
     TypeError,
+    URL,
+    __jobAutofillHistoryDependencies: historyDependencies,
     chrome,
   });
   vm.runInContext(source, context, { filename: "background.js" });
@@ -256,6 +259,71 @@ test("passive page monitoring captures a JD without filling a form", async () =>
   assert.equal(background.storage.jobAutofillJobDescription.length, 640);
   assert.equal(background.storage.jobAutofillDetectedJobContext.tabId, 23);
   assert.equal(background.storage.jobAutofillDetectedJobContext.metadata.jobTitle, "Platform Developer");
+});
+
+test("a user submission saves enabled application history with Submitted status", async () => {
+  let exported;
+  const markdownDirectory = { kind: "directory", name: "Applications" };
+  const background = loadBackground({
+    initialStorage: {
+      jobAutofillNoteSettings: {
+        historySaveTrigger: "submit",
+        destinations: { markdown: true, spreadsheet: false, notion: false },
+      },
+      jobAutofillResume: { name: "resume.pdf" },
+      jobAutofillDetectedJobContext: {
+        tabId: 31,
+        jobDescription: "Build dependable software. ".repeat(20),
+        metadata: { jobTitle: "Software Engineer", company: "Example Co", location: "Toronto" },
+      },
+    },
+    historyDependencies: {
+      async getSavedExportDirectory(type) {
+        assert.equal(type, "markdown");
+        return markdownDirectory;
+      },
+      async exportApplication(input) {
+        exported = input;
+        return { saved: ["Markdown"], failures: [] };
+      },
+    },
+  });
+
+  const result = await background.send({
+    type: "application-submitted",
+    submittedAt: "2026-09-02T17:00:00.000Z",
+    metadata: { sourceUrl: "https://jobs.example/apply/31" },
+  }, { tab: { id: 31, title: "Apply", url: "https://jobs.example/apply/31" } });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.saved)), ["Markdown"]);
+  assert.equal(exported.settings.applicationStatus, "Submitted");
+  assert.equal(exported.job.status, "Submitted");
+  assert.equal(exported.job.jobTitle, "Software Engineer");
+  assert.equal(exported.job.resumeName, "resume.pdf");
+  assert.equal(exported.directories.markdown, markdownDirectory);
+  assert.equal(background.storage.jobAutofillLastSubmissionSave.status, "Submitted");
+  assert.deepEqual(background.storage.jobAutofillLastSubmissionSave.destinations, ["Markdown"]);
+});
+
+test("submission history respects manual-only save settings", async () => {
+  let exports = 0;
+  const background = loadBackground({
+    initialStorage: {
+      jobAutofillNoteSettings: {
+        historySaveTrigger: "manual",
+        destinations: { markdown: true },
+      },
+    },
+    historyDependencies: {
+      async getSavedExportDirectory() { return null; },
+      async exportApplication() { exports += 1; return { saved: [], failures: [] }; },
+    },
+  });
+  const result = await background.send({ type: "application-submitted" }, { tab: { id: 32 } });
+  assert.equal(result.ok, true);
+  assert.equal(result.skipped, "history-save-trigger");
+  assert.equal(exports, 0);
 });
 
 test("automatic fill registration adds and removes the persistent page watcher", async () => {

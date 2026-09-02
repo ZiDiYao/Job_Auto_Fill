@@ -1,3 +1,6 @@
+import { exportApplication as exportApplicationHistory } from "./application-export-service.js";
+import { getSavedExportDirectory as getSavedHistoryDirectory } from "./local-directory.js";
+
 const OLLAMA_ENDPOINT = "http://127.0.0.1:11434/api/chat";
 const BACKEND_ENDPOINT = "http://127.0.0.1:17840";
 const AUTO_ADVANCE_STATUS_KEY = "jobAutofillAutoAdvanceStatus";
@@ -10,11 +13,129 @@ const AUTO_FILL_ORIGINS = ["http://*/*", "https://*/*"];
 const LAST_FILL_STATUS_KEY = "jobAutofillLastFillStatus";
 const LAST_SKILL_SELECTION_KEY = "jobAutofillLastSkillSelection";
 const LAST_DETECTED_JOB_KEY = "jobAutofillDetectedJobContext";
+const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
+const LAST_SUBMISSION_SAVE_KEY = "jobAutofillLastSubmissionSave";
 const DEFAULT_AUTO_ADVANCE_DELAY_MS = 900;
 const MIN_AUTO_ADVANCE_DELAY_MS = 500;
 const activeAutoAdvanceSessions = new Map();
 const activeFillSessions = new Map();
 const lastAutomaticPageSignatures = new Map();
+
+function normalizeHistoryExportSettings(value = {}) {
+  const legacyTrigger = Object.hasOwn(value, "autoSaveOnFill")
+    ? (value.autoSaveOnFill === false ? "manual" : "fill")
+    : "submit";
+  return {
+    ...value,
+    historySaveTrigger: ["submit", "fill", "manual"].includes(value.historySaveTrigger)
+      ? value.historySaveTrigger
+      : legacyTrigger,
+    destinations: {
+      markdown: value.destinations?.markdown !== false,
+      spreadsheet: value.destinations?.spreadsheet === true,
+      notion: value.destinations?.notion === true,
+    },
+    spreadsheetFilename: String(value.spreadsheetFilename || "Job Applications.csv"),
+    applicationStatus: String(value.applicationStatus || "Saved"),
+    notion: {
+      ...(value.notion || {}),
+      token: String(value.notion?.token || ""),
+      parentPageId: String(value.notion?.parentPageId || ""),
+      rootPageTitle: String(value.notion?.rootPageTitle || "Job Application"),
+      dataSourceId: String(value.notion?.dataSourceId || ""),
+    },
+  };
+}
+
+async function loadApplicationHistoryDependencies() {
+  if (globalThis.__jobAutofillHistoryDependencies) return globalThis.__jobAutofillHistoryDependencies;
+  return {
+    exportApplication: exportApplicationHistory,
+    getSavedExportDirectory: getSavedHistoryDirectory,
+  };
+}
+
+function hostnameFromUrl(value) {
+  try { return new URL(value).hostname.replace(/^www\./, ""); } catch { return "Unknown company"; }
+}
+
+async function saveSubmittedApplication(message, sender = {}) {
+  const cached = await chrome.storage.local.get([
+    NOTE_SETTINGS_KEY,
+    "jobAutofillResume",
+    "jobAutofillJobDescription",
+    "jobAutofillJobMetadata",
+    LAST_DETECTED_JOB_KEY,
+  ]);
+  const settings = normalizeHistoryExportSettings(cached[NOTE_SETTINGS_KEY]);
+  if (settings.historySaveTrigger !== "submit") return { skipped: "history-save-trigger" };
+
+  const tabId = Number(sender.tab?.id || 0);
+  const detected = cached[LAST_DETECTED_JOB_KEY] || {};
+  const detectedMatches = !detected.tabId || !tabId || Number(detected.tabId) === tabId;
+  const metadata = {
+    ...(cached.jobAutofillJobMetadata || {}),
+    ...(detectedMatches ? detected.metadata || {} : {}),
+    ...(message.metadata || {}),
+  };
+  const sourceUrl = String(metadata.sourceUrl || message.sourceUrl || sender.tab?.url || "");
+  const jobDescription = String(
+    message.jobDescription
+      || (detectedMatches ? detected.jobDescription : "")
+      || cached.jobAutofillJobDescription
+      || "",
+  ).trim();
+  const submittedAt = new Date(message.submittedAt || Date.now());
+  const job = {
+    jobDescription,
+    jobTitle: String(metadata.jobTitle || message.pageTitle || sender.tab?.title || "Unknown role"),
+    company: String(metadata.company || hostnameFromUrl(sourceUrl)),
+    location: String(metadata.location || ""),
+    url: sourceUrl,
+    resumeName: String(cached.jobAutofillResume?.name || ""),
+    status: "Submitted",
+    savedAt: Number.isNaN(submittedAt.getTime()) ? new Date() : submittedAt,
+  };
+
+  try {
+    const { exportApplication, getSavedExportDirectory } = await loadApplicationHistoryDependencies();
+    const directories = {
+      markdown: settings.destinations.markdown ? await getSavedExportDirectory("markdown") : null,
+      spreadsheet: settings.destinations.spreadsheet ? await getSavedExportDirectory("spreadsheet") : null,
+    };
+    const result = await exportApplication({
+      settings: { ...settings, applicationStatus: "Submitted" },
+      job,
+      directories,
+      persistNotionSettings: (next) => chrome.storage.local.set({ [NOTE_SETTINGS_KEY]: next }),
+    });
+    const savedAt = new Date().toISOString();
+    const record = {
+      ok: true,
+      status: "Submitted",
+      destinations: result.saved,
+      warnings: result.failures,
+      sourceUrl,
+      savedAt,
+    };
+    await chrome.storage.local.set({
+      [LAST_SUBMISSION_SAVE_KEY]: record,
+      jobAutofillLastSavedNote: record,
+    });
+    return { saved: result.saved, warnings: result.failures };
+  } catch (error) {
+    await chrome.storage.local.set({
+      [LAST_SUBMISSION_SAVE_KEY]: {
+        ok: false,
+        status: "Submitted",
+        sourceUrl,
+        error: error.message || "Application history could not be saved after submission.",
+        savedAt: new Date().toISOString(),
+      },
+    });
+    throw error;
+  }
+}
 
 const answerSchema = {
   type: "object",
@@ -607,6 +728,13 @@ chrome.runtime.onInstalled?.addListener(() => { void restoreAutomaticFill().catc
 chrome.runtime.onStartup?.addListener(() => { void restoreAutomaticFill().catch(() => {}); });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "application-submitted") {
+    saveSubmittedApplication(message, sender)
+      .then((result) => sendResponse({ ok: true, ...(result || {}) }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || "Application history could not be saved after submission." }));
+    return true;
+  }
+
   if (message?.type === "configure-auto-fill") {
     configureAutomaticFill(message.enabled === true)
       .then((result) => sendResponse({ ok: true, ...result }))

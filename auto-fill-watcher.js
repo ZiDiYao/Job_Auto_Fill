@@ -14,8 +14,11 @@
     /\bjob application\b|\bapply for (?:this|the) (?:job|position|role)\b/i,
   ];
   const INSPECTION_DELAY_MS = 350;
+  const FINAL_SUBMIT_LABEL = /^(?:submit|submit (?:my |this |your )?application(?: now)?|send (?:my |this |your )?application|complete (?:my |this |your )?application|finish (?:my |this |your )?application|final submit|soumettre(?: (?:ma|cette) candidature)?|envoyer (?:ma|cette) candidature|提交(?:申请)?|提交)$/i;
   let timer = null;
   let lastSignature = "";
+  let lastObservedPage = null;
+  let lastSubmission = { fingerprint: "", observedAt: 0 };
 
   function visible(element) {
     const style = getComputedStyle(element);
@@ -122,6 +125,7 @@
   function notifyIfReady() {
     timer = null;
     const page = inspectPage();
+    if (page) lastObservedPage = page;
     if (!page || page.signature === lastSignature) return;
     lastSignature = page.signature;
     chrome.runtime.sendMessage({ type: "job-page-observed", ...page }).catch(() => {});
@@ -131,6 +135,51 @@
     if (timer !== null) return;
     timer = setTimeout(notifyIfReady, INSPECTION_DELAY_MS);
   }
+
+  function submissionLabel(element) {
+    if (!element) return "";
+    return compactText(element) || String(element.value || element.getAttribute?.("aria-label") || "").trim();
+  }
+
+  function notifyApplicationSubmitted(trigger, label = "Submit") {
+    const page = inspectPage() || lastObservedPage || {};
+    const fingerprint = `${location.href}|${label.toLowerCase()}`;
+    const now = Date.now();
+    if (lastSubmission.fingerprint === fingerprint && now - lastSubmission.observedAt < 5000) return;
+    lastSubmission = { fingerprint, observedAt: now };
+    chrome.runtime.sendMessage({
+      type: "application-submitted",
+      trigger,
+      submitLabel: label,
+      jobDescription: page.jobDescription || "",
+      metadata: {
+        ...(page.metadata || {}),
+        sourceUrl: location.href,
+      },
+      pageTitle: document.title,
+      submittedAt: new Date(now).toISOString(),
+    }).catch(() => {});
+  }
+
+  document.addEventListener("submit", (event) => {
+    const submitterLabel = submissionLabel(event.submitter).replace(/\s+/g, " ").trim();
+    if (FINAL_SUBMIT_LABEL.test(submitterLabel)) {
+      notifyApplicationSubmitted("form-submit", submitterLabel);
+      return;
+    }
+    const finalButton = [...(event.target?.querySelectorAll?.("button, input[type='submit'], [role='button']") || [])]
+      .find((candidate) => FINAL_SUBMIT_LABEL.test(submissionLabel(candidate).replace(/\s+/g, " ").trim()));
+    if (finalButton) notifyApplicationSubmitted("form-submit", submissionLabel(finalButton));
+  }, true);
+  document.addEventListener("click", (event) => {
+    const button = event.target?.closest?.("button, input[type='submit'], [role='button']");
+    if (!button || !visible(button) || button.disabled) return;
+    const label = submissionLabel(button).replace(/\s+/g, " ").trim();
+    if (!FINAL_SUBMIT_LABEL.test(label)) return;
+    const declaredType = String(button.getAttribute?.("type") || "").toLowerCase();
+    const nativeSubmit = declaredType === "submit" || (button.tagName === "BUTTON" && !declaredType && button.form);
+    if (!nativeSubmit) notifyApplicationSubmitted("submit-button", label);
+  }, true);
 
   new MutationObserver(scheduleInspection).observe(document.documentElement, {
     childList: true,

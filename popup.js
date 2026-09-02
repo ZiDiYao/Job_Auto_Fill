@@ -53,8 +53,13 @@ function renderAutomationPausedState(paused) {
 }
 
 function normalizeExportSettings(value = {}) {
+  const legacyTrigger = Object.hasOwn(value, "autoSaveOnFill")
+    ? (value.autoSaveOnFill === false ? "manual" : "fill")
+    : "submit";
   return {
-    autoSaveOnFill: value.autoSaveOnFill !== false,
+    historySaveTrigger: ["submit", "fill", "manual"].includes(value.historySaveTrigger)
+      ? value.historySaveTrigger
+      : legacyTrigger,
     destinations: {
       markdown: value.destinations?.markdown !== false,
       spreadsheet: value.destinations?.spreadsheet === true,
@@ -608,7 +613,7 @@ fillButton.addEventListener("click", async () => {
     await chrome.storage.local.set({ jobAutofillJobDescription: jd });
     const noteSettings = await chrome.storage.local.get(NOTE_SETTINGS_KEY);
     const exportSettings = normalizeExportSettings(noteSettings[NOTE_SETTINGS_KEY]);
-    if (exportSettings.autoSaveOnFill) {
+    if (exportSettings.historySaveTrigger === "fill") {
       try {
         const localEnabled = exportSettings.destinations.markdown || exportSettings.destinations.spreadsheet;
         const notionReady = exportSettings.destinations.notion && exportSettings.notion.token

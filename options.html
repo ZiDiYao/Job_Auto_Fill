@@ -10,10 +10,9 @@
     <main>
       <header>
         <div>
-          <h1 id="settingsTitle">Profile &amp; settings</h1>
+          <h1 id="settingsTitle">Profile</h1>
           <p id="settingsDescription">
-            Stored by your Docker backend on <code>127.0.0.1</code> and cached in
-            <code>chrome.storage.local</code> for offline use.
+            Personal details, education, languages, and reusable application answers.
           </p>
         </div>
         <div class="header-actions">
@@ -24,6 +23,7 @@
 
       <nav class="settings-nav" role="tablist" aria-label="Extension settings">
         <button class="settings-tab" role="tab" type="button" data-settings-target="profile">Profile</button>
+        <button class="settings-tab" role="tab" type="button" data-settings-target="overview">Overview</button>
         <button class="settings-tab" role="tab" type="button" data-settings-target="ai">AI</button>
         <button class="settings-tab" role="tab" type="button" data-settings-target="history">Application History</button>
       </nav>
@@ -196,7 +196,7 @@
           </div>
         </section>
 
-        <section data-settings-page="profile">
+        <section data-settings-page="overview" hidden>
           <h2>Resume upload</h2>
           <p class="help">
             Your Docker backend supplies the saved resume and the extension keeps a browser-local cache for attachment to
@@ -291,10 +291,15 @@
           </div>
 
           <div class="export-footer">
-          <label class="check">
-            <input id="autoSaveJobNotes" type="checkbox" />
-            Automatically save or update enabled exports when I click Fill with CV + JD
-          </label>
+            <label class="history-trigger-label">
+              Save application history
+              <select id="historySaveTrigger">
+                <option value="submit">After I submit an application</option>
+                <option value="fill">When Fill application runs</option>
+                <option value="manual">Only when I click Save application</option>
+              </select>
+              <small>The extension observes your final Submit action but never clicks Submit for you.</small>
+            </label>
           </div>
         </section>
 
@@ -403,7 +408,7 @@
           </div>
         </section>
 
-        <section data-settings-page="profile">
+        <section data-settings-page="overview" hidden>
           <h2>Behaviour</h2>
           <label class="check">
             <input name="highlightUnmatched" type="checkbox" />
@@ -441,7 +446,7 @@
           </div>
         </section>
 
-        <footer id="profileFooter">
+        <footer id="profileFooter" data-settings-page="profile">
           <button id="exportProfile" class="secondary" type="button">Export backup</button>
           <label class="secondary file-button">
             Import backup
