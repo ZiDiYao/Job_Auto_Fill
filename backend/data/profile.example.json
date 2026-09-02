@@ -28,6 +28,40 @@
   "raceEthnicity": "",
   "disabilityStatus": "",
   "veteranStatus": "",
+  "workExperiences": [
+    {
+      "jobTitle": "Software Developer",
+      "company": "Example Company",
+      "location": "Toronto, ON",
+      "startMonth": "01",
+      "startYear": "2025",
+      "endMonth": "08",
+      "endYear": "2025",
+      "current": false,
+      "description": "1. First accomplishment.\n2. Second accomplishment."
+    }
+  ],
+  "educationEntries": [
+    {
+      "school": "Example University",
+      "degree": "Bachelors",
+      "fieldOfStudy": "Software Engineering",
+      "gpa": "",
+      "startYear": "2022",
+      "endYear": "2028"
+    }
+  ],
+  "languages": [
+    {
+      "name": "English",
+      "fluent": true,
+      "overall": "Advanced",
+      "reading": "Advanced",
+      "speaking": "Advanced",
+      "writing": "Advanced"
+    }
+  ],
+  "skills": ["C#", "Angular", "SQL", "Azure"],
   "customAnswers": [],
   "settings": {
     "highlightUnmatched": true,

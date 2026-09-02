@@ -190,6 +190,167 @@
   const fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
   const result = { filled: 0, skipped: 0, review: 0, resumeUploaded: 0, aiFilled: 0, aiError: "" };
 
+  const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+  function setStructuredValue(field, value) {
+    if (!field || value === undefined || value === null) return false;
+    const desired = String(value);
+    field.dataset.localJobAutofillStructured = "true";
+    if (String(field.value ?? field.textContent ?? "") === desired) return false;
+    if (!setNativeValue(field, desired)) return false;
+    mark(field, "filled");
+    result.filled += 1;
+    return true;
+  }
+
+  function workdayPrefix(field) {
+    return String(field?.id || "").split("--")[0];
+  }
+
+  function workdayField(prefix, suffix) {
+    return document.getElementById(`${prefix}--${suffix}`);
+  }
+
+  function visiblePromptOptions() {
+    return [...document.querySelectorAll('[role="option"], [data-automation-id="promptOption"]')]
+      .filter((option) => isVisible(option));
+  }
+
+  async function chooseWorkdayPrompt(input, value, { multi = false } = {}) {
+    if (!input || !value) return false;
+    input.dataset.localJobAutofillStructured = "true";
+    const container = input.closest('[data-automation-id="multiSelectContainer"]')
+      || input.closest('[data-automation-id="multiselectInputContainer"]')?.parentElement;
+    const selectedText = normalize(container?.querySelector('[role="listbox"]')?.textContent || "");
+    if (selectedText.includes(normalize(value))) return false;
+
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+    descriptor?.set?.call(input, "");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.focus();
+    descriptor?.set?.call(input, String(value));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+
+    let match = null;
+    for (let attempt = 0; attempt < 10 && !match; attempt += 1) {
+      await wait(180);
+      const desired = normalize(value);
+      const options = visiblePromptOptions();
+      match = options.find((option) => normalize(option.textContent) === desired)
+        || options.find((option) => desired.length > 2 && normalize(option.textContent).includes(desired));
+    }
+
+    if (!match) {
+      descriptor?.set?.call(input, "");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      mark(input, "review");
+      return false;
+    }
+
+    match.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    match.click();
+    await wait(180);
+    if (!multi) input.dispatchEvent(new Event("change", { bubbles: true }));
+    mark(input, "filled");
+    result.filled += 1;
+    return true;
+  }
+
+  async function chooseWorkdayButton(button, value) {
+    if (!button || !value || normalize(button.textContent) === normalize(value)) return false;
+    button.dataset.localJobAutofillStructured = "true";
+    button.click();
+    let match = null;
+    for (let attempt = 0; attempt < 8 && !match; attempt += 1) {
+      await wait(150);
+      match = visiblePromptOptions().find((option) => normalize(option.textContent) === normalize(value));
+    }
+    if (!match) return false;
+    match.click();
+    await wait(120);
+    mark(button, "filled");
+    result.filled += 1;
+    return true;
+  }
+
+  async function fillWorkdayStructuredSections() {
+    if (!document.querySelector('[data-automation-id="applyFlowMyExpPage"]')) return;
+
+    const experiences = Array.isArray(profile.workExperiences) ? profile.workExperiences : [];
+    const jobTitleFields = [...document.querySelectorAll('input[name="jobTitle"][id*="workExperience-"]')];
+    for (const [index, titleField] of jobTitleFields.entries()) {
+      const experience = experiences[index];
+      if (!experience) continue;
+      const prefix = workdayPrefix(titleField);
+      setStructuredValue(workdayField(prefix, "jobTitle"), experience.jobTitle);
+      setStructuredValue(workdayField(prefix, "companyName"), experience.company);
+      setStructuredValue(workdayField(prefix, "location"), experience.location);
+      setStructuredValue(workdayField(prefix, "startDate-dateSectionMonth-input"), experience.startMonth);
+      setStructuredValue(workdayField(prefix, "startDate-dateSectionYear-input"), experience.startYear);
+      setStructuredValue(workdayField(prefix, "endDate-dateSectionMonth-input"), experience.endMonth);
+      setStructuredValue(workdayField(prefix, "endDate-dateSectionYear-input"), experience.endYear);
+      setStructuredValue(workdayField(prefix, "roleDescription"), experience.description);
+      const current = workdayField(prefix, "currentlyWorkHere");
+      if (current) {
+        current.dataset.localJobAutofillStructured = "true";
+        const shouldBeChecked = Boolean(experience.current);
+        if (current.checked !== shouldBeChecked) {
+          const checked = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
+          checked?.set?.call(current, shouldBeChecked);
+          dispatch(current);
+          mark(current, "filled");
+          result.filled += 1;
+        }
+      }
+    }
+
+    const education = Array.isArray(profile.educationEntries) ? profile.educationEntries[0] : null;
+    const schoolField = document.querySelector('input[id^="education-"][id$="--school"]');
+    if (education && schoolField) {
+      const prefix = workdayPrefix(schoolField);
+      await chooseWorkdayPrompt(schoolField, education.school);
+      await chooseWorkdayButton(workdayField(prefix, "degree"), education.degree);
+      await chooseWorkdayPrompt(workdayField(prefix, "fieldOfStudy"), education.fieldOfStudy);
+      setStructuredValue(workdayField(prefix, "gradeAverage"), education.gpa);
+      setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionYear-input"), education.startYear);
+      setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionYear-input"), education.endYear);
+    }
+
+    const language = Array.isArray(profile.languages) ? profile.languages[0] : null;
+    const languageButton = document.querySelector('button[id^="language-"][id$="--language"]');
+    if (language && languageButton) {
+      const group = languageButton.closest('[role="group"]');
+      await chooseWorkdayButton(languageButton, language.name);
+      const fluent = group?.querySelector('input[name="native"]');
+      if (fluent && fluent.checked !== Boolean(language.fluent)) {
+        const checked = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
+        checked?.set?.call(fluent, Boolean(language.fluent));
+        dispatch(fluent);
+        mark(fluent, "filled");
+        result.filled += 1;
+      }
+      for (const button of group?.querySelectorAll('button[id^="language-"]') || []) {
+        const label = normalize(button.getAttribute("aria-label"));
+        if (label.startsWith("overall assessment")) await chooseWorkdayButton(button, language.overall);
+        else if (label.startsWith("reading")) await chooseWorkdayButton(button, language.reading);
+        else if (label.startsWith("speaking")) await chooseWorkdayButton(button, language.speaking);
+        else if (label.startsWith("writing")) await chooseWorkdayButton(button, language.writing);
+      }
+    }
+
+    const skills = Array.isArray(profile.skills) ? profile.skills : [];
+    const skillInput = document.querySelector('input#skills--skills, input[id$="--skills"][data-uxi-widget-type="selectinput"]');
+    if (skillInput && skills.length) {
+      skillInput.dataset.localJobAutofillStructured = "true";
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+      descriptor?.set?.call(skillInput, "");
+      skillInput.dispatchEvent(new Event("input", { bubbles: true }));
+      for (const skill of skills) await chooseWorkdayPrompt(skillInput, skill, { multi: true });
+    }
+  }
+
+  await fillWorkdayStructuredSections();
+
   function base64ToBytes(base64) {
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
@@ -225,7 +386,12 @@
 
     const label = fieldLabel(field);
     const value = mappedValue(label);
-    if (value !== null && (!hasValue(field) || settings.overwriteExisting)) {
+    const existingText = String(field.value ?? field.textContent ?? "");
+    const correctCaseOnly = value !== null
+      && hasValue(field)
+      && normalize(existingText) === normalize(value)
+      && existingText !== String(value);
+    if (value !== null && (!hasValue(field) || settings.overwriteExisting || correctCaseOnly)) {
       if (setNativeValue(field, value)) {
         mark(field, "filled");
         result.filled += 1;
@@ -249,14 +415,14 @@
     const candidates = [];
     for (const field of fields) {
       if (!isVisible(field) || field.disabled || field.readOnly || hasValue(field)) continue;
+      if (field.dataset.localJobAutofillStructured === "true" || field.dataset.uxiWidgetType === "selectinput") continue;
       if (["hidden", "file", "password", "submit", "button", "reset", "image", "radio", "checkbox"].includes(field.type)) continue;
       const label = fieldLabel(field);
       const isSensitive = blockedQuestion.test(label) || sensitiveRules.some((rule) => rule.pattern.test(label));
       const isAdaptive = field instanceof HTMLSelectElement
         || field instanceof HTMLTextAreaElement
         || field.isContentEditable
-        || adaptiveQuestion.test(label)
-        || (field.type === "text" && label.length > 2);
+        || adaptiveQuestion.test(label);
       if (!label || isSensitive || !isAdaptive) continue;
 
       const options = field instanceof HTMLSelectElement
