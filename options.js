@@ -1,6 +1,7 @@
 import * as pdfjsLib from "./vendor/pdf.mjs";
 import {
   chooseExportDirectory,
+  forgetExportDirectory,
   getSavedExportDirectory,
   hasDirectoryPermission,
 } from "./local-directory.js";
@@ -723,25 +724,42 @@ removeResumeButton.addEventListener("click", async () => {
 });
 
 async function refreshExportFolderStatus(destination, statusElement) {
+  const label = destination === "spreadsheet" ? "Excel" : "Markdown";
+  const button = document.querySelector(`#choose${label}Folder`);
   const handle = await getSavedExportDirectory(destination);
   if (!handle) {
     statusElement.textContent = "No folder selected";
+    button.textContent = "Choose local folder";
+    button.classList.remove("danger");
+    button.classList.add("secondary");
+    button.dataset.folderSelected = "false";
     return;
   }
   const granted = await hasDirectoryPermission(handle, false);
   statusElement.textContent = granted
     ? `Selected: ${handle.name}`
     : `${handle.name} · choose again to restore access`;
+  button.textContent = "Cancel";
+  button.classList.remove("secondary");
+  button.classList.add("danger");
+  button.dataset.folderSelected = "true";
 }
 
 for (const [destination, label, statusElement] of [
   ["markdown", "Markdown", markdownFolderStatus],
   ["spreadsheet", "Excel", excelFolderStatus],
 ]) {
-  document.querySelector(`#choose${label}Folder`).addEventListener("click", async () => {
+  const button = document.querySelector(`#choose${label}Folder`);
+  button.addEventListener("click", async () => {
     try {
+      if (button.dataset.folderSelected === "true") {
+        await forgetExportDirectory(destination);
+        await refreshExportFolderStatus(destination, statusElement);
+        renderAutosaveState("saved");
+        return;
+      }
       const handle = await chooseExportDirectory(destination);
-      statusElement.textContent = `Selected: ${handle.name}`;
+      await refreshExportFolderStatus(destination, statusElement);
       renderAutosaveState("saved");
     } catch (error) {
       if (error?.name !== "AbortError") statusElement.textContent = error.message || `Could not select the ${label} folder.`;

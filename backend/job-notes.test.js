@@ -202,6 +202,9 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /data-export-options="notion"/);
   assert.doesNotMatch(optionsHtml, /Forget folder|forgetMarkdownFolder|forgetExcelFolder/);
   assert.match(optionsSource, /chooseExportDirectory/);
+  assert.match(optionsSource, /forgetExportDirectory/);
+  assert.match(optionsSource, /button\.textContent = "Cancel"/);
+  assert.match(optionsSource, /button\.dataset\.folderSelected === "true"/);
   assert.match(optionsSource, /refreshExportFolderStatus/);
   assert.match(optionsSource, /updateExportOptionVisibility/);
   assert.match(optionsSource, /renderNotionConnectionAction/);
