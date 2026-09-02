@@ -72,3 +72,8 @@ test("profile settings expose common developer and generic URL fields", async ()
     assert.match(html, new RegExp(`name="${name}" type="url"`));
   }
 });
+
+test("saved-state copy is rendered as quiet secondary text", async () => {
+  const css = await readFile(path.join(repositoryRoot, "options.css"), "utf8");
+  assert.match(css, /#saveStatus \{[^}]*color: #98a2b3;[^}]*font-size: 10px;/);
+});
