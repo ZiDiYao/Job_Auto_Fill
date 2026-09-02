@@ -1,7 +1,6 @@
 import * as pdfjsLib from "./vendor/pdf.mjs";
 import {
   chooseExportDirectory,
-  forgetExportDirectory,
   getSavedExportDirectory,
   hasDirectoryPermission,
 } from "./local-directory.js";
@@ -44,7 +43,7 @@ const SETTINGS_PAGES = {
     description: "Configure AI execution, semantic DOM analysis, skill ranking, and resume evidence.",
   },
   history: {
-    hash: "#application-history/markdown",
+    hash: "#application-history",
     title: "Application history",
     description: "Choose where application records, job descriptions, and interview notes are saved.",
   },
@@ -71,22 +70,6 @@ function showAiPage(page, { updateHash = false } = {}) {
   if (updateHash) history.replaceState(null, "", `#ai/${selected}`);
 }
 
-function exportPageFromHash(hash = location.hash) {
-  const page = hash.match(/^#application-history\/(markdown|excel|notion)$/)?.[1];
-  return page || "markdown";
-}
-
-function showExportPage(page, { updateHash = false } = {}) {
-  const selected = ["markdown", "excel", "notion"].includes(page) ? page : "markdown";
-  for (const panel of document.querySelectorAll("[data-export-page]")) panel.hidden = panel.dataset.exportPage !== selected;
-  for (const tab of document.querySelectorAll("[data-export-target]")) {
-    const active = tab.dataset.exportTarget === selected;
-    tab.classList.toggle("active", active);
-    tab.setAttribute("aria-selected", String(active));
-  }
-  if (updateHash) history.replaceState(null, "", `#application-history/${selected}`);
-}
-
 function showSettingsPage(page, { updateHash = false } = {}) {
   const selected = SETTINGS_PAGES[page] ? page : "profile";
   for (const section of document.querySelectorAll("[data-settings-page]")) {
@@ -110,12 +93,8 @@ function showSettingsPage(page, { updateHash = false } = {}) {
 for (const tab of document.querySelectorAll("[data-settings-target]")) {
   tab.addEventListener("click", () => {
     showSettingsPage(tab.dataset.settingsTarget, { updateHash: true });
-    if (tab.dataset.settingsTarget === "history") showExportPage("markdown", { updateHash: true });
     if (tab.dataset.settingsTarget === "ai") showAiPage("settings", { updateHash: true });
   });
-}
-for (const tab of document.querySelectorAll("[data-export-target]")) {
-  tab.addEventListener("click", () => showExportPage(tab.dataset.exportTarget, { updateHash: true }));
 }
 for (const tab of document.querySelectorAll("[data-ai-target]")) {
   tab.addEventListener("click", () => {
@@ -128,11 +107,9 @@ for (const tab of document.querySelectorAll("[data-ai-target]")) {
 }
 window.addEventListener("hashchange", () => {
   showSettingsPage(pageFromHash());
-  if (pageFromHash() === "history") showExportPage(exportPageFromHash());
   if (pageFromHash() === "ai") showAiPage(aiPageFromHash());
 });
 showSettingsPage(pageFromHash());
-showExportPage(exportPageFromHash());
 showAiPage(aiPageFromHash());
 
 function normalizeExportSettings(value = {}) {
@@ -160,6 +137,24 @@ function normalizeExportSettings(value = {}) {
   };
 }
 
+const exportDestinationControls = [
+  ["markdown", exportMarkdown],
+  ["spreadsheet", exportSpreadsheet],
+  ["notion", exportNotion],
+];
+
+function updateExportOptionVisibility() {
+  for (const [destination, control] of exportDestinationControls) {
+    const options = document.querySelector(`[data-export-options="${destination}"]`);
+    if (options) options.hidden = !control.checked;
+    options?.closest(".export-destination")?.classList.toggle("enabled", control.checked);
+  }
+}
+
+for (const [, control] of exportDestinationControls) {
+  control.addEventListener("change", updateExportOptionVisibility);
+}
+
 function renderExportSettings(value) {
   const settings = normalizeExportSettings(value);
   autoSaveJobNotes.checked = settings.autoSaveOnFill;
@@ -174,6 +169,7 @@ function renderExportSettings(value) {
   notionStatus.textContent = settings.notion.dataSourceId
     ? `Connected${settings.notion.workspaceName ? ` to ${settings.notion.workspaceName}` : ""} · Application List is ready`
     : "Notion is not connected";
+  updateExportOptionVisibility();
   return settings;
 }
 
@@ -533,13 +529,13 @@ document.querySelector("#removeResume").addEventListener("click", async () => {
 async function refreshExportFolderStatus(destination, statusElement) {
   const handle = await getSavedExportDirectory(destination);
   if (!handle) {
-    statusElement.textContent = `No ${destination === "markdown" ? "Markdown" : "Excel"} folder selected`;
+    statusElement.textContent = "No folder selected";
     return;
   }
   const granted = await hasDirectoryPermission(handle, false);
   statusElement.textContent = granted
-    ? `${handle.name} · ready`
-    : `${handle.name} · choose the folder again to restore access`;
+    ? `Selected: ${handle.name}`
+    : `${handle.name} · choose again to restore access`;
 }
 
 for (const [destination, label, statusElement] of [
@@ -549,14 +545,10 @@ for (const [destination, label, statusElement] of [
   document.querySelector(`#choose${label}Folder`).addEventListener("click", async () => {
     try {
       const handle = await chooseExportDirectory(destination);
-      statusElement.textContent = `${handle.name} · ready`;
+      statusElement.textContent = `Selected: ${handle.name}`;
     } catch (error) {
       if (error?.name !== "AbortError") statusElement.textContent = error.message || `Could not select the ${label} folder.`;
     }
-  });
-  document.querySelector(`#forget${label}Folder`).addEventListener("click", async () => {
-    await forgetExportDirectory(destination);
-    await refreshExportFolderStatus(destination, statusElement);
   });
 }
 
@@ -631,6 +623,7 @@ document.querySelector("#connectNotionOAuth").addEventListener("click", async ()
     });
     await verifyNotionWorkspace(settings.notion);
     exportNotion.checked = true;
+    updateExportOptionVisibility();
     await persistExportSettings(settings);
     notionStatus.textContent = `Connected${settings.notion.workspaceName ? ` to ${settings.notion.workspaceName}` : ""} · Application List is ready`;
   } catch (error) {
@@ -654,6 +647,7 @@ document.querySelector("#setupNotion").addEventListener("click", async () => {
     });
     await verifyNotionWorkspace(settings.notion);
     exportNotion.checked = true;
+    updateExportOptionVisibility();
     await persistExportSettings(settings);
     notionStatus.textContent = "Connected · Job Application / Application List is ready";
   } catch (error) {
@@ -677,6 +671,7 @@ document.querySelector("#resetNotion").addEventListener("click", async () => {
     dataSourceId: "",
   };
   exportNotion.checked = false;
+  updateExportOptionVisibility();
   notionToken.value = "";
   notionParentPageId.value = "";
   await persistExportSettings(settings);

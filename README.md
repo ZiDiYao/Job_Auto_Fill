@@ -35,7 +35,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Normalizes expected-graduation dates from the saved month/day/year and commits masked Workday date widgets through sequential input events so values such as `05/01/2028` are accepted by React validation.
 - Supports Workday tenants that identify the school control as either `schoolName` or `school`, detects Education From/To years both by stable field IDs and row order, and verifies the React-controlled values after filling.
 - Lets users drop a PDF into the popup and persists it in the local Docker-mounted resume file until another PDF replaces it.
-- Gives Markdown, Excel, and Notion their own Application History subpages, settings, and exporter strategies.
+- Gives Markdown, Excel, and Notion separate collapsible Application History sections that reveal their settings only when enabled.
 - Lets Markdown and Excel use independent remembered folders instead of coupling both formats to one destination.
 - Supports Notion OAuth sign-in in a Chrome authorization window, while retaining internal-integration tokens as an optional local developer mode.
 - Creates a user-named Notion root page with an inline **Application List** whose rows open into job-detail pages containing a

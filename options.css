@@ -219,12 +219,18 @@ input[type="checkbox"] { accent-color: #0969da; }
 
 .export-tab { color: #075ebf; background: #eef5ff; }
 .export-tab.active { color: white; background: #0969da; }
-.export-panel { min-height: 265px; padding: 4px 2px 18px; }
-.export-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
-.export-heading h3 { margin: 0 0 5px; color: #10233f; font-size: 18px; }
-.export-heading p { font-size: 13px; }
-.switch-label { display: flex; grid: none; align-items: center; gap: 8px; border: 1px solid #bdd4f3; border-radius: 999px; padding: 8px 13px; color: #075ebf; background: #f5f9ff; white-space: nowrap; }
-.switch-label input { width: auto; }
+.export-destination { margin-top: 14px; overflow: hidden; border: 1px solid #d6e4f7; border-radius: 11px; background: #fff; transition: border-color 160ms ease, box-shadow 160ms ease; }
+.export-destination.enabled { border-color: #9fc4f2; box-shadow: 0 4px 14px rgba(9, 105, 218, 0.08); }
+.destination-toggle { display: flex; grid: none; align-items: flex-start; gap: 12px; padding: 17px 18px; cursor: pointer; }
+.destination-toggle input { width: auto; margin-top: 3px; }
+.destination-toggle span { display: grid; gap: 3px; }
+.destination-toggle strong { color: #10233f; font-size: 16px; }
+.destination-toggle small { color: #657187; font-size: 12px; font-weight: 450; line-height: 1.45; }
+.destination-options { border-top: 1px solid #d6e4f7; padding: 18px; background: #f8fbff; }
+.folder-label { margin-bottom: 7px; }
+.folder-picker { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: stretch; }
+.folder-path { display: flex; min-height: 42px; align-items: center; overflow: hidden; border: 1px solid #cbd2de; border-radius: 7px; padding: 9px 11px; color: #465269; background: #fff; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
+.folder-picker button { white-space: nowrap; }
 .oauth-card { border: 1px solid #c5daf5; border-radius: 10px; padding: 18px; background: #f7faff; }
 .oauth-card > p { margin: 5px 0 14px; font-size: 13px; }
 .oauth-hint { margin-top: 12px !important; overflow-wrap: anywhere; }
@@ -293,4 +299,5 @@ code {
   .header-actions { margin-top: 16px; }
   .grid { grid-template-columns: 1fr; }
   .preview-explainers, .preview-results { grid-template-columns: 1fr; }
+  .folder-picker { grid-template-columns: 1fr; }
 }
