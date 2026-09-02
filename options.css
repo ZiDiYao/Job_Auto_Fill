@@ -1,13 +1,16 @@
 :root {
   color-scheme: light;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #172033;
-  background: #f4f6f9;
+  color: #10233f;
+  background: #ffffff;
 }
 
 * { box-sizing: border-box; }
 
-body { margin: 0; }
+body {
+  margin: 0;
+  background: #ffffff;
+}
 
 main {
   max-width: 980px;
@@ -30,7 +33,7 @@ header {
 }
 
 .eyebrow {
-  color: #34785c;
+  color: #0969da;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -43,17 +46,17 @@ p { margin: 0; color: #5d6678; line-height: 1.5; }
 section,
 .notice {
   margin-bottom: 18px;
-  border: 1px solid #dfe4ec;
+  border: 1px solid #d6e4f7;
   border-radius: 12px;
   padding: 24px;
   background: white;
-  box-shadow: 0 5px 20px rgba(25, 37, 57, 0.04);
+  box-shadow: 0 5px 20px rgba(9, 105, 218, 0.06);
 }
 
 .notice {
-  border-color: #d9d5b4;
-  color: #625b25;
-  background: #fffced;
+  border-color: #c9dcf7;
+  color: #174a83;
+  background: #f4f8ff;
   font-size: 13px;
   line-height: 1.5;
 }
@@ -88,8 +91,8 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  outline: 3px solid rgba(47, 111, 85, 0.16);
-  border-color: #2f6f55;
+  outline: 3px solid rgba(9, 105, 218, 0.16);
+  border-color: #0969da;
 }
 
 textarea {
@@ -136,10 +139,19 @@ button,
   cursor: pointer;
 }
 
-.primary { color: white; background: #2f6f55; }
-.secondary { color: #273349; background: #e3e8f0; }
+button:focus-visible,
+.file-button:focus-within {
+  outline: 3px solid rgba(9, 105, 218, 0.2);
+  outline-offset: 2px;
+}
+
+input[type="checkbox"] { accent-color: #0969da; }
+.primary { color: white; background: #0969da; }
+.primary:hover { background: #075ebf; }
+.secondary { color: #075ebf; background: #eaf3ff; }
+.secondary:hover { background: #dbeaff; }
 .file-button input { display: none; }
-#saveStatus { margin-left: 4px; color: #34785c; font-size: 13px; font-weight: 700; }
+#saveStatus { margin-left: 4px; color: #0969da; font-size: 13px; font-weight: 700; }
 
 .resume-row {
   display: flex;
@@ -164,7 +176,7 @@ button,
 }
 
 #interview-notes:target {
-  outline: 4px solid rgba(47, 111, 85, 0.18);
+  outline: 4px solid rgba(9, 105, 218, 0.18);
 }
 
 .ai-grid { margin: 16px 0; }
