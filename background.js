@@ -23,11 +23,11 @@ const lastAutomaticPageSignatures = new Map();
 
 function normalizeHistoryExportSettings(value = {}) {
   const legacyTrigger = Object.hasOwn(value, "autoSaveOnFill")
-    ? (value.autoSaveOnFill === false ? "manual" : "submit")
-    : "submit";
+    ? (value.autoSaveOnFill === false ? "manual" : "fill")
+    : "fill";
   return {
     ...value,
-    historySaveTrigger: ["submit", "manual"].includes(value.historySaveTrigger)
+    historySaveTrigger: ["fill", "submit", "manual"].includes(value.historySaveTrigger)
       ? value.historySaveTrigger
       : legacyTrigger,
     destinations: {
@@ -59,7 +59,7 @@ function hostnameFromUrl(value) {
   try { return new URL(value).hostname.replace(/^www\./, ""); } catch { return "Unknown company"; }
 }
 
-async function saveSubmittedApplication(message, sender = {}) {
+async function saveApplicationHistory(message, sender = {}, trigger = "fill") {
   const cached = await chrome.storage.local.get([
     NOTE_SETTINGS_KEY,
     "jobAutofillResume",
@@ -68,7 +68,9 @@ async function saveSubmittedApplication(message, sender = {}) {
     LAST_DETECTED_JOB_KEY,
   ]);
   const settings = normalizeHistoryExportSettings(cached[NOTE_SETTINGS_KEY]);
-  if (settings.historySaveTrigger !== "submit") return { skipped: "history-save-trigger" };
+  const shouldSave = settings.historySaveTrigger === trigger
+    || (trigger === "submit" && settings.historySaveTrigger === "fill");
+  if (!shouldSave) return { skipped: "history-save-trigger" };
 
   const tabId = Number(sender.tab?.id || 0);
   const detected = cached[LAST_DETECTED_JOB_KEY] || {};
@@ -85,7 +87,8 @@ async function saveSubmittedApplication(message, sender = {}) {
       || cached.jobAutofillJobDescription
       || "",
   ).trim();
-  const submittedAt = new Date(message.submittedAt || Date.now());
+  const recordStatus = trigger === "submit" ? "Submitted" : settings.applicationStatus;
+  const eventTime = new Date(message.submittedAt || message.savedAt || Date.now());
   const job = {
     jobDescription,
     jobTitle: String(metadata.jobTitle || message.pageTitle || sender.tab?.title || "Unknown role"),
@@ -93,8 +96,8 @@ async function saveSubmittedApplication(message, sender = {}) {
     location: String(metadata.location || ""),
     url: sourceUrl,
     resumeName: String(cached.jobAutofillResume?.name || ""),
-    status: "Submitted",
-    savedAt: Number.isNaN(submittedAt.getTime()) ? new Date() : submittedAt,
+    status: recordStatus,
+    savedAt: Number.isNaN(eventTime.getTime()) ? new Date() : eventTime,
   };
 
   try {
@@ -104,7 +107,7 @@ async function saveSubmittedApplication(message, sender = {}) {
       spreadsheet: settings.destinations.spreadsheet ? await getSavedExportDirectory("spreadsheet") : null,
     };
     const result = await exportApplication({
-      settings: { ...settings, applicationStatus: "Submitted" },
+      settings: { ...settings, applicationStatus: recordStatus },
       job,
       directories,
       persistNotionSettings: (next) => chrome.storage.local.set({ [NOTE_SETTINGS_KEY]: next }),
@@ -112,29 +115,35 @@ async function saveSubmittedApplication(message, sender = {}) {
     const savedAt = new Date().toISOString();
     const record = {
       ok: true,
-      status: "Submitted",
+      status: recordStatus,
+      trigger,
       destinations: result.saved,
       warnings: result.failures,
       sourceUrl,
       savedAt,
     };
-    await chrome.storage.local.set({
-      [LAST_SUBMISSION_SAVE_KEY]: record,
-      jobAutofillLastSavedNote: record,
-    });
+    const savedRecord = { jobAutofillLastSavedNote: record };
+    if (trigger === "submit") savedRecord[LAST_SUBMISSION_SAVE_KEY] = record;
+    await chrome.storage.local.set(savedRecord);
     return { saved: result.saved, warnings: result.failures };
   } catch (error) {
-    await chrome.storage.local.set({
-      [LAST_SUBMISSION_SAVE_KEY]: {
-        ok: false,
-        status: "Submitted",
-        sourceUrl,
-        error: error.message || "Application history could not be saved after submission.",
-        savedAt: new Date().toISOString(),
-      },
-    });
+    const failedRecord = {
+      ok: false,
+      status: recordStatus,
+      trigger,
+      sourceUrl,
+      error: error.message || "Application history could not be saved.",
+      savedAt: new Date().toISOString(),
+    };
+    const failedUpdate = { jobAutofillLastSavedNote: failedRecord };
+    if (trigger === "submit") failedUpdate[LAST_SUBMISSION_SAVE_KEY] = failedRecord;
+    await chrome.storage.local.set(failedUpdate);
     throw error;
   }
+}
+
+async function saveSubmittedApplication(message, sender = {}) {
+  return saveApplicationHistory(message, sender, "submit");
 }
 
 const answerSchema = {
@@ -603,11 +612,19 @@ async function fillApplicationTab(tabId, { source = "shortcut", context = null }
   if (activeFillSessions.has(tabId)) return activeFillSessions.get(tabId);
   const task = (async () => {
     try {
+      const capturedContext = context || await captureJobContext(tabId);
       if (context) await persistDetectedJobContext(context, tabId);
-      else await captureJobContext(tabId);
+      const historySaveTask = saveApplicationHistory({
+        jobDescription: capturedContext?.jobDescription,
+        metadata: capturedContext?.metadata,
+        source,
+      }, { tab: { id: tabId } }, "fill").catch((error) => ({ warning: error.message || "Application history could not be saved." }));
       const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
       const summary = summarizeFrameResults(await executeFillWithRetry(tabId, jobAutofillProfile.autoAdvanceDelayMs || DEFAULT_AUTO_ADVANCE_DELAY_MS));
       await updateFillFeedback(tabId, summary, source);
+      const historyResult = await historySaveTask;
+      if (historyResult?.saved?.length) summary.historySaved = historyResult.saved;
+      if (historyResult?.warning) summary.historyWarning = historyResult.warning;
       if (jobAutofillProfile.autoAdvanceEnabled === true && !summary.aiError && summary.review === 0) {
         void runAutoAdvanceSession({
           tabId,

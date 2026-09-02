@@ -220,6 +220,17 @@
             Each destination has its own settings and exporter. Enable one or more destinations; saving the same posting
             updates its existing record.
           </p>
+          <div class="history-save-policy">
+            <label class="history-trigger-label">
+              Automatically save application history
+              <select id="historySaveTrigger">
+                <option value="fill">Whenever Autofill starts</option>
+                <option value="submit">After I submit an application</option>
+                <option value="manual">Only when I click Save application</option>
+              </select>
+              <small>The Autofill option covers both keyboard-triggered and automatic fills, then updates the record to Submitted when detected.</small>
+            </label>
+          </div>
           <div class="export-destination">
             <label class="destination-toggle">
               <input id="exportMarkdown" type="checkbox" />
@@ -291,16 +302,6 @@
             </div>
           </div>
 
-          <div class="export-footer">
-            <label class="history-trigger-label">
-              Save application history
-              <select id="historySaveTrigger">
-                <option value="submit">After I submit an application</option>
-                <option value="manual">Only when I click Save application</option>
-              </select>
-              <small>The extension observes your final Submit action but never clicks Submit for you.</small>
-            </label>
-          </div>
         </section>
 
         <section data-settings-page="ai" hidden>

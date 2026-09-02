@@ -96,9 +96,9 @@ showSettingsPage(pageFromHash());
 
 function normalizeExportSettings(value = {}) {
   const legacyTrigger = Object.hasOwn(value, "autoSaveOnFill")
-    ? (value.autoSaveOnFill === false ? "manual" : "submit")
-    : "submit";
-  const selectedTrigger = ["submit", "manual"].includes(value.historySaveTrigger)
+    ? (value.autoSaveOnFill === false ? "manual" : "fill")
+    : "fill";
+  const selectedTrigger = ["fill", "submit", "manual"].includes(value.historySaveTrigger)
     ? value.historySaveTrigger
     : legacyTrigger;
   return {

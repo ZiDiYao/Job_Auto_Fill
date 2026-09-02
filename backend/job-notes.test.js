@@ -195,8 +195,10 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /id="chooseMarkdownFolder"/);
   assert.match(optionsHtml, /id="chooseExcelFolder"/);
   assert.match(optionsHtml, /id="historySaveTrigger"/);
+  assert.match(optionsHtml, /Whenever Autofill starts/);
   assert.match(optionsHtml, /After I submit an application/);
   assert.match(optionsHtml, /Only when I click Save application/);
+  assert.ok(optionsHtml.indexOf('id="historySaveTrigger"') < optionsHtml.indexOf('id="exportMarkdown"'));
   assert.match(optionsHtml, /id="exportNotion"/);
   assert.match(optionsHtml, /id="exportSpreadsheet"/);
   assert.match(optionsHtml, /data-settings-target="profile"/);

@@ -210,8 +210,47 @@ test("keyboard command fills the active application tab without opening the popu
   assert.equal(background.storage.jobAutofillLastFillStatus.source, "shortcut");
 });
 
-test("automatic page messages fill only when enabled and deduplicate page signatures", async () => {
+test("a user-triggered autofill saves application history when the fill trigger is selected", async () => {
+  let exported;
+  const background = loadBackground({
+    initialStorage: {
+      jobAutofillProfile: {},
+      jobAutofillResume: { name: "resume.pdf" },
+      jobAutofillNoteSettings: {
+        historySaveTrigger: "fill",
+        applicationStatus: "Saved",
+        destinations: { markdown: true, spreadsheet: false, notion: false },
+      },
+    },
+    scripting: {
+      async executeScript(details) {
+        if (details.func) return [{ result: {
+          jobDescription: "Build reliable web applications. ".repeat(12),
+          metadata: { jobTitle: "Software Developer", company: "Example", sourceUrl: "https://jobs.example/55" },
+        } }];
+        return [{ result: { filled: 3, review: 0 } }];
+      },
+    },
+    historyDependencies: {
+      async getSavedExportDirectory() { return { kind: "directory", name: "Applications" }; },
+      async exportApplication(input) {
+        exported = input;
+        return { saved: ["Markdown"], failures: [] };
+      },
+    },
+  });
+
+  const result = await background.send({ type: "fill-current-page", tabId: 55, source: "manual" });
+  assert.equal(result.ok, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.historySaved)), ["Markdown"]);
+  assert.equal(exported.job.jobTitle, "Software Developer");
+  assert.equal(exported.job.status, "Saved");
+  assert.equal(background.storage.jobAutofillLastSavedNote.trigger, "fill");
+});
+
+test("automatic page messages fill, save history, and deduplicate page signatures", async () => {
   let injections = 0;
+  let exports = 0;
   const scripting = {
     async executeScript(details) {
       if (details.files?.includes("content.js")) injections += 1;
@@ -223,7 +262,23 @@ test("automatic page messages fill only when enabled and deduplicate page signat
   assert.equal(skipped.skipped, "disabled");
   assert.equal(injections, 0);
 
-  const enabled = loadBackground({ initialStorage: { jobAutofillProfile: { autoFillOnPageChange: true } }, scripting });
+  const enabled = loadBackground({
+    initialStorage: {
+      jobAutofillProfile: { autoFillOnPageChange: true },
+      jobAutofillNoteSettings: {
+        historySaveTrigger: "fill",
+        destinations: { markdown: true, spreadsheet: false, notion: false },
+      },
+    },
+    scripting,
+    historyDependencies: {
+      async getSavedExportDirectory() { return { kind: "directory", name: "Applications" }; },
+      async exportApplication() {
+        exports += 1;
+        return { saved: ["Markdown"], failures: [] };
+      },
+    },
+  });
   const message = {
     type: "auto-fill-page-ready",
     signature: "page-b",
@@ -236,6 +291,8 @@ test("automatic page messages fill only when enabled and deduplicate page signat
   assert.equal(filled.filled, 2);
   assert.equal(duplicate.skipped, "duplicate");
   assert.equal(injections, 1);
+  assert.equal(exports, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(filled.historySaved)), ["Markdown"]);
   assert.equal(enabled.storage.jobAutofillJobDescription.length, 220);
 });
 
@@ -304,6 +361,35 @@ test("a user submission saves enabled application history with Submitted status"
   assert.equal(exported.directories.markdown, markdownDirectory);
   assert.equal(background.storage.jobAutofillLastSubmissionSave.status, "Submitted");
   assert.deepEqual(background.storage.jobAutofillLastSubmissionSave.destinations, ["Markdown"]);
+});
+
+test("fill-triggered history is updated to Submitted after the user submits", async () => {
+  let exportedStatus = "";
+  const background = loadBackground({
+    initialStorage: {
+      jobAutofillNoteSettings: {
+        historySaveTrigger: "fill",
+        destinations: { markdown: true, spreadsheet: false, notion: false },
+      },
+      jobAutofillDetectedJobContext: {
+        tabId: 33,
+        jobDescription: "Maintain distributed services. ".repeat(12),
+        metadata: { jobTitle: "Backend Developer", company: "Example" },
+      },
+    },
+    historyDependencies: {
+      async getSavedExportDirectory() { return { kind: "directory", name: "Applications" }; },
+      async exportApplication(input) {
+        exportedStatus = input.job.status;
+        return { saved: ["Markdown"], failures: [] };
+      },
+    },
+  });
+
+  const result = await background.send({ type: "application-submitted" }, { tab: { id: 33 } });
+  assert.equal(result.ok, true);
+  assert.equal(exportedStatus, "Submitted");
+  assert.equal(background.storage.jobAutofillLastSubmissionSave.trigger, "submit");
 });
 
 test("submission history respects manual-only save settings", async () => {

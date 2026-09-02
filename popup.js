@@ -52,10 +52,10 @@ function renderAutomationPausedState(paused) {
 
 function normalizeExportSettings(value = {}) {
   const legacyTrigger = Object.hasOwn(value, "autoSaveOnFill")
-    ? (value.autoSaveOnFill === false ? "manual" : "submit")
-    : "submit";
+    ? (value.autoSaveOnFill === false ? "manual" : "fill")
+    : "fill";
   return {
-    historySaveTrigger: ["submit", "manual"].includes(value.historySaveTrigger)
+    historySaveTrigger: ["fill", "submit", "manual"].includes(value.historySaveTrigger)
       ? value.historySaveTrigger
       : legacyTrigger,
     destinations: {
