@@ -1,0 +1,15 @@
+{
+  "deepSeek": {
+    "apiKey": "replace_with_your_key",
+    "baseUrl": "https://api.deepseek.com",
+    "model": "deepseek-v4-flash"
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 17840
+  },
+  "storage": {
+    "profilePath": "./data/profile.json",
+    "resumePath": "./data/Resume_2027_ZIDI.pdf"
+  }
+}

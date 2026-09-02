@@ -1,0 +1,9 @@
+.DS_Store
+*.zip
+backend/.env
+backend/local-config.js
+backend/config/local-config.json
+backend/data/profile.json
+backend/data/*.pdf
+backend/data/*.db
+backend/data/*.sqlite*

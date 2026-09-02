@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Job Autofill Profile</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <div class="eyebrow">LOCAL JOB APPLICATION AUTOFILL</div>
+          <h1>Your profile and answer bank</h1>
+          <p>Saved in <code>chrome.storage.local</code>. This extension does not send your information anywhere.</p>
+        </div>
+        <button id="saveTop" class="primary" type="button">Save profile</button>
+      </header>
+
+      <div class="notice">
+        Sensitive self-identification answers are optional. They are filled only when you explicitly save a value below;
+        otherwise those questions remain untouched. Salary, consent, signature, and background-check questions always require
+        an explicit custom rule.
+      </div>
+
+      <form id="profileForm">
+        <section>
+          <h2>Personal information</h2>
+          <div class="grid">
+            <label>First name<input name="firstName" autocomplete="given-name" /></label>
+            <label>Last name<input name="lastName" autocomplete="family-name" /></label>
+            <label>Preferred name<input name="preferredName" /></label>
+            <label>Email<input name="email" type="email" autocomplete="email" /></label>
+            <label>Phone<input name="phone" autocomplete="tel" /></label>
+            <label>Address<input name="address" autocomplete="street-address" /></label>
+            <label>City<input name="city" autocomplete="address-level2" /></label>
+            <label>Province / state<input name="province" autocomplete="address-level1" /></label>
+            <label>Postal / ZIP code<input name="postalCode" autocomplete="postal-code" /></label>
+            <label>Country<input name="country" autocomplete="country-name" /></label>
+            <label>LinkedIn URL<input name="linkedin" type="url" /></label>
+            <label>GitHub URL<input name="github" type="url" /></label>
+            <label>Portfolio URL<input name="portfolio" type="url" /></label>
+          </div>
+        </section>
+
+        <section>
+          <h2>Education and availability</h2>
+          <div class="grid">
+            <label>School<input name="school" /></label>
+            <label>Degree<input name="degree" placeholder="Bachelor of Engineering" /></label>
+            <label>Field of study<input name="fieldOfStudy" /></label>
+            <label>Graduation month<input name="graduationMonth" placeholder="May" /></label>
+            <label>Graduation year<input name="graduationYear" inputmode="numeric" /></label>
+            <label>Available start date<input name="startDate" placeholder="January 2027" /></label>
+            <label>Co-op duration<input name="workTerm" placeholder="4–8 months" /></label>
+            <label>
+              Legally authorized to work?
+              <select name="workAuthorized">
+                <option value="">Always ask me</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </label>
+            <label>
+              Require current/future sponsorship?
+              <select name="sponsorship">
+                <option value="">Always ask me</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section>
+          <h2>Resume upload</h2>
+          <p class="help">
+            Import one resume once. The file is stored inside this local Chrome extension and attached when a page contains
+            a Resume/CV file input. It is never uploaded anywhere except the application page you opened.
+          </p>
+          <div class="resume-row">
+            <label class="secondary file-button">
+              Choose resume file
+              <input id="resumeFile" type="file" accept=".pdf,.doc,.docx,.txt" />
+            </label>
+            <button id="removeResume" class="danger" type="button">Remove saved resume</button>
+            <span id="resumeStatus">No resume saved</span>
+          </div>
+        </section>
+
+        <section>
+          <h2>Adaptive AI</h2>
+          <p class="help">
+            Unanswered open-ended questions can be drafted by the local backend using DeepSeek, or by an optional local Ollama
+            model. The model receives CV evidence and job context, but never receives configured demographic or legal answers.
+            AI-filled fields are marked purple and must be reviewed before submission.
+          </p>
+          <label class="check">
+            <input name="aiEnabled" type="checkbox" />
+            Use local AI for unmatched application questions
+          </label>
+          <div class="grid ai-grid">
+            <label>
+              AI provider
+              <select name="aiProvider">
+                <option value="backend">Local backend + DeepSeek</option>
+                <option value="ollama">Local Ollama</option>
+              </select>
+            </label>
+            <label>Ollama model (Ollama mode only)<input name="aiModel" placeholder="qwen3:4b" /></label>
+          </div>
+          <label class="resume-text-label">
+            Resume text used as AI evidence
+            <textarea name="resumeText" class="resume-text" spellcheck="false" placeholder="Automatically synced from the backend PDF or extracted from an imported PDF."></textarea>
+          </label>
+        </section>
+
+        <section>
+          <h2>Custom question rules</h2>
+          <p class="help">
+            Add repetitive questions as JSON. <code>match</code> is a case-insensitive regular expression tested against the
+            field label; <code>value</code> is what should be entered. Custom rules override built-in mappings.
+          </p>
+          <textarea id="customAnswers" spellcheck="false" aria-label="Custom answer rules"></textarea>
+          <details>
+            <summary>Example rules</summary>
+            <pre>[
+  { "match": "available.*start|start date", "value": "January 2027" },
+  { "match": "length.*work term|co-?op duration", "value": "8 months" },
+  { "match": "how did you hear", "value": "Company website" }
+]</pre>
+          </details>
+        </section>
+
+        <section>
+          <h2>Optional self-identification</h2>
+          <p class="help">
+            Enter the wording you normally select, such as <code>Prefer not to answer</code>, <code>No</code>, or the identity
+            shown by the application portal. Matching is case-insensitive and works with native dropdowns, radio buttons,
+            and common checkbox groups. Blank values are never filled.
+          </p>
+          <div class="grid">
+            <label>Gender identity<input name="genderIdentity" placeholder="e.g. Prefer not to answer" /></label>
+            <label>Pronouns<input name="pronouns" placeholder="e.g. He/Him" /></label>
+            <label>Sexual orientation<input name="sexualOrientation" placeholder="e.g. Prefer not to answer" /></label>
+            <label>Indigenous identity<input name="indigenousIdentity" placeholder="e.g. No" /></label>
+            <label>Race / ethnicity / racialized group<input name="raceEthnicity" placeholder="e.g. East Asian" /></label>
+            <label>Disability status<input name="disabilityStatus" placeholder="e.g. No" /></label>
+            <label>Veteran / military status<input name="veteranStatus" placeholder="e.g. I am not a protected veteran" /></label>
+          </div>
+        </section>
+
+        <section>
+          <h2>Behaviour</h2>
+          <label class="check">
+            <input name="highlightUnmatched" type="checkbox" />
+            Highlight visible required fields that still need manual review
+          </label>
+          <label class="check">
+            <input name="overwriteExisting" type="checkbox" />
+            Overwrite existing values by default
+          </label>
+        </section>
+
+        <footer>
+          <button id="saveBottom" class="primary" type="submit">Save profile</button>
+          <button id="exportProfile" class="secondary" type="button">Export backup</button>
+          <label class="secondary file-button">
+            Import backup
+            <input id="importProfile" type="file" accept="application/json" />
+          </label>
+          <span id="saveStatus" role="status" aria-live="polite"></span>
+        </footer>
+      </form>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

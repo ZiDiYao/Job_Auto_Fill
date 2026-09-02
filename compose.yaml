@@ -1,0 +1,29 @@
+name: job-auto-fill
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: job-auto-fill-backend
+    restart: unless-stopped
+    environment:
+      JOB_AUTOFILL_HOST: 0.0.0.0
+      JOB_AUTOFILL_PORT: 17840
+      JOB_AUTOFILL_CONFIG_PATH: /app/backend/config/local-config.json
+    ports:
+      - "127.0.0.1:17840:17840"
+    volumes:
+      - type: bind
+        source: ./backend/config/local-config.json
+        target: /app/backend/config/local-config.json
+        read_only: true
+      - type: bind
+        source: ./backend/data/profile.json
+        target: /app/backend/data/profile.json
+      - type: bind
+        source: ./backend/data/Resume_2027_ZIDI.pdf
+        target: /app/backend/data/Resume_2027_ZIDI.pdf
+        read_only: true
+    security_opt:
+      - no-new-privileges:true

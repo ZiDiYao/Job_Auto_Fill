@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Local Job Application Autofill",
+  "version": "0.4.0",
+  "description": "Fill repetitive job application fields from a profile stored only in your browser.",
+  "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage"],
+  "host_permissions": [
+    "http://127.0.0.1:11434/*",
+    "http://localhost:11434/*",
+    "http://127.0.0.1:17840/*",
+    "http://localhost:17840/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Fill this application",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}
