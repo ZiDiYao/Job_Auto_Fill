@@ -1,6 +1,6 @@
 (() => {
-  if (globalThis.__jobAutofillWatcherInstalled || globalThis !== globalThis.top) return;
-  globalThis.__jobAutofillWatcherInstalled = true;
+  if (globalThis !== globalThis.top) return;
+  globalThis.__jobAutofillWatcherInstalled?.stop?.();
 
   const applicationSignals = [
     /\bwork experience\b/i,
@@ -16,9 +16,46 @@
   const INSPECTION_DELAY_MS = 350;
   const FINAL_SUBMIT_LABEL = /^(?:submit|submit (?:my |this |your )?application(?: now)?|send (?:my |this |your )?application|complete (?:my |this |your )?application|finish (?:my |this |your )?application|final submit|soumettre(?: (?:ma|cette) candidature)?|envoyer (?:ma|cette) candidature|提交(?:申请)?|提交)$/i;
   let timer = null;
+  let observer = null;
+  let stopped = false;
   let lastSignature = "";
   let lastObservedPage = null;
   let lastSubmission = { fingerprint: "", observedAt: 0 };
+
+  function extensionContextAvailable() {
+    try {
+      return Boolean(globalThis.chrome?.runtime?.id);
+    } catch {
+      return false;
+    }
+  }
+
+  function stopWatcher() {
+    if (stopped) return;
+    stopped = true;
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    observer?.disconnect();
+    removeEventListener("popstate", scheduleInspection);
+    removeEventListener("hashchange", scheduleInspection);
+    document.removeEventListener("submit", onDocumentSubmit, true);
+    document.removeEventListener("click", onDocumentClick, true);
+  }
+
+  function sendRuntimeMessage(message) {
+    if (!extensionContextAvailable()) {
+      stopWatcher();
+      return;
+    }
+    try {
+      const pending = globalThis.chrome.runtime.sendMessage(message);
+      pending?.catch?.(() => {
+        if (!extensionContextAvailable()) stopWatcher();
+      });
+    } catch {
+      if (!extensionContextAvailable()) stopWatcher();
+    }
+  }
 
   function visible(element) {
     const style = getComputedStyle(element);
@@ -124,14 +161,22 @@
 
   function notifyIfReady() {
     timer = null;
+    if (stopped || !extensionContextAvailable()) {
+      stopWatcher();
+      return;
+    }
     const page = inspectPage();
     if (page) lastObservedPage = page;
     if (!page || page.signature === lastSignature) return;
     lastSignature = page.signature;
-    chrome.runtime.sendMessage({ type: "job-page-observed", ...page }).catch(() => {});
+    sendRuntimeMessage({ type: "job-page-observed", ...page });
   }
 
   function scheduleInspection() {
+    if (stopped || !extensionContextAvailable()) {
+      stopWatcher();
+      return;
+    }
     if (timer !== null) return;
     timer = setTimeout(notifyIfReady, INSPECTION_DELAY_MS);
   }
@@ -142,12 +187,16 @@
   }
 
   function notifyApplicationSubmitted(trigger, label = "Submit") {
+    if (stopped || !extensionContextAvailable()) {
+      stopWatcher();
+      return;
+    }
     const page = inspectPage() || lastObservedPage || {};
     const fingerprint = `${location.href}|${label.toLowerCase()}`;
     const now = Date.now();
     if (lastSubmission.fingerprint === fingerprint && now - lastSubmission.observedAt < 5000) return;
     lastSubmission = { fingerprint, observedAt: now };
-    chrome.runtime.sendMessage({
+    sendRuntimeMessage({
       type: "application-submitted",
       trigger,
       submitLabel: label,
@@ -158,10 +207,10 @@
       },
       pageTitle: document.title,
       submittedAt: new Date(now).toISOString(),
-    }).catch(() => {});
+    });
   }
 
-  document.addEventListener("submit", (event) => {
+  function onDocumentSubmit(event) {
     const submitterLabel = submissionLabel(event.submitter).replace(/\s+/g, " ").trim();
     if (FINAL_SUBMIT_LABEL.test(submitterLabel)) {
       notifyApplicationSubmitted("form-submit", submitterLabel);
@@ -170,8 +219,9 @@
     const finalButton = [...(event.target?.querySelectorAll?.("button, input[type='submit'], [role='button']") || [])]
       .find((candidate) => FINAL_SUBMIT_LABEL.test(submissionLabel(candidate).replace(/\s+/g, " ").trim()));
     if (finalButton) notifyApplicationSubmitted("form-submit", submissionLabel(finalButton));
-  }, true);
-  document.addEventListener("click", (event) => {
+  }
+
+  function onDocumentClick(event) {
     const button = event.target?.closest?.("button, input[type='submit'], [role='button']");
     if (!button || !visible(button) || button.disabled) return;
     const label = submissionLabel(button).replace(/\s+/g, " ").trim();
@@ -179,9 +229,13 @@
     const declaredType = String(button.getAttribute?.("type") || "").toLowerCase();
     const nativeSubmit = declaredType === "submit" || (button.tagName === "BUTTON" && !declaredType && button.form);
     if (!nativeSubmit) notifyApplicationSubmitted("submit-button", label);
-  }, true);
+  }
 
-  new MutationObserver(scheduleInspection).observe(document.documentElement, {
+  globalThis.__jobAutofillWatcherInstalled = { stop: stopWatcher };
+  document.addEventListener("submit", onDocumentSubmit, true);
+  document.addEventListener("click", onDocumentClick, true);
+  observer = new MutationObserver(scheduleInspection);
+  observer.observe(document.documentElement, {
     childList: true,
     subtree: true,
   });

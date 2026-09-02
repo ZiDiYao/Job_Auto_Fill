@@ -274,7 +274,8 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(watcherSource, /application-submitted/);
   assert.match(watcherSource, /document\.addEventListener\("submit"/);
   assert.match(watcherSource, /INSPECTION_DELAY_MS = 350/);
-  assert.doesNotMatch(watcherSource, /clearTimeout\(timer\)/);
+  assert.match(watcherSource, /function stopWatcher\(\)[\s\S]*?clearTimeout\(timer\)[\s\S]*?observer\?\.disconnect\(\)/);
+  assert.match(watcherSource, /function extensionContextAvailable\(\)/);
   assert.match(watcherSource, /JobPosting structured data/);
   assert.match(popupSource, /jobAutofillDetectedJobContext/);
   assert.match(popupSource, /jobAutofillAutomationPaused/);
