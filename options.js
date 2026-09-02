@@ -1152,7 +1152,7 @@ async function refreshExportFolderStatus(destination, statusElement) {
   if (!handle) {
     statusElement.textContent = "No folder selected";
     button.textContent = "Choose local folder";
-    button.classList.remove("danger");
+    button.classList.remove("danger", "folder-cancel");
     button.classList.add("secondary");
     button.dataset.folderSelected = "false";
     return;
@@ -1162,8 +1162,7 @@ async function refreshExportFolderStatus(destination, statusElement) {
     ? `Selected: ${handle.name}`
     : `${handle.name} · choose again to restore access`;
   button.textContent = "Cancel";
-  button.classList.remove("secondary");
-  button.classList.add("danger");
+  button.classList.add("secondary", "folder-cancel");
   button.dataset.folderSelected = "true";
 }
 

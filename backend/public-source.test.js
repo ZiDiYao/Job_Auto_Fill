@@ -156,6 +156,20 @@ test("popup and settings pages ship green, blue-default, and dark themes", async
   assert.match(popupSource, /function applyTheme\(/);
 });
 
+test("dark theme uses warm neutral contrast and folder cancel is non-destructive", async () => {
+  const [optionsCss, popupCss, optionsSource] = await Promise.all([
+    readFile(path.join(repositoryRoot, "options.css"), "utf8"),
+    readFile(path.join(repositoryRoot, "popup.css"), "utf8"),
+    readFile(path.join(repositoryRoot, "options.js"), "utf8"),
+  ]);
+  for (const css of [optionsCss, popupCss]) {
+    assert.match(css, /:root\[data-theme="dark"\][\s\S]*?--text: #f4efe6;[\s\S]*?--muted: #beb5a8;/);
+  }
+  assert.match(optionsCss, /:root\[data-theme="dark"\] \.folder-picker \.folder-cancel \{[^}]*color: #29251f;[^}]*background: #f4efe6;/);
+  assert.match(optionsSource, /button\.classList\.add\("secondary", "folder-cancel"\)/);
+  assert.doesNotMatch(optionsSource, /button\.classList\.add\("danger"\)/);
+});
+
 test("extension icons ship at every manifest size with transparent RGBA corners", async () => {
   for (const size of [16, 32, 48, 128]) {
     const png = await readFile(path.join(repositoryRoot, "icons", `icon-${size}.png`));
