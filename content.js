@@ -376,6 +376,26 @@
   };
 
   const profileSkills = Array.isArray(profile.skills) ? profile.skills : [];
+  const maxSkills = Math.min(50, Math.max(1, Number(profile.maxSkills || 15)));
+  const maxNonTechnicalSkills = Math.min(5, Math.max(0, Number(profile.maxNonTechnicalSkills ?? 2)));
+  const likelyNonTechnicalSkill = /\b(communication|teamwork|collaboration|leadership|negotiation|presentation|adaptability|interpersonal|time management|problem solving|critical thinking|mentoring|creativity)\b/i;
+  const capLocalSkills = (skills) => {
+    const capped = [];
+    const seen = new Set();
+    let nonTechnicalCount = 0;
+    for (const value of skills) {
+      const skill = String(value || "").trim();
+      const key = normalize(skill);
+      if (!skill || !key || seen.has(key)) continue;
+      const nonTechnical = likelyNonTechnicalSkill.test(skill);
+      if (nonTechnical && nonTechnicalCount >= maxNonTechnicalSkills) continue;
+      if (nonTechnical) nonTechnicalCount += 1;
+      seen.add(key);
+      capped.push(skill);
+      if (capped.length >= maxSkills) break;
+    }
+    return capped;
+  };
   let jdSkills = [];
   if (window.top === window && profile.includeJdSkills && String(jobDescription || "").trim()) {
     try {
@@ -383,6 +403,8 @@
         type: "extract-job-skills",
         jobDescription,
         pageContext: `${document.title}\n${String(document.body?.innerText || "").slice(0, 8000)}`,
+        maxSkills,
+        maxNonTechnicalSkills,
       });
       if (!extracted?.ok) throw new Error(extracted?.error || "JD skill extraction failed.");
       jdSkills = Array.isArray(extracted.skills) ? extracted.skills : [];
@@ -395,7 +417,8 @@
   const knownSkillKeys = new Set(profileSkills.map((skill) => normalize(skill)));
   const combinedSkills = [];
   const combinedSkillKeys = new Set();
-  for (const skill of [...profileSkills, ...jdSkills]) {
+  const rankedSkills = jdSkills.length ? jdSkills : capLocalSkills(profileSkills);
+  for (const skill of rankedSkills.slice(0, maxSkills)) {
     const key = normalize(skill);
     if (!key || combinedSkillKeys.has(key)) continue;
     combinedSkillKeys.add(key);
@@ -468,6 +491,89 @@
       });
   }
 
+  function canonicalSkillToken(value) {
+    const text = normalize(value)
+      .replace(/\b(programming language|suggested)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (/\bc sharp\b/.test(text) || text === "c") return "c sharp";
+    if (/\bstructured query language\b/.test(text) && /\bsql\b/.test(text)) return "sql";
+    if (/\bamazon web services\b/.test(text) && /\baws\b/.test(text)) return "aws";
+    if (text === "microsoft azure") return "azure";
+    if (text === "apache kafka") return "kafka";
+    if (text === "microsoft powershell") return "powershell";
+    if (text === "git source code management") return "git";
+    return text;
+  }
+
+  function skillTokensEquivalent(left, right) {
+    const leftToken = canonicalSkillToken(left);
+    const rightToken = canonicalSkillToken(right);
+    return Boolean(leftToken && rightToken && leftToken === rightToken);
+  }
+
+  function scoreWorkdaySkillOption(option, desiredValue) {
+    const optionToken = canonicalSkillToken(option.textContent);
+    const desiredToken = canonicalSkillToken(desiredValue);
+    if (!optionToken || !desiredToken) return Number.POSITIVE_INFINITY;
+    if (optionToken === desiredToken) return 0;
+    if (desiredToken.length >= 3 && optionToken.startsWith(`${desiredToken} `)) {
+      return 100 + optionToken.length - desiredToken.length;
+    }
+    if (desiredToken.length >= 4 && optionToken.includes(desiredToken)) {
+      return 200 + optionToken.length - desiredToken.length;
+    }
+    return Number.POSITIVE_INFINITY;
+  }
+
+  function workdaySelectedSkillContext(input) {
+    const container = input?.closest('[data-automation-id="multiSelectContainer"]')
+      || input?.closest('[data-automation-id="multiselectInputContainer"]')?.parentElement;
+    const list = [...container?.querySelectorAll('[role="listbox"]') || []]
+      .find((candidate) => normalize(candidate.getAttribute("aria-label")) === "items selected")
+      || container?.querySelector('[role="listbox"]');
+    const explicitItems = [...list?.querySelectorAll('[data-automation-id="selectedItem"]') || []];
+    const items = explicitItems.length ? explicitItems : [...list?.children || []];
+    return { container, list, items: items.filter((item) => String(item.textContent || "").trim()) };
+  }
+
+  async function removeWorkdaySkillItem(item, input) {
+    const removeButton = [...item.querySelectorAll('button, [role="button"]')]
+      .find((button) => /\b(remove|delete|clear)\b/i.test(`${button.getAttribute("aria-label") || ""} ${button.title || ""}`))
+      || item.querySelector('button, [role="button"]');
+    if (!removeButton) return false;
+    const before = workdaySelectedSkillContext(input).items.length;
+    removeButton.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    removeButton.click();
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      await wait(180);
+      if (workdaySelectedSkillContext(input).items.length < before) return true;
+    }
+    return false;
+  }
+
+  async function reconcileWorkdaySkills(input, desiredSkills) {
+    if (!settings.overwriteExisting) return;
+    const desired = desiredSkills.slice(0, maxSkills);
+    const matchedDesired = new Set();
+    const items = workdaySelectedSkillContext(input).items;
+    for (const item of [...items].reverse()) {
+      const itemText = String(item.textContent || "").trim();
+      const desiredIndex = desired.findIndex((skill, index) => (
+        !matchedDesired.has(index) && skillTokensEquivalent(itemText, skill)
+      ));
+      if (desiredIndex >= 0 && matchedDesired.size < maxSkills) {
+        matchedDesired.add(desiredIndex);
+        continue;
+      }
+      if (!await removeWorkdaySkillItem(item, input)) break;
+    }
+    while (workdaySelectedSkillContext(input).items.length > maxSkills) {
+      const current = workdaySelectedSkillContext(input).items;
+      if (!await removeWorkdaySkillItem(current.at(-1), input)) break;
+    }
+  }
+
   async function typeWorkdaySearchValue(input, value) {
     const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
     const setValue = (nextValue) => {
@@ -509,8 +615,11 @@
     input.dataset.localJobAutofillStructured = "true";
     const container = input.closest('[data-automation-id="multiSelectContainer"]')
       || input.closest('[data-automation-id="multiselectInputContainer"]')?.parentElement;
+    if (multi && workdaySelectedSkillContext(input).items.some((item) => skillTokensEquivalent(item.textContent, value))) {
+      return false;
+    }
     const selectedText = normalize(container?.querySelector('[role="listbox"]')?.textContent || "");
-    if (selectedText.includes(normalize(value))) return false;
+    if (!multi && selectedText.includes(normalize(value))) return false;
 
     const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
     if (multi) {
@@ -561,9 +670,10 @@
         stablePasses = signature && signature === previousSignature ? stablePasses + 1 : 0;
         previousSignature = signature;
         if (stablePasses < 2) continue;
-        match = options.find((option) => normalize(option.textContent) === desired)
-          || options.find((option) => normalize(option.textContent).startsWith(`${desired} `))
-          || options.find((option) => normalize(option.textContent).includes(desired));
+        match = options
+          .map((option) => ({ option, score: scoreWorkdaySkillOption(option, value) }))
+          .filter(({ score }) => Number.isFinite(score))
+          .sort((left, right) => left.score - right.score)[0]?.option || null;
       }
 
       if (!match) {
@@ -595,7 +705,8 @@
         const selectedList = [...container?.querySelectorAll('[role="listbox"]') || []]
           .find((listbox) => normalize(listbox.getAttribute("aria-label")) === "items selected")
           || container?.querySelector('[role="listbox"]');
-        confirmed = normalize(selectedList?.textContent || "").includes(desired);
+        confirmed = workdaySelectedSkillContext(input).items
+          .some((item) => skillTokensEquivalent(item.textContent, value));
       }
       if (confirmed) {
         const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
@@ -1306,7 +1417,9 @@
       const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
       descriptor?.set?.call(skillInput, "");
       skillInput.dispatchEvent(new Event("input", { bubbles: true }));
-      for (const skill of skills) {
+      await reconcileWorkdaySkills(skillInput, skills);
+      for (const skill of skills.slice(0, maxSkills)) {
+        if (workdaySelectedSkillContext(skillInput).items.length >= maxSkills) break;
         const added = await chooseWorkdayPrompt(skillInput, skill, { multi: true });
         if (added && !knownSkillKeys.has(normalize(skill))) result.jdSkillsAdded += 1;
       }

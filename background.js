@@ -113,11 +113,18 @@ async function extractJobSkills(message) {
     body: JSON.stringify({
       jobDescription: message.jobDescription || "",
       pageContext: message.pageContext || "",
+      maxSkills: message.maxSkills,
+      maxNonTechnicalSkills: message.maxNonTechnicalSkills,
     }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || `Local backend returned ${response.status}.`);
-  return { skills: Array.isArray(payload.skills) ? payload.skills : [] };
+  return {
+    skills: Array.isArray(payload.skills) ? payload.skills : [],
+    rankedSkills: Array.isArray(payload.rankedSkills) ? payload.rankedSkills : [],
+    maxSkills: payload.maxSkills,
+    maxNonTechnicalSkills: payload.maxNonTechnicalSkills,
+  };
 }
 
 async function resolveWorkdayDropdowns(message) {

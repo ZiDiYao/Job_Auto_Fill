@@ -139,8 +139,21 @@
           </label>
           <label class="check">
             <input name="includeJdSkills" type="checkbox" />
-            Add all technical skills requested or preferred in the JD to recruiting-system skill fields
+            Rank recruiting-system skills using both the JD and resume/profile evidence
           </label>
+          <div class="grid skill-limit-grid">
+            <label>
+              Maximum skills
+              <input name="maxSkills" type="number" min="1" max="50" step="1" inputmode="numeric" />
+            </label>
+            <label>
+              Maximum non-technical skills
+              <input name="maxNonTechnicalSkills" type="number" min="0" max="5" step="1" inputmode="numeric" />
+            </label>
+          </div>
+          <p class="help skill-limit-help">
+            Priority: skills found in both the JD and resume, then job-relevant technical skills, then resume-only skills.
+          </p>
           <label class="check">
             <input name="aiAnalyzeDom" type="checkbox" />
             Analyze unresolved visible form controls as a semantic DOM schema, then safely execute and verify the AI field plan

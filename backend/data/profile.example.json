@@ -116,6 +116,8 @@
   },
   "aiEnabled": true,
   "includeJdSkills": false,
+  "maxSkills": 15,
+  "maxNonTechnicalSkills": 2,
   "aiAnalyzeDom": true,
   "aiResolveDropdowns": false,
   "aiUseSensitiveProfile": false,

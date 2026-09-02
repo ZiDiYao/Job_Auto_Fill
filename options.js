@@ -60,6 +60,8 @@ const defaultProfile = {
   veteranStatus: "",
   aiEnabled: false,
   includeJdSkills: false,
+  maxSkills: 15,
+  maxNonTechnicalSkills: 2,
   aiAnalyzeDom: true,
   aiResolveDropdowns: false,
   aiUseSensitiveProfile: false,
@@ -117,7 +119,10 @@ function collectProfile() {
   for (const key of Object.keys(defaultProfile)) {
     if (key === "customAnswers" || key === "settings") continue;
     const field = form.elements.namedItem(key);
-    profile[key] = field?.type === "checkbox" ? field.checked : String(data.get(key) ?? "").trim();
+    if (field?.type === "checkbox") profile[key] = field.checked;
+    else if (key === "maxSkills") profile[key] = Math.min(50, Math.max(1, Number(data.get(key) || 15)));
+    else if (key === "maxNonTechnicalSkills") profile[key] = Math.min(5, Math.max(0, Number(data.get(key) || 0)));
+    else profile[key] = String(data.get(key) ?? "").trim();
   }
   profile.customAnswers = parseCustomAnswers();
   profile.settings = {

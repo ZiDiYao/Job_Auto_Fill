@@ -1,7 +1,39 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { validateFieldPlans } from "./server.js";
+import { rankSkillCandidates, validateFieldPlans } from "./server.js";
+
+test("ranks shared evidence first and enforces total and non-technical limits", () => {
+  assert.deepEqual(
+    rankSkillCandidates([
+      { name: "Communication", source: "both", technical: false },
+      { name: "Negotiation", source: "jd", technical: false },
+      { name: "Leadership", source: "resume", technical: false },
+      { name: "PowerShell", source: "resume", technical: true },
+      { name: "Java", source: "jd", technical: true },
+      { name: "SQL", source: "both", technical: true },
+      { name: "Git", source: "resume", technical: true },
+    ], { maxSkills: 5, maxNonTechnicalSkills: 1 }),
+    [
+      { name: "Communication", source: "both", technical: false },
+      { name: "SQL", source: "both", technical: true },
+      { name: "PowerShell", source: "resume", technical: true },
+      { name: "Java", source: "jd", technical: true },
+      { name: "Git", source: "resume", technical: true },
+    ],
+  );
+});
+
+test("deduplicates skill candidates and supports a zero soft-skill budget", () => {
+  assert.deepEqual(
+    rankSkillCandidates([
+      { name: " Apache Kafka ", source: "both", technical: true },
+      { name: "apache-kafka", source: "jd", technical: true },
+      { name: "Teamwork", source: "both", technical: false },
+    ], { maxSkills: 10, maxNonTechnicalSkills: 0 }),
+    [{ name: "Apache Kafka", source: "both", technical: true }],
+  );
+});
 
 test("normalizes an exact portal option and rejects invented options", () => {
   const fields = [{ id: 0, label: "Are you willing to commute?", type: "select", options: ["Yes", "No"] }];

@@ -159,6 +159,8 @@ button,
 }
 
 .ai-grid { margin: 16px 0; }
+.skill-limit-grid { margin: 16px 0 10px; }
+.skill-limit-help { margin: 0 0 12px; }
 .resume-text-label { margin-top: 12px; }
 .resume-text { min-height: 260px; }
 

@@ -421,7 +421,51 @@ async function planDomFields({ jobDescription, pageContext, fields, useSensitive
   };
 }
 
-async function extractJobSkills({ jobDescription, pageContext }) {
+function boundedInteger(value, fallback, minimum, maximum) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, Math.trunc(parsed))) : fallback;
+}
+
+export function rankSkillCandidates(rawSkills, { maxSkills = 15, maxNonTechnicalSkills = 2 } = {}) {
+  const totalLimit = boundedInteger(maxSkills, 15, 1, 50);
+  const nonTechnicalLimit = boundedInteger(maxNonTechnicalSkills, 2, 0, Math.min(5, totalLimit));
+  const seen = new Set();
+  const candidates = [];
+
+  for (const [index, candidate] of (Array.isArray(rawSkills) ? rawSkills : []).entries()) {
+    const rawName = typeof candidate === "string" ? candidate : candidate?.name;
+    const name = String(rawName || "").replace(/^[\s•*-]+|[\s.;,]+$/g, "").trim();
+    const key = normalize(name);
+    if (!name || name.length > 80 || !key || seen.has(key)) continue;
+    seen.add(key);
+
+    const sourceText = normalize(typeof candidate === "object" ? candidate?.source : "jd");
+    const source = sourceText.includes("both") || (sourceText.includes("jd") && sourceText.includes("resume"))
+      ? "both"
+      : sourceText.includes("resume") || sourceText.includes("profile")
+        ? "resume"
+        : "jd";
+    const technical = typeof candidate === "object" ? candidate?.technical !== false : true;
+    const tier = source === "both" ? 0 : technical ? 1 : source === "resume" ? 2 : 3;
+    candidates.push({ name, source, technical, tier, index });
+  }
+
+  candidates.sort((left, right) => left.tier - right.tier || left.index - right.index);
+  const selected = [];
+  let nonTechnicalCount = 0;
+  for (const candidate of candidates) {
+    if (!candidate.technical) {
+      if (nonTechnicalCount >= nonTechnicalLimit) continue;
+      nonTechnicalCount += 1;
+    }
+    selected.push(candidate);
+    if (selected.length >= totalLimit) break;
+  }
+
+  return selected.map(({ tier: _tier, index: _index, ...candidate }) => candidate);
+}
+
+async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNonTechnicalSkills }) {
   const apiKey = configuredDeepSeekKey();
   if (!apiKey || apiKey === "replace_with_a_new_key") {
     throw Object.assign(new Error("A DeepSeek API key is not configured."), { statusCode: 503 });
@@ -429,15 +473,32 @@ async function extractJobSkills({ jobDescription, pageContext }) {
 
   const description = String(jobDescription || "").trim();
   const context = String(pageContext || "").trim();
-  if (!description && !context) return { skills: [], model: configuredDeepSeekModel() };
+  const profile = await getProfile();
+  const totalLimit = boundedInteger(maxSkills ?? profile.maxSkills, 15, 1, 50);
+  const nonTechnicalLimit = boundedInteger(
+    maxNonTechnicalSkills ?? profile.maxNonTechnicalSkills,
+    2,
+    0,
+    Math.min(5, totalLimit),
+  );
+  const profileSkills = Array.isArray(profile.skills) ? profile.skills.map(String).filter(Boolean) : [];
+  const resume = String(profile.resumeText || await getResumeText().catch(() => "")).trim();
+  if (!description && !context) {
+    const rankedSkills = rankSkillCandidates(
+      profileSkills.map((name) => ({ name, source: "resume", technical: true })),
+      { maxSkills: totalLimit, maxNonTechnicalSkills: nonTechnicalLimit },
+    );
+    return { skills: rankedSkills.map(({ name }) => name), rankedSkills, maxSkills: totalLimit, maxNonTechnicalSkills: nonTechnicalLimit, model: configuredDeepSeekModel() };
+  }
 
   const system = [
-    "Extract job-application skill tags from the supplied job description.",
-    "Return JSON only in this exact shape: {\"skills\":[\"Skill name\"]}.",
-    "Include technical languages, frameworks, platforms, tools, databases, cloud services, engineering practices, domain skills, and certifications that are explicitly required or preferred.",
-    "Use concise canonical names suitable for a recruiting-system skill token, such as C#, ASP.NET Core, SQL, Azure, CI/CD, or Agile Software Development.",
-    "Do not include responsibilities, personality traits, years of experience, degrees, locations, or complete sentences.",
-    "Deduplicate closely equivalent names and return at most 35 skills.",
+    "Rank job-application skill tokens using the supplied JD, resume, and saved profile skills.",
+    "Return JSON only in this exact shape: {\"skills\":[{\"name\":\"Skill name\",\"source\":\"both|jd|resume\",\"technical\":true}]}.",
+    "source=both only when the skill is supported by both the JD and the resume/profile; source=jd when it appears only in the JD; source=resume when it appears only in the resume/profile.",
+    "Order candidates by: (1) skills supported by both JD and resume/profile, (2) job-relevant technical or hard/domain skills, (3) resume/profile-only skills, and finally a very small number of genuinely useful non-technical skills.",
+    "Technical/hard skills include languages, frameworks, platforms, tools, databases, cloud services, engineering practices, certifications, and concrete domain methods. Mark communication, teamwork, negotiation, leadership, adaptability, generic developer/software terms, and similar traits as technical=false.",
+    "Use concise canonical recruiting-system names such as C#, ASP.NET Core, SQL, Azure, CI/CD, Apache Kafka, or Unit Testing. Never output complete sentences, responsibilities, years, degrees, locations, or vague labels such as Developer or Software.",
+    `Return at most ${Math.min(50, Math.max(totalLimit * 2, totalLimit + 8))} ranked candidates so the server can enforce a final limit of ${totalLimit} skills and ${nonTechnicalLimit} non-technical skills.`,
   ].join(" ");
 
   const baseUrl = String(
@@ -459,11 +520,13 @@ async function extractJobSkills({ jobDescription, pageContext }) {
           content: JSON.stringify({
             jobDescription: description.slice(0, 20000),
             visiblePageContext: context.slice(0, 8000),
+            savedProfileSkills: profileSkills.slice(0, 80),
+            resume: resume.slice(0, 30000),
           }),
         },
       ],
       response_format: { type: "json_object" },
-      max_tokens: 1800,
+      max_tokens: 3000,
       temperature: 0,
       stream: false,
     }),
@@ -475,17 +538,18 @@ async function extractJobSkills({ jobDescription, pageContext }) {
   }
   const payload = await response.json();
   const parsed = JSON.parse(payload?.choices?.[0]?.message?.content || "{}");
-  const seen = new Set();
-  const skills = [];
-  for (const candidate of Array.isArray(parsed.skills) ? parsed.skills : []) {
-    const skill = String(candidate || "").replace(/^[\s•*-]+|[\s.;,]+$/g, "").trim();
-    const key = normalize(skill);
-    if (!skill || skill.length > 80 || seen.has(key)) continue;
-    seen.add(key);
-    skills.push(skill);
-    if (skills.length >= 35) break;
-  }
-  return { skills, model: payload.model || configuredDeepSeekModel() };
+  const rankedSkills = rankSkillCandidates(parsed.skills, {
+    maxSkills: totalLimit,
+    maxNonTechnicalSkills: nonTechnicalLimit,
+  });
+  return {
+    skills: rankedSkills.map(({ name }) => name),
+    rankedSkills,
+    maxSkills: totalLimit,
+    maxNonTechnicalSkills: nonTechnicalLimit,
+    model: payload.model || configuredDeepSeekModel(),
+    usage: payload.usage || null,
+  };
 }
 
 function allowedOrigin(request) {
@@ -609,6 +673,8 @@ export function createServer() {
         const result = await extractJobSkills({
           jobDescription: body.jobDescription,
           pageContext: body.pageContext,
+          maxSkills: body.maxSkills,
+          maxNonTechnicalSkills: body.maxNonTechnicalSkills,
         });
         return sendJson(response, 200, result);
       }

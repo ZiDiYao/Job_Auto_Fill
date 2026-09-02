@@ -19,7 +19,8 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Adds Workday skills one at a time through the site's suggestion list so each value becomes a confirmed token.
 - Applies saved Indeed preferences to commute/relocation, prior-employment, employee-referral, and relatives-at-employer questions by reading the complete radio-group question.
 - Supports explicit employer-friendly defaults for travel, onsite work, flexible schedules, screenings, and criminal-record questions while keeping unsupported factual claims out of AI-generated answers.
-- Merges saved candidate skills with technical skills extracted from the current JD, inserts each as a confirmed Workday token, and reports JD-only additions for manual review.
+- Uses AI to rank skills found in both the JD and resume first, followed by job-relevant technical skills and resume-only skills; user-editable total and non-technical limits prevent overcrowded skill lists.
+- Reconciles existing Workday skill tokens in overwrite mode, inserts each retained skill through a real portal search result, and stops at the configured maximum.
 - Creates missing Workday language rows and fills English and Chinese as Fluent plus French as Classroom, with aliases for tenant-specific proficiency labels.
 - Creates missing Workday experience rows with Add Another so every saved work experience receives its own structured entry.
 - Adds Workday skills one at a time by waiting for and selecting a real suggestion, then verifies that each skill token appears before continuing.
