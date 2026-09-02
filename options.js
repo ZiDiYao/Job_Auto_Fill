@@ -542,6 +542,7 @@ document.querySelector("#importProfile").addEventListener("change", async (event
 
 const resumeFile = document.querySelector("#resumeFile");
 const resumeStatus = document.querySelector("#resumeStatus");
+const removeResumeButton = document.querySelector("#removeResume");
 
 function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -566,6 +567,7 @@ async function extractPdfText(buffer) {
 
 async function refreshResumeStatus() {
   const { [RESUME_KEY]: resume } = await chrome.storage.local.get(RESUME_KEY);
+  removeResumeButton.hidden = !resume?.name;
   resumeStatus.textContent = resume?.name
     ? `${resume.name} (${Math.max(1, Math.round(resume.size / 1024))} KB) saved locally`
     : "No resume saved";
@@ -606,7 +608,7 @@ resumeFile.addEventListener("change", async (event) => {
   }
 });
 
-document.querySelector("#removeResume").addEventListener("click", async () => {
+removeResumeButton.addEventListener("click", async () => {
   await chrome.storage.local.remove(RESUME_KEY);
   await refreshResumeStatus();
   renderAutosaveState("saved");
