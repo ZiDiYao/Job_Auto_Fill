@@ -468,6 +468,42 @@
       });
   }
 
+  async function typeWorkdaySearchValue(input, value) {
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+    const setValue = (nextValue) => {
+      if (descriptor?.set) descriptor.set.call(input, nextValue);
+      else input.value = nextValue;
+    };
+    input.focus();
+    setValue("");
+    input.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      inputType: "deleteContentBackward",
+      data: null,
+    }));
+    await wait(40);
+
+    let typed = "";
+    for (const character of String(value)) {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: character, bubbles: true }));
+      input.dispatchEvent(new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        inputType: "insertText",
+        data: character,
+      }));
+      typed += character;
+      setValue(typed);
+      input.dispatchEvent(new InputEvent("input", {
+        bubbles: true,
+        inputType: "insertText",
+        data: character,
+      }));
+      input.dispatchEvent(new KeyboardEvent("keyup", { key: character, bubbles: true }));
+      await wait(24);
+    }
+  }
+
   async function chooseWorkdayPrompt(input, value, { multi = false } = {}) {
     if (!input || !value) return false;
     input.dataset.localJobAutofillStructured = "true";
@@ -477,17 +513,44 @@
     if (selectedText.includes(normalize(value))) return false;
 
     const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
-    descriptor?.set?.call(input, "");
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.focus();
-    descriptor?.set?.call(input, String(value));
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+    if (multi) {
+      await typeWorkdaySearchValue(input, value);
+    } else {
+      descriptor?.set?.call(input, "");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.focus();
+      descriptor?.set?.call(input, String(value));
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
 
     if (multi) {
       const desired = normalize(value);
       let match = null;
       let previousSignature = "";
       let stablePasses = 0;
+
+      await wait(280);
+      input.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter",
+        code: "Enter",
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+      }));
+      input.dispatchEvent(new KeyboardEvent("keypress", {
+        key: "Enter",
+        code: "Enter",
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+      }));
+      input.dispatchEvent(new KeyboardEvent("keyup", {
+        key: "Enter",
+        code: "Enter",
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+      }));
 
       await wait(1600);
       for (let attempt = 0; attempt < 14 && !match; attempt += 1) {
@@ -513,6 +576,7 @@
         const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
         descriptor?.set?.call(input, "");
         input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
         mark(input, "review");
         return false;
       }
@@ -534,6 +598,9 @@
         confirmed = normalize(selectedList?.textContent || "").includes(desired);
       }
       if (confirmed) {
+        const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+        descriptor?.set?.call(input, "");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
         input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
         await wait(700);
         mark(input, "filled");
@@ -544,6 +611,7 @@
       const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
       descriptor?.set?.call(input, "");
       input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
       mark(input, "review");
       return false;
     }

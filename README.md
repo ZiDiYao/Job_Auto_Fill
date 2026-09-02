@@ -23,7 +23,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Creates missing Workday language rows and fills English and Chinese as Fluent plus French as Classroom, with aliases for tenant-specific proficiency labels.
 - Creates missing Workday experience rows with Add Another so every saved work experience receives its own structured entry.
 - Adds Workday skills one at a time by waiting for and selecting a real suggestion, then verifies that each skill token appears before continuing.
-- Waits for Workday skill search results to load and stabilize before clicking the result checkbox, then pauses again while the selected token is committed.
+- Types each Workday skill with per-character keyboard/input events, presses Enter to run the portal search, waits for the result list to stabilize, clicks the matching option row, and verifies the selected token before continuing.
 - Fills Workday questionnaire button/listbox controls by reading the enclosing fieldset question and selecting only explicit saved answers.
 - Re-scans Workday's React-rendered dropdowns and conditional checkbox groups after every answer so later questions and follow-up identity fields are not skipped.
 - Sends unresolved Workday questions and their exact option lists to the backend AI, which maps saved profile facts and preferences to a validated available option.
