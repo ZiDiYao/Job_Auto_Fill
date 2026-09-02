@@ -86,6 +86,7 @@ async function runContent({
   jobDescription = "",
   runtimeHandler,
   savedResume = null,
+  automationPaused = false,
 } = {}) {
   const document = {
     title: "Application",
@@ -104,6 +105,7 @@ async function runContent({
             jobAutofillProfile: profile,
             jobAutofillResume: savedResume,
             jobAutofillJobDescription: jobDescription,
+            jobAutofillAutomationPaused: automationPaused,
           };
         },
       },
@@ -493,6 +495,18 @@ test("hidden, disabled, and readonly controls are never changed", async () => {
   assert.equal(disabled.value, "");
   assert.equal(readonly.value, "");
   assert.equal(result.filled, 0);
+});
+
+test("the emergency pause prevents the injected page script from changing fields", async () => {
+  const firstName = new FakeInput({ ariaLabel: "First Name" });
+  const result = await runContent({
+    profile: { firstName: "Test", aiEnabled: false },
+    fields: [firstName],
+    automationPaused: true,
+  });
+  assert.equal(firstName.value, "");
+  assert.equal(result.filled, 0);
+  assert.equal(result.paused, true);
 });
 
 test("saved resumes are attached only to recognizable file controls", async () => {

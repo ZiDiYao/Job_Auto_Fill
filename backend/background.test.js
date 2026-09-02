@@ -124,6 +124,61 @@ test("auto-advance does not click Next while required fields need review", async
   assert.equal(background.storage.jobAutofillAutoAdvanceStatus.state, "needs-review");
 });
 
+test("pause and resume acts as a persistent emergency toggle for auto-advance", async () => {
+  let navigationChecks = 0;
+  const scripting = {
+    async executeScript(details) {
+      if (details.func) {
+        navigationChecks += 1;
+        return navigationChecks === 1
+          ? [{ result: { clicked: true, terminal: false, label: "Next" } }]
+          : [{ result: { clicked: false, terminal: true, label: "Submit Application" } }];
+      }
+      return [{ result: { filled: 2, review: 0 } }];
+    },
+  };
+  const background = loadBackground({
+    initialStorage: { jobAutofillAutomationPaused: true },
+    scripting,
+    setTimeoutImpl: (callback) => { callback(); return 0; },
+  });
+
+  await background.send({ type: "start-auto-advance", tabId: 52, maxSteps: 4, delayMs: 500 });
+  for (let index = 0; index < 10 && background.storage.jobAutofillAutoAdvanceStatus?.state !== "paused"; index += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(background.storage.jobAutofillAutoAdvanceStatus.state, "paused");
+  assert.equal(navigationChecks, 0);
+
+  const resumed = await background.send({ type: "resume-automation" });
+  assert.equal(resumed.ok, true);
+  assert.equal(background.storage.jobAutofillAutomationPaused, false);
+  for (let index = 0; index < 20 && background.storage.jobAutofillAutoAdvanceStatus?.state !== "awaiting-submit"; index += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(background.storage.jobAutofillAutoAdvanceStatus.state, "awaiting-submit");
+  assert.equal(navigationChecks, 2);
+});
+
+test("paused automation rejects manual and automatic fill requests without changing fields", async () => {
+  let injections = 0;
+  const background = loadBackground({
+    initialStorage: {
+      jobAutofillAutomationPaused: true,
+      jobAutofillProfile: { autoFillOnPageChange: true },
+    },
+    scripting: { async executeScript() { injections += 1; return []; } },
+  });
+
+  const manual = await background.send({ type: "fill-current-page", tabId: 61 });
+  const automatic = await background.send({ type: "auto-fill-page-ready", signature: "paused-page" }, { tab: { id: 61 } });
+  assert.equal(manual.ok, false);
+  assert.match(manual.error, /paused/i);
+  assert.equal(automatic.ok, false);
+  assert.match(automatic.error, /paused/i);
+  assert.equal(injections, 0);
+});
+
 test("keyboard command fills the active application tab without opening the popup", async () => {
   const injections = [];
   const scripting = {

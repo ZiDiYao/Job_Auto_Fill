@@ -6,7 +6,7 @@ const settingsButton = document.querySelector("#settings");
 const detectButton = document.querySelector("#detect");
 const overwriteCheckbox = document.querySelector("#overwrite");
 const autoNextCheckbox = document.querySelector("#autoNext");
-const stopAutoNextButton = document.querySelector("#stopAutoNext");
+const automationToggleButton = document.querySelector("#automationToggle");
 const jobDescription = document.querySelector("#jobDescription");
 const status = document.querySelector("#status");
 const resumeDrop = document.querySelector("#resumeDrop");
@@ -17,20 +17,39 @@ const notesSettingsButton = document.querySelector("#notesSettings");
 const notesFolderStatus = document.querySelector("#notesFolderStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 const AUTO_ADVANCE_STATUS_KEY = "jobAutofillAutoAdvanceStatus";
+const AUTOMATION_PAUSED_KEY = "jobAutofillAutomationPaused";
 const LAST_DETECTED_JOB_KEY = "jobAutofillDetectedJobContext";
 const ONBOARDING_VISITED_KEY = "jobAutofillOnboardingVisited";
 const settingsLabel = document.querySelector("#settingsLabel");
 const settingsRequired = document.querySelector("#settingsRequired");
 const setupPrompt = document.querySelector("#setupPrompt");
 let activeTabId = 0;
+let setupComplete = false;
+let automationPaused = false;
+let fillRunning = false;
+
+function updateFillAvailability() {
+  fillButton.disabled = !setupComplete || automationPaused || fillRunning;
+}
 
 function renderSetupState(visited) {
-  const setupComplete = visited === true;
+  setupComplete = visited === true;
   settingsButton.classList.toggle("setup-required", !setupComplete);
   settingsLabel.textContent = setupComplete ? "Profile & settings" : "Complete profile & settings";
   settingsRequired.hidden = setupComplete;
   setupPrompt.hidden = setupComplete;
-  fillButton.disabled = !setupComplete;
+  updateFillAvailability();
+}
+
+function renderAutomationPausedState(paused) {
+  automationPaused = paused === true;
+  automationToggleButton.classList.toggle("paused", automationPaused);
+  automationToggleButton.setAttribute("aria-pressed", String(automationPaused));
+  automationToggleButton.querySelector(".automation-toggle-icon").textContent = automationPaused ? "▶" : "⏸";
+  const actionLabel = automationPaused ? "Resume changes" : "Pause changes";
+  automationToggleButton.setAttribute("aria-label", actionLabel);
+  automationToggleButton.title = actionLabel;
+  updateFillAvailability();
 }
 
 function normalizeExportSettings(value = {}) {
@@ -58,8 +77,9 @@ function normalizeExportSettings(value = {}) {
   };
 }
 
-chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY, LAST_DETECTED_JOB_KEY, ONBOARDING_VISITED_KEY]).then(async ({ jobAutofillProfile, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus, [LAST_DETECTED_JOB_KEY]: detectedJob, [ONBOARDING_VISITED_KEY]: onboardingVisited }) => {
+chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY, AUTOMATION_PAUSED_KEY, LAST_DETECTED_JOB_KEY, ONBOARDING_VISITED_KEY]).then(async ({ jobAutofillProfile, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus, [AUTOMATION_PAUSED_KEY]: paused, [LAST_DETECTED_JOB_KEY]: detectedJob, [ONBOARDING_VISITED_KEY]: onboardingVisited }) => {
   renderSetupState(onboardingVisited);
+  renderAutomationPausedState(paused);
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTabId = Number(activeTab?.id || 0);
   overwriteCheckbox.checked = true;
@@ -88,7 +108,6 @@ chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANC
 });
 
 function renderAutoAdvanceStatus(autoAdvanceStatus) {
-  stopAutoNextButton.hidden = autoAdvanceStatus?.running !== true;
   if (autoAdvanceStatus?.message) {
     status.className = "";
     status.textContent = autoAdvanceStatus.message;
@@ -97,6 +116,7 @@ function renderAutoAdvanceStatus(autoAdvanceStatus) {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes[AUTO_ADVANCE_STATUS_KEY]) renderAutoAdvanceStatus(changes[AUTO_ADVANCE_STATUS_KEY].newValue);
+  if (area === "local" && changes[AUTOMATION_PAUSED_KEY]) renderAutomationPausedState(changes[AUTOMATION_PAUSED_KEY].newValue);
   if (area === "local" && changes[LAST_DETECTED_JOB_KEY]) {
     const detected = changes[LAST_DETECTED_JOB_KEY].newValue;
     if (Number(detected?.tabId || 0) === activeTabId && String(detected?.jobDescription || "").length >= 180) {
@@ -541,11 +561,27 @@ autoNextCheckbox.addEventListener("change", async () => {
   }).catch(() => {});
 });
 
-stopAutoNextButton.addEventListener("click", async () => {
+automationToggleButton.addEventListener("click", async () => {
+  automationToggleButton.disabled = true;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id) await chrome.runtime.sendMessage({ type: "stop-auto-advance", tabId: tab.id });
-  stopAutoNextButton.hidden = true;
-  status.textContent = "Stopping auto-advance…";
+  const nextPaused = !automationPaused;
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: nextPaused ? "pause-automation" : "resume-automation",
+      tabId: tab?.id || 0,
+    });
+    if (!result?.ok) throw new Error(result?.error || "The automation state could not be changed.");
+    renderAutomationPausedState(nextPaused);
+    status.className = "";
+    status.textContent = nextPaused
+      ? "Changes paused. No new fields or pages will be changed."
+      : "Changes resumed. Automatic filling may continue.";
+  } catch (error) {
+    status.className = "error";
+    status.textContent = error.message || "The automation state could not be changed.";
+  } finally {
+    automationToggleButton.disabled = false;
+  }
 });
 
 settingsButton.addEventListener("click", async () => {
@@ -555,9 +591,15 @@ settingsButton.addEventListener("click", async () => {
 });
 
 fillButton.addEventListener("click", async () => {
+  if (automationPaused) {
+    status.className = "error";
+    status.textContent = "Changes are paused. Resume changes before filling this application.";
+    return;
+  }
   status.className = "";
   status.textContent = "Filling visible application fields…";
-  fillButton.disabled = true;
+  fillRunning = true;
+  updateFillAvailability();
 
   let noteSaved = false;
   let noteWarning = "";
@@ -639,7 +681,6 @@ fillButton.addEventListener("click", async () => {
           delayMs: latestProfile.autoAdvanceDelayMs || 900,
         });
         if (started?.ok) {
-          stopAutoNextButton.hidden = false;
           parts.push("auto-advance started — final Submit remains manual");
         } else parts.push(`auto-advance could not start: ${started?.error || "unknown error"}`);
       }
@@ -649,6 +690,7 @@ fillButton.addEventListener("click", async () => {
     status.className = "error";
     status.textContent = error?.message || "The page could not be filled.";
   } finally {
-    fillButton.disabled = false;
+    fillRunning = false;
+    updateFillAvailability();
   }
 });

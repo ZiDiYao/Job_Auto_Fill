@@ -1,6 +1,7 @@
 const OLLAMA_ENDPOINT = "http://127.0.0.1:11434/api/chat";
 const BACKEND_ENDPOINT = "http://127.0.0.1:17840";
 const AUTO_ADVANCE_STATUS_KEY = "jobAutofillAutoAdvanceStatus";
+const AUTOMATION_PAUSED_KEY = "jobAutofillAutomationPaused";
 const AUTO_ADVANCE_ALLOW = "^(?:next(?: step)?|continue(?: application| to .+)?|save(?: and)? continue|save & continue|proceed|review(?: application)?|suivant|continuer|enregistrer et continuer|下一步|继续)$";
 const AUTO_ADVANCE_BLOCK = "submit|send application|apply now|finish application|complete application|certif|attest|signature|acknowledge|consent|agree|accept|terms|privacy|soumettre|envoyer|提交";
 const AUTO_ADVANCE_PAGE_BLOCK = "\\b(?:i certify|i attest|electronic signature|type (?:your|my) name as (?:a )?signature|consent to|agree to (?:the )?terms|declaration)\\b";
@@ -292,6 +293,60 @@ async function updateAutoAdvanceStatus(tabId, value) {
   return status;
 }
 
+async function isAutomationPaused() {
+  const stored = await chrome.storage.local.get(AUTOMATION_PAUSED_KEY);
+  return stored[AUTOMATION_PAUSED_KEY] === true;
+}
+
+function releaseSessionWaiters(session) {
+  for (const resolve of session.resumeWaiters.splice(0)) resolve();
+}
+
+async function waitUntilAutomationResumes(session, tabId, step = 0, maxSteps = 0) {
+  if (!session.paused || session.cancelled) return !session.cancelled;
+  await updateAutoAdvanceStatus(tabId, {
+    running: true,
+    paused: true,
+    state: "paused",
+    step,
+    maxSteps,
+    message: "Changes paused. Press Resume changes to continue.",
+  });
+  while (session.paused && !session.cancelled) {
+    await new Promise((resolve) => session.resumeWaiters.push(resolve));
+  }
+  return !session.cancelled;
+}
+
+async function setAutomationPaused(paused) {
+  const nextPaused = paused === true;
+  await chrome.storage.local.set({ [AUTOMATION_PAUSED_KEY]: nextPaused });
+  for (const [tabId, session] of activeAutoAdvanceSessions) {
+    session.paused = nextPaused;
+    if (nextPaused) {
+      await updateAutoAdvanceStatus(tabId, {
+        running: true,
+        paused: true,
+        state: "paused",
+        step: session.step || 0,
+        maxSteps: session.maxSteps || 0,
+        message: "Changes paused. Press Resume changes to continue.",
+      });
+    } else {
+      releaseSessionWaiters(session);
+      await updateAutoAdvanceStatus(tabId, {
+        running: true,
+        paused: false,
+        state: "resuming",
+        step: session.step || 0,
+        maxSteps: session.maxSteps || 0,
+        message: "Changes resumed; continuing the application…",
+      });
+    }
+  }
+  return { paused: nextPaused, activeSessions: activeAutoAdvanceSessions.size };
+}
+
 async function executeFillWithRetry(tabId, delayMs) {
   let lastError;
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -423,6 +478,7 @@ async function updateFillFeedback(tabId, summary, source, error = null) {
 }
 
 async function fillApplicationTab(tabId, { source = "shortcut", context = null } = {}) {
+  if (await isAutomationPaused()) throw new Error("Changes are paused. Resume changes before filling this application.");
   if (activeFillSessions.has(tabId)) return activeFillSessions.get(tabId);
   const task = (async () => {
     try {
@@ -475,19 +531,26 @@ async function restoreAutomaticFill() {
 }
 
 async function runAutoAdvanceSession({ tabId, maxSteps, delayMs, initialReview = 0 }) {
-  const session = { cancelled: false };
+  const session = { cancelled: false, paused: await isAutomationPaused(), resumeWaiters: [], step: 0, maxSteps: 0 };
   activeAutoAdvanceSessions.get(tabId)?.cancel?.();
-  session.cancel = () => { session.cancelled = true; };
+  session.cancel = () => {
+    session.cancelled = true;
+    releaseSessionWaiters(session);
+  };
   activeAutoAdvanceSessions.set(tabId, session);
   const stepLimit = Math.min(30, Math.max(1, Math.trunc(Number(maxSteps || 10))));
+  session.maxSteps = stepLimit;
   const waitMs = Math.min(10000, Math.max(MIN_AUTO_ADVANCE_DELAY_MS, Math.trunc(Number(delayMs || DEFAULT_AUTO_ADVANCE_DELAY_MS))));
   try {
     if (Number(initialReview) > 0) {
       return updateAutoAdvanceStatus(tabId, { running: false, state: "needs-review", step: 0, message: `${initialReview} required field(s) need review before continuing.` });
     }
+    if (!await waitUntilAutomationResumes(session, tabId, 0, stepLimit)) return undefined;
     await updateAutoAdvanceStatus(tabId, { running: true, state: "running", step: 0, maxSteps: stepLimit, message: "Looking for the next completed application page…" });
     for (let step = 1; step <= stepLimit; step += 1) {
+      session.step = step - 1;
       if (session.cancelled) return updateAutoAdvanceStatus(tabId, { running: false, state: "cancelled", step: step - 1, message: "Auto-advance stopped by the user." });
+      if (!await waitUntilAutomationResumes(session, tabId, step - 1, stepLimit)) return undefined;
       const [advanceResult] = await chrome.scripting.executeScript({
         target: { tabId },
         func: clickSafeAdvanceButton,
@@ -507,6 +570,8 @@ async function runAutoAdvanceSession({ tabId, maxSteps, delayMs, initialReview =
       await updateAutoAdvanceStatus(tabId, { running: true, state: "advancing", step, maxSteps: stepLimit, message: `Clicked “${advance.label}”; waiting for the next page…` });
       await pause(waitMs);
       if (session.cancelled) continue;
+      session.step = step;
+      if (!await waitUntilAutomationResumes(session, tabId, step, stepLimit)) return undefined;
       const summary = summarizeFrameResults(await executeFillWithRetry(tabId, waitMs));
       if (summary.aiError || summary.review > 0) {
         return updateAutoAdvanceStatus(tabId, {
@@ -593,10 +658,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  if (message?.type === "pause-automation" || message?.type === "resume-automation") {
+    setAutomationPaused(message.type === "pause-automation")
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || "The automation state could not be changed." }));
+    return true;
+  }
+
   if (message?.type === "stop-auto-advance") {
-    activeAutoAdvanceSessions.get(message.tabId)?.cancel?.();
-    sendResponse({ ok: true });
-    return false;
+    setAutomationPaused(true)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || "The automation state could not be changed." }));
+    return true;
   }
   if (message?.type === "sync-backend-context") {
     fetch(`${BACKEND_ENDPOINT}/api/context`)

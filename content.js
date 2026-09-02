@@ -3,7 +3,14 @@
     jobAutofillProfile: profile = {},
     jobAutofillResume: savedResume = null,
     jobAutofillJobDescription: jobDescription = "",
-  } = await chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", "jobAutofillJobDescription"]);
+    jobAutofillAutomationPaused: initiallyPaused = false,
+  } = await chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", "jobAutofillJobDescription", "jobAutofillAutomationPaused"]);
+  if (initiallyPaused) {
+    return {
+      filled: 0, skipped: 0, review: 0, resumeUploaded: 0, aiFilled: 0,
+      jdSkillsDetected: 0, jdSkillsAdded: 0, aiError: "", paused: true,
+    };
+  }
   const settings = {
     overwriteExisting: true,
     highlightUnmatched: true,
@@ -538,7 +545,21 @@
     jdSkillsDetected: 0,
     jdSkillsAdded: 0,
     aiError: "",
+    paused: false,
   };
+
+  let pauseStateCheckedAt = 0;
+  let cachedPauseState = false;
+  async function changesArePaused(force = false) {
+    const now = Date.now();
+    if (force || now - pauseStateCheckedAt >= 250) {
+      const stored = await chrome.storage.local.get("jobAutofillAutomationPaused");
+      cachedPauseState = stored.jobAutofillAutomationPaused === true;
+      pauseStateCheckedAt = now;
+    }
+    if (cachedPauseState) result.paused = true;
+    return cachedPauseState;
+  }
 
   const profileSkills = Array.isArray(profile.skills) ? profile.skills : [];
   const skillKey = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9+#.]+/g, " ").trim();
@@ -1530,10 +1551,12 @@
 
   async function fillWorkdayStructuredSections() {
     if (!document.querySelector('[data-automation-id="applyFlowMyExpPage"]')) return;
+    if (await changesArePaused(true)) return;
 
     const experiences = Array.isArray(profile.workExperiences) ? profile.workExperiences : [];
     const jobTitleFields = await ensureWorkExperienceRows(experiences.length);
     for (const [index, titleField] of jobTitleFields.entries()) {
+      if (await changesArePaused()) return;
       const experience = experiences[index];
       if (!experience) continue;
       const prefix = workdayPrefix(titleField);
@@ -1569,6 +1592,7 @@
       endDay: profile.graduationDay || storedEducation.endDay || "",
       endYear: profile.graduationYear || storedEducation.endYear || "",
     };
+    if (await changesArePaused(true)) return;
     const schoolField = document.querySelector(
       'input[id^="education-"][id$="--schoolName"], input[id^="education-"][id$="--school"]',
     );
@@ -1590,6 +1614,7 @@
     const languages = Array.isArray(profile.languages) ? profile.languages : [];
     const availableLanguageButtons = await ensureLanguageRows(languages.length);
     for (const [index, language] of languages.entries()) {
+      if (await changesArePaused()) return;
       const languageButton = availableLanguageButtons[index];
       if (!language || !languageButton) continue;
       const group = languageButton.closest('[role="group"]');
@@ -1622,6 +1647,7 @@
       skillInput.dispatchEvent(new Event("input", { bubbles: true }));
       await reconcileWorkdaySkills(skillInput, skills);
       for (const skill of skills.slice(0, maxSkills)) {
+        if (await changesArePaused()) return;
         if (workdaySelectedSkillContext(skillInput).items.length >= maxSkills) break;
         const added = await chooseWorkdayPrompt(skillInput, skill, { multi: true });
         if (added && !knownSkillKeys.has(skillKey(skill))) result.jdSkillsAdded += 1;
@@ -1630,8 +1656,11 @@
   }
 
   await fillWorkdayStructuredSections();
+  if (await changesArePaused(true)) return result;
   await fillWorkdayQuestionDropdowns();
+  if (await changesArePaused(true)) return result;
   await resolveWorkdayDropdownsWithAi();
+  if (await changesArePaused(true)) return result;
   fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
 
   function base64ToBytes(base64) {
@@ -1643,6 +1672,7 @@
 
   if (savedResume?.base64) {
     for (const field of fields) {
+      if (await changesArePaused()) return result;
       if (field.type !== "file" || !isVisible(field) || field.disabled) continue;
       const label = fieldLabel(field);
       if (!/\b(resume|curriculum vitae|upload cv|attach cv|cv file)\b/i.test(label)) continue;
@@ -1664,6 +1694,7 @@
   }
 
   for (const field of fields) {
+    if (await changesArePaused()) return result;
     if (!isVisible(field) || field.disabled || field.readOnly) continue;
     if (["hidden", "file", "password", "submit", "button", "reset", "image"].includes(field.type)) continue;
 
@@ -1705,7 +1736,9 @@
     }
   }
 
+  if (await changesArePaused(true)) return result;
   await planSemanticDomWithAi();
+  if (await changesArePaused(true)) return result;
   fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
 
   const adaptiveQuestion = /\b(why|describe|tell us|tell me|additional information|motivation|interested|interest in|relevant experience|skills|experience with|years of|how many years|cover letter|comments|anything else|proud of|challenge|project)\b/i;
@@ -1759,6 +1792,7 @@
         if (!response?.ok) throw new Error(response?.error || "Local AI returned no result.");
         const byId = new Map(candidates.map((candidate) => [candidate.id, candidate]));
         for (const answer of response.answers || []) {
+          if (await changesArePaused()) return result;
           const candidate = byId.get(answer.id);
           if (!candidate || !answer.value || Number(answer.confidence) < 0.65) continue;
           const value = candidate.question.maxLength > 0

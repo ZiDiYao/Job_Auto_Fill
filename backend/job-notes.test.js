@@ -238,6 +238,11 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.doesNotMatch(watcherSource, /clearTimeout\(timer\)/);
   assert.match(watcherSource, /JobPosting structured data/);
   assert.match(popupSource, /jobAutofillDetectedJobContext/);
+  assert.match(popupSource, /jobAutofillAutomationPaused/);
+  assert.match(popupSource, /Pause changes/);
+  assert.match(popupSource, /Resume changes/);
+  assert.match(popupHtml, /id="automationToggle"/);
+  assert.doesNotMatch(popupHtml, /Stop auto-advance/);
   assert.match(optionsSource, /showSettingsPage/);
   assert.match(optionsSource, /renderSkillPreview/);
   assert.match(optionsSource, /launchWebAuthFlow/);
