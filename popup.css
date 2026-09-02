@@ -17,13 +17,14 @@ main {
 
 .popup-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
+  margin-bottom: 8px;
 }
 
 h1 {
-  margin: 4px 0 8px;
+  margin: 0;
   font-size: 24px;
 }
 
