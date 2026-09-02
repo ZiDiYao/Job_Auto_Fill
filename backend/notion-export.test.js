@@ -58,6 +58,18 @@ test("creates a root page and inline Application List data source", async () => 
   assert.ok(calls[1].body.initial_data_source.properties.Summary);
 });
 
+test("OAuth connections can create the root page at workspace level without a parent page ID", async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    const body = JSON.parse(init.body);
+    calls.push({ url, body });
+    if (url.endsWith("/pages")) return response({ id: "11111111-1111-1111-1111-111111111111" });
+    return response({ id: "22222222-2222-2222-2222-222222222222", data_sources: [{ id: "33333333-3333-3333-3333-333333333333" }] });
+  };
+  await createNotionWorkspace({ token: "oauth-token", workspaceLevel: true }, { fetchImpl });
+  assert.deepEqual(calls[0].body.parent, { type: "workspace", workspace: true });
+});
+
 test("creates a clickable Notion application row with summary and JD content", async () => {
   const calls = [];
   const fetchImpl = async (url, init = {}) => {

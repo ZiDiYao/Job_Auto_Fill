@@ -1,10 +1,10 @@
 import * as pdfjsLib from "./vendor/pdf.mjs";
 import {
-  chooseNotesDirectory,
-  forgetNotesDirectory,
-  getSavedNotesDirectory,
+  chooseExportDirectory,
+  forgetExportDirectory,
+  getSavedExportDirectory,
   hasDirectoryPermission,
-} from "./job-notes.js";
+} from "./local-directory.js";
 import {
   createNotionWorkspace,
   verifyNotionWorkspace,
@@ -17,7 +17,8 @@ const RESUME_KEY = "jobAutofillResume";
 const form = document.querySelector("#profileForm");
 const customAnswers = document.querySelector("#customAnswers");
 const saveStatus = document.querySelector("#saveStatus");
-const notesFolderStatus = document.querySelector("#notesFolderStatus");
+const markdownFolderStatus = document.querySelector("#markdownFolderStatus");
+const excelFolderStatus = document.querySelector("#excelFolderStatus");
 const autoSaveJobNotes = document.querySelector("#autoSaveJobNotes");
 const exportMarkdown = document.querySelector("#exportMarkdown");
 const exportSpreadsheet = document.querySelector("#exportSpreadsheet");
@@ -28,6 +29,7 @@ const notionToken = document.querySelector("#notionToken");
 const notionParentPageId = document.querySelector("#notionParentPageId");
 const notionRootPageTitle = document.querySelector("#notionRootPageTitle");
 const notionStatus = document.querySelector("#notionStatus");
+const exportSaveStatus = document.querySelector("#exportSaveStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 
 const SETTINGS_PAGES = {
@@ -42,7 +44,7 @@ const SETTINGS_PAGES = {
     description: "Configure AI execution, semantic DOM analysis, skill ranking, and resume evidence.",
   },
   history: {
-    hash: "#application-history",
+    hash: "#application-history/markdown",
     title: "Application history",
     description: "Choose where application records, job descriptions, and interview notes are saved.",
   },
@@ -50,8 +52,24 @@ const SETTINGS_PAGES = {
 
 function pageFromHash(hash = location.hash) {
   if (hash === "#ai") return "ai";
-  if (hash === "#application-history" || hash === "#interview-notes") return "history";
+  if (hash.startsWith("#application-history") || hash === "#interview-notes") return "history";
   return "profile";
+}
+
+function exportPageFromHash(hash = location.hash) {
+  const page = hash.match(/^#application-history\/(markdown|excel|notion)$/)?.[1];
+  return page || "markdown";
+}
+
+function showExportPage(page, { updateHash = false } = {}) {
+  const selected = ["markdown", "excel", "notion"].includes(page) ? page : "markdown";
+  for (const panel of document.querySelectorAll("[data-export-page]")) panel.hidden = panel.dataset.exportPage !== selected;
+  for (const tab of document.querySelectorAll("[data-export-target]")) {
+    const active = tab.dataset.exportTarget === selected;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", String(active));
+  }
+  if (updateHash) history.replaceState(null, "", `#application-history/${selected}`);
 }
 
 function showSettingsPage(page, { updateHash = false } = {}) {
@@ -75,10 +93,20 @@ function showSettingsPage(page, { updateHash = false } = {}) {
 }
 
 for (const tab of document.querySelectorAll("[data-settings-target]")) {
-  tab.addEventListener("click", () => showSettingsPage(tab.dataset.settingsTarget, { updateHash: true }));
+  tab.addEventListener("click", () => {
+    showSettingsPage(tab.dataset.settingsTarget, { updateHash: true });
+    if (tab.dataset.settingsTarget === "history") showExportPage("markdown", { updateHash: true });
+  });
 }
-window.addEventListener("hashchange", () => showSettingsPage(pageFromHash()));
+for (const tab of document.querySelectorAll("[data-export-target]")) {
+  tab.addEventListener("click", () => showExportPage(tab.dataset.exportTarget, { updateHash: true }));
+}
+window.addEventListener("hashchange", () => {
+  showSettingsPage(pageFromHash());
+  if (pageFromHash() === "history") showExportPage(exportPageFromHash());
+});
 showSettingsPage(pageFromHash());
+showExportPage(exportPageFromHash());
 
 function normalizeExportSettings(value = {}) {
   return {
@@ -92,6 +120,10 @@ function normalizeExportSettings(value = {}) {
     applicationStatus: String(value.applicationStatus || "Saved"),
     notion: {
       token: String(value.notion?.token || ""),
+      connectionMode: String(value.notion?.connectionMode || ""),
+      workspaceLevel: value.notion?.workspaceLevel === true,
+      workspaceId: String(value.notion?.workspaceId || ""),
+      workspaceName: String(value.notion?.workspaceName || ""),
       parentPageId: String(value.notion?.parentPageId || ""),
       rootPageTitle: String(value.notion?.rootPageTitle || "Job Application"),
       rootPageId: String(value.notion?.rootPageId || ""),
@@ -113,7 +145,7 @@ function renderExportSettings(value) {
   notionParentPageId.value = settings.notion.parentPageId;
   notionRootPageTitle.value = settings.notion.rootPageTitle;
   notionStatus.textContent = settings.notion.dataSourceId
-    ? "Connected · Application List is ready"
+    ? `Connected${settings.notion.workspaceName ? ` to ${settings.notion.workspaceName}` : ""} · Application List is ready`
     : "Notion is not connected";
   return settings;
 }
@@ -415,35 +447,114 @@ document.querySelector("#removeResume").addEventListener("click", async () => {
   await refreshResumeStatus();
 });
 
-async function refreshNotesFolderStatus() {
-  const handle = await getSavedNotesDirectory();
+async function refreshExportFolderStatus(destination, statusElement) {
+  const handle = await getSavedExportDirectory(destination);
   if (!handle) {
-    notesFolderStatus.textContent = "No local folder selected";
+    statusElement.textContent = `No ${destination === "markdown" ? "Markdown" : "Excel"} folder selected`;
     return;
   }
   const granted = await hasDirectoryPermission(handle, false);
-  notesFolderStatus.textContent = granted
-    ? `${handle.name} · ready for Markdown and Excel exports`
-    : `${handle.name} · click Choose local folder to restore access`;
+  statusElement.textContent = granted
+    ? `${handle.name} · ready`
+    : `${handle.name} · choose the folder again to restore access`;
 }
 
-document.querySelector("#chooseNotesFolder").addEventListener("click", async () => {
-  try {
-    const handle = await chooseNotesDirectory();
-    notesFolderStatus.textContent = `${handle.name} · ready for Markdown and Excel exports`;
-  } catch (error) {
-    if (error?.name !== "AbortError") notesFolderStatus.textContent = error.message || "Could not select the notes folder.";
-  }
-});
-
-document.querySelector("#forgetNotesFolder").addEventListener("click", async () => {
-  await forgetNotesDirectory();
-  await refreshNotesFolderStatus();
-});
+for (const [destination, label, statusElement] of [
+  ["markdown", "Markdown", markdownFolderStatus],
+  ["spreadsheet", "Excel", excelFolderStatus],
+]) {
+  document.querySelector(`#choose${label}Folder`).addEventListener("click", async () => {
+    try {
+      const handle = await chooseExportDirectory(destination);
+      statusElement.textContent = `${handle.name} · ready`;
+    } catch (error) {
+      if (error?.name !== "AbortError") statusElement.textContent = error.message || `Could not select the ${label} folder.`;
+    }
+  });
+  document.querySelector(`#forget${label}Folder`).addEventListener("click", async () => {
+    await forgetExportDirectory(destination);
+    await refreshExportFolderStatus(destination, statusElement);
+  });
+}
 
 document.querySelector("#saveExportSettings").addEventListener("click", async () => {
   await persistExportSettings();
-  notionStatus.textContent = "Export settings saved";
+  exportSaveStatus.textContent = "Export settings saved";
+  setTimeout(() => { exportSaveStatus.textContent = ""; }, 2200);
+});
+
+function randomOAuthState() {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+async function backendJson(path, options = {}) {
+  const response = await fetch(`http://127.0.0.1:17840${path}`, options);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `Local backend returned ${response.status}.`);
+  return payload;
+}
+
+document.querySelector("#connectNotionOAuth").addEventListener("click", async () => {
+  const button = document.querySelector("#connectNotionOAuth");
+  button.disabled = true;
+  notionStatus.textContent = "Opening Notion sign-in…";
+  try {
+    const oauth = await backendJson("/api/notion/oauth-config");
+    if (!oauth.configured || !oauth.clientId) {
+      throw new Error("Add the Notion OAuth client ID and secret to local-data/local-config.json, then restart Docker.");
+    }
+    const redirectUri = chrome.identity.getRedirectURL("notion");
+    const state = randomOAuthState();
+    const authorizationUrl = new URL("https://api.notion.com/v1/oauth/authorize");
+    authorizationUrl.searchParams.set("client_id", oauth.clientId);
+    authorizationUrl.searchParams.set("response_type", "code");
+    authorizationUrl.searchParams.set("owner", "user");
+    authorizationUrl.searchParams.set("redirect_uri", redirectUri);
+    authorizationUrl.searchParams.set("state", state);
+
+    const redirect = await chrome.identity.launchWebAuthFlow({ url: authorizationUrl.toString(), interactive: true });
+    if (!redirect) throw new Error("Notion sign-in was cancelled.");
+    const resultUrl = new URL(redirect);
+    if (resultUrl.searchParams.get("state") !== state) throw new Error("Notion OAuth state validation failed.");
+    if (resultUrl.searchParams.get("error")) throw new Error(resultUrl.searchParams.get("error_description") || resultUrl.searchParams.get("error"));
+    const code = resultUrl.searchParams.get("code");
+    if (!code) throw new Error("Notion did not return an authorization code.");
+
+    const token = await backendJson("/api/notion/oauth/exchange", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, redirectUri }),
+    });
+    let settings = await collectExportSettings();
+    settings.destinations.notion = true;
+    settings.notion = {
+      ...settings.notion,
+      token: token.accessToken,
+      parentPageId: "",
+      connectionMode: "oauth",
+      workspaceLevel: true,
+      workspaceId: token.workspaceId || "",
+      workspaceName: token.workspaceName || "",
+      rootPageId: "",
+      databaseId: "",
+      dataSourceId: "",
+    };
+    settings.notion = await createNotionWorkspace(settings.notion, {
+      onProgress: async (notion) => {
+        settings = { ...settings, notion };
+        await persistExportSettings(settings);
+      },
+    });
+    await verifyNotionWorkspace(settings.notion);
+    exportNotion.checked = true;
+    await persistExportSettings(settings);
+    notionStatus.textContent = `Connected${settings.notion.workspaceName ? ` to ${settings.notion.workspaceName}` : ""} · Application List is ready`;
+  } catch (error) {
+    notionStatus.textContent = error.message || "Could not sign in with Notion.";
+  } finally {
+    button.disabled = false;
+  }
 });
 
 document.querySelector("#setupNotion").addEventListener("click", async () => {
@@ -451,6 +562,7 @@ document.querySelector("#setupNotion").addEventListener("click", async () => {
   try {
     let settings = await collectExportSettings();
     settings.destinations.notion = true;
+    settings.notion = { ...settings.notion, connectionMode: "internal", workspaceLevel: false };
     settings.notion = await createNotionWorkspace(settings.notion, {
       onProgress: async (notion) => {
         settings = { ...settings, notion };
@@ -470,22 +582,34 @@ document.querySelector("#resetNotion").addEventListener("click", async () => {
   const settings = await collectExportSettings();
   settings.destinations.notion = false;
   settings.notion = {
-    ...settings.notion,
+    rootPageTitle: settings.notion.rootPageTitle,
+    token: "",
+    parentPageId: "",
+    connectionMode: "",
+    workspaceLevel: false,
+    workspaceId: "",
+    workspaceName: "",
     rootPageId: "",
     databaseId: "",
     dataSourceId: "",
   };
   exportNotion.checked = false;
+  notionToken.value = "";
+  notionParentPageId.value = "";
   await persistExportSettings(settings);
   notionStatus.textContent = "Notion link reset; existing Notion pages were not deleted";
 });
 
 async function initialize() {
+  document.querySelector("#notionRedirectUrl").textContent = chrome.identity.getRedirectURL("notion");
   const cached = await chrome.storage.local.get([PROFILE_KEY, NOTE_SETTINGS_KEY]);
   renderProfile(cached[PROFILE_KEY]);
   renderExportSettings(cached[NOTE_SETTINGS_KEY]);
   await refreshResumeStatus();
-  await refreshNotesFolderStatus();
+  await Promise.all([
+    refreshExportFolderStatus("markdown", markdownFolderStatus),
+    refreshExportFolderStatus("spreadsheet", excelFolderStatus),
+  ]);
   try {
     await syncFromBackend(true);
   } catch (error) {

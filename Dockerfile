@@ -4,6 +4,7 @@ WORKDIR /app
 
 COPY backend/package.json ./backend/package.json
 COPY backend/server.js ./backend/server.js
+COPY backend/notion-oauth.js ./backend/notion-oauth.js
 COPY backend/ai ./backend/ai
 COPY backend/docker-entrypoint.sh ./backend/docker-entrypoint.sh
 COPY backend/config/local-config.example.json ./backend/config/local-config.example.json

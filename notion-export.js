@@ -1,4 +1,4 @@
-import { createApplicationRecord, createJobSummary } from "./job-notes.js";
+import { createApplicationRecord, createJobSummary } from "./application-record.js";
 
 export const NOTION_API_VERSION = "2026-03-11";
 const NOTION_API = "https://api.notion.com/v1";
@@ -83,14 +83,16 @@ export function createNotionPageMarkdown(job = {}) {
 export async function createNotionWorkspace(settings = {}, { fetchImpl = globalThis.fetch, onProgress } = {}) {
   const next = { ...settings };
   const parentPageId = normalizeNotionPageId(next.parentPageId);
-  if (!parentPageId) throw new Error("Add a valid Notion parent page ID or URL.");
+  if (!parentPageId && next.workspaceLevel !== true) throw new Error("Add a valid Notion parent page ID or sign in with Notion.");
 
   if (!normalizeNotionPageId(next.rootPageId)) {
     const root = await notionRequest(next, "/pages", {
       method: "POST",
       fetchImpl,
       body: {
-        parent: { type: "page_id", page_id: parentPageId },
+        parent: parentPageId
+          ? { type: "page_id", page_id: parentPageId }
+          : { type: "workspace", workspace: true },
         properties: { title: { title: richText(next.rootPageTitle || "Job Application", 200) } },
         icon: { type: "emoji", emoji: "💼" },
         markdown: "Track saved applications, revisit job descriptions, and prepare for interviews from one place.",

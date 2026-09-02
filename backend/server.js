@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AiProviderFactory } from "./ai/ai-provider-factory.js";
+import { exchangeNotionAuthorizationCode, getNotionOAuthConfig } from "./notion-oauth.js";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.join(currentDirectory, ".env");
@@ -529,6 +530,21 @@ export function createServer() {
             base64: resumeBytes.toString("base64"),
           } : null,
         });
+      }
+
+      if (request.method === "GET" && request.url === "/api/notion/oauth-config") {
+        const notionOAuth = getNotionOAuthConfig(runtimeConfig, process.env);
+        return sendJson(response, 200, { configured: Boolean(notionOAuth.clientId && notionOAuth.clientSecret), clientId: notionOAuth.clientId });
+      }
+
+      if (request.method === "POST" && request.url === "/api/notion/oauth/exchange") {
+        const body = await readJson(request);
+        const result = await exchangeNotionAuthorizationCode({
+          code: body.code,
+          redirectUri: body.redirectUri,
+          config: getNotionOAuthConfig(runtimeConfig, process.env),
+        });
+        return sendJson(response, 200, result);
       }
 
       if (request.method === "PUT" && request.url === "/api/resume") {

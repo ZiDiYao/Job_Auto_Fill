@@ -28,6 +28,8 @@ test("ships blank candidate and credential templates", async () => {
   assert.deepEqual(profile.indeedPreferences, {});
   assert.equal(config.deepSeek.apiKey, "");
   assert.equal(config.openAI.apiKey, "");
+  assert.equal(config.notion.oauth.clientId, "");
+  assert.equal(config.notion.oauth.clientSecret, "");
   assert.equal(config.storage.resumePath, "./data/resume.pdf");
 });
 

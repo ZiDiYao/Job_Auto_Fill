@@ -131,7 +131,7 @@ test("writes and closes a Markdown note through a directory handle", async () =>
 });
 
 test("does not write without a configured or authorized directory", async () => {
-  await assert.rejects(() => writeJobNote(null, sampleJob), /Choose an interview-notes folder/);
+  await assert.rejects(() => writeJobNote(null, sampleJob), /Choose a Markdown folder/);
   await assert.rejects(
     () => writeJobNote({ kind: "directory", queryPermission: async () => "denied" }, sampleJob),
     /grant write access/,
@@ -174,14 +174,20 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(popupHtml, /type="module" src="popup\.js"/);
   assert.match(popupSource, /saveCurrentJobNote/);
   assert.match(popupSource, /autoSaveOnFill/);
-  assert.match(optionsHtml, /id="chooseNotesFolder"/);
+  assert.match(optionsHtml, /id="chooseMarkdownFolder"/);
+  assert.match(optionsHtml, /id="chooseExcelFolder"/);
   assert.match(optionsHtml, /id="autoSaveJobNotes"/);
   assert.match(optionsHtml, /id="exportNotion"/);
   assert.match(optionsHtml, /id="exportSpreadsheet"/);
   assert.match(optionsHtml, /data-settings-target="profile"/);
   assert.match(optionsHtml, /data-settings-target="ai"/);
   assert.match(optionsHtml, /data-settings-target="history"/);
-  assert.match(optionsSource, /chooseNotesDirectory/);
-  assert.match(optionsSource, /refreshNotesFolderStatus/);
+  assert.match(optionsHtml, /data-export-target="markdown"/);
+  assert.match(optionsHtml, /data-export-target="excel"/);
+  assert.match(optionsHtml, /data-export-target="notion"/);
+  assert.match(optionsHtml, /id="connectNotionOAuth"/);
+  assert.match(optionsSource, /chooseExportDirectory/);
+  assert.match(optionsSource, /refreshExportFolderStatus/);
   assert.match(optionsSource, /showSettingsPage/);
+  assert.match(optionsSource, /launchWebAuthFlow/);
 });

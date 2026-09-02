@@ -34,7 +34,9 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Normalizes expected-graduation dates from the saved month/day/year and commits masked Workday date widgets through sequential input events so values such as `05/01/2028` are accepted by React validation.
 - Supports Workday tenants that identify the school control as either `schoolName` or `school`, detects Education From/To years both by stable field IDs and row order, and verifies the React-controlled values after filling.
 - Lets users drop a PDF into the popup and persists it in the local Docker-mounted resume file until another PDF replaces it.
-- Saves application history to any combination of local Markdown, Notion, and an Excel-compatible CSV workbook.
+- Gives Markdown, Excel, and Notion their own Application History subpages, settings, and exporter strategies.
+- Lets Markdown and Excel use independent remembered folders instead of coupling both formats to one destination.
+- Supports Notion OAuth sign-in in a Chrome authorization window, while retaining internal-integration tokens as an optional local developer mode.
 - Creates a user-named Notion root page with an inline **Application List** whose rows open into job-detail pages containing a
   summary, the complete JD, source URL, resume name, application date, status, and interview-preparation template.
 - Upserts the same posting instead of duplicating it and includes date/month/status columns suitable for Excel pivot tables and
@@ -108,24 +110,47 @@ npm run test:coverage
 
 The suite exercises provider Strategy/Factory adapters, HTTP endpoints with isolated temporary storage and a local mock AI server, answer and skill validation, Chrome background-message routing, deterministic content-script form filling, privacy invariants, and Docker bootstrap configuration. The coverage command enforces minimum thresholds for the backend and AI adapter modules.
 
-## Application history: Markdown, Notion, and Excel
+## Application history: Markdown, Excel, and Notion
 
-The extension settings are separated into **Profile & Settings**, **AI**, and **Application History** tabs. Open **Edit profile → Application History** and enable any combination of destinations. Local Markdown and Excel share
-the folder selected through the browser's directory picker. The `.csv` file is UTF-8 Excel-compatible and stores one row per
+The extension settings are separated into **Profile & Settings**, **AI**, and **Application History** tabs. Application History
+has independent **Markdown**, **Excel**, and **Notion** subpages. Each destination is implemented as its own exporter strategy,
+selected by a small factory when a record is saved. Markdown and Excel remember independent folders through the browser's
+directory picker. The `.csv` file is UTF-8 Excel-compatible and stores one row per
 posting with application date, month, company, role, location, status, URL, resume, summary, complete JD, and last-saved time.
 Saving the same posting again updates its row.
 
-For Notion:
+For Notion OAuth:
+
+1. Create a Notion **public integration** and enable read, insert, and update-content capabilities.
+2. Open **Application History → Notion** and copy the OAuth redirect URL shown by the extension into the integration's redirect URI settings.
+3. Add the public integration's client ID and client secret to `local-data/local-config.json` under `notion.oauth`, then run `docker compose restart`.
+4. Click **Sign in with Notion**. Chrome opens Notion's authorization screen; after approval, the backend exchanges the temporary code without exposing the client secret to the extension.
+
+```json
+{
+  "notion": {
+    "oauth": {
+      "clientId": "your-public-integration-client-id",
+      "clientSecret": "your-public-integration-client-secret"
+    }
+  }
+}
+```
+
+OAuth creates the root page at workspace level, so the user does not need to paste a parent-page ID. The generated workspace
+access token stays in that Chrome profile. For an eventual Chrome Web Store release, use the stable published extension ID's
+redirect URL and move the same code-exchange endpoint to a hosted HTTPS backend.
+
+Internal-token developer mode remains available under the collapsed section on the Notion page:
 
 1. Create a Notion internal integration with read, insert, and update-content capabilities.
 2. Create or choose a parent Notion page and share it with that integration.
 3. Paste the integration token and the parent page URL or ID into extension settings.
-4. Optionally rename the default root page, then click **Connect and create Notion pages**.
+4. Optionally rename the default root page, then click **Connect with token**.
 
 The extension creates the **Job Application** root page (or your chosen name) and an inline **Application List** database. Every database row is a clickable application
 page containing the summary, full JD, and interview sections. Notion credentials and generated IDs are stored only in that
-Chrome profile; they are not included in Git, Docker images, profile exports, or application webpages. For a published public
-extension, a future OAuth connection should replace manual integration tokens.
+Chrome profile; they are not included in Git, Docker images, profile exports, or application webpages.
 
 ## Custom rules
 

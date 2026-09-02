@@ -9,6 +9,12 @@
     "baseUrl": "https://api.openai.com/v1",
     "model": ""
   },
+  "notion": {
+    "oauth": {
+      "clientId": "",
+      "clientSecret": ""
+    }
+  },
   "server": {
     "host": "127.0.0.1",
     "port": 17840
