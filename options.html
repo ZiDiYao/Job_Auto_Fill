@@ -215,6 +215,11 @@
 
         <section data-settings-page="ai" hidden>
           <h2>Adaptive AI</h2>
+          <nav class="export-nav ai-subnav" role="tablist" aria-label="AI settings and preview">
+            <button class="export-tab" role="tab" type="button" data-ai-target="settings">Settings</button>
+            <button class="export-tab" role="tab" type="button" data-ai-target="skills-preview">Skills preview</button>
+          </nav>
+          <div data-ai-page="settings">
           <p class="help">
             Unanswered open-ended questions can be drafted by the local backend using the selected cloud provider, or by an
             optional local Ollama model. The model receives CV evidence and job context. Saved demographic and legal answers are included for
@@ -231,11 +236,11 @@
           </label>
           <div class="grid skill-limit-grid">
             <label>
-              Maximum skills
+              Total skill tags to add
               <input name="maxSkills" type="number" min="1" max="50" step="1" inputmode="numeric" />
             </label>
             <label>
-              Maximum non-technical skills
+              Soft-skill tags included in that total
               <input name="maxNonTechnicalSkills" type="number" min="0" max="5" step="1" inputmode="numeric" />
             </label>
           </div>
@@ -244,15 +249,15 @@
           </p>
           <label class="check">
             <input name="aiAnalyzeDom" type="checkbox" />
-            Analyze unresolved visible form controls as a semantic DOM schema, then safely execute and verify the AI field plan
+            Let AI inspect unanswered fields on the current page and fill answers it can support
           </label>
           <label class="check">
             <input name="aiResolveDropdowns" type="checkbox" />
-            Also run the specialized Workday dropdown resolver before the general DOM planner
+            Use extra handling for searchable Workday dropdowns and confirm the selected option
           </label>
           <label class="check">
             <input name="aiUseSensitiveProfile" type="checkbox" />
-            Allow backend AI to use saved demographic and legal answers when mapping portal wording
+            Let AI match your saved demographic and legal answers to differently worded portal choices
           </label>
           <div class="grid ai-grid">
             <label>
@@ -275,6 +280,43 @@
             Resume text used as AI evidence
             <textarea name="resumeText" class="resume-text" spellcheck="false" placeholder="Automatically synced from the backend PDF or extracted from an imported PDF."></textarea>
           </label>
+          </div>
+
+          <div data-ai-page="skills-preview" hidden>
+            <div class="preview-intro">
+              <h3>What do “Maximum skills” and “Maximum non-technical skills” mean?</h3>
+              <p>This is a browser-only mock application. It does not call AI, modify your resume, or submit anything.</p>
+            </div>
+            <div class="grid preview-limit-grid">
+              <label>Total skill slots<input id="previewMaxSkills" type="number" min="1" max="50" /></label>
+              <label>Soft-skill slots inside that total<input id="previewMaxNonTechnicalSkills" type="number" min="0" max="5" /></label>
+            </div>
+            <div class="preview-explainers">
+              <div><strong>Total skill slots</strong><span>The maximum number of confirmed skill tags the extension will add to Workday or a similar ATS.</span></div>
+              <div><strong>Soft-skill slots</strong><span>How many of those tags may be generic skills such as Communication or Teamwork. It is not an additional amount.</span></div>
+            </div>
+            <div class="grid preview-inputs">
+              <label>Mock job description skills<textarea id="previewJdSkills" spellcheck="false">C#, Angular, Azure, Kafka, Docker, REST APIs, Communication, Agile</textarea></label>
+              <label>Mock resume/profile skills<textarea id="previewResumeSkills" spellcheck="false">C#, Angular, SQL, Azure, Git, Unit Testing, CI/CD, Teamwork</textarea></label>
+            </div>
+            <button id="runSkillPreview" class="primary" type="button">Run skills preview</button>
+            <div class="ats-mock" aria-live="polite">
+              <div class="ats-mock-header"><span>Mock Workday application</span><small id="previewCount"></small></div>
+              <label class="ats-label">Skills</label>
+              <div id="previewSelectedSkills" class="skill-token-box"></div>
+              <p class="ats-help">These are the confirmed skill tags that would remain after ranking and limits.</p>
+            </div>
+            <div class="preview-results">
+              <div><h3>Why these were selected</h3><div id="previewPriorityList"></div></div>
+              <div><h3>Excluded by your limits</h3><div id="previewExcludedList"></div></div>
+            </div>
+            <div class="preview-legend">
+              <span><i class="legend-both"></i> JD + Resume</span>
+              <span><i class="legend-jd"></i> JD technical</span>
+              <span><i class="legend-resume"></i> Resume technical</span>
+              <span><i class="legend-soft"></i> Non-technical</span>
+            </div>
+          </div>
         </section>
 
         <section data-settings-page="profile">

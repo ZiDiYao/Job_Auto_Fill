@@ -9,6 +9,7 @@ import {
   createNotionWorkspace,
   verifyNotionWorkspace,
 } from "./notion-export.js";
+import { buildSkillPreview } from "./skills-preview.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("vendor/pdf.worker.mjs");
 
@@ -39,7 +40,7 @@ const SETTINGS_PAGES = {
     description: "Personal details, education, reusable answers, resume, and autofill behaviour.",
   },
   ai: {
-    hash: "#ai",
+    hash: "#ai/settings",
     title: "AI settings",
     description: "Configure AI execution, semantic DOM analysis, skill ranking, and resume evidence.",
   },
@@ -51,9 +52,24 @@ const SETTINGS_PAGES = {
 };
 
 function pageFromHash(hash = location.hash) {
-  if (hash === "#ai") return "ai";
+  if (hash.startsWith("#ai")) return "ai";
   if (hash.startsWith("#application-history") || hash === "#interview-notes") return "history";
   return "profile";
+}
+
+function aiPageFromHash(hash = location.hash) {
+  return hash === "#ai/skills-preview" ? "skills-preview" : "settings";
+}
+
+function showAiPage(page, { updateHash = false } = {}) {
+  const selected = page === "skills-preview" ? page : "settings";
+  for (const panel of document.querySelectorAll("[data-ai-page]")) panel.hidden = panel.dataset.aiPage !== selected;
+  for (const tab of document.querySelectorAll("[data-ai-target]")) {
+    const active = tab.dataset.aiTarget === selected;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", String(active));
+  }
+  if (updateHash) history.replaceState(null, "", `#ai/${selected}`);
 }
 
 function exportPageFromHash(hash = location.hash) {
@@ -96,17 +112,29 @@ for (const tab of document.querySelectorAll("[data-settings-target]")) {
   tab.addEventListener("click", () => {
     showSettingsPage(tab.dataset.settingsTarget, { updateHash: true });
     if (tab.dataset.settingsTarget === "history") showExportPage("markdown", { updateHash: true });
+    if (tab.dataset.settingsTarget === "ai") showAiPage("settings", { updateHash: true });
   });
 }
 for (const tab of document.querySelectorAll("[data-export-target]")) {
   tab.addEventListener("click", () => showExportPage(tab.dataset.exportTarget, { updateHash: true }));
 }
+for (const tab of document.querySelectorAll("[data-ai-target]")) {
+  tab.addEventListener("click", () => {
+    showAiPage(tab.dataset.aiTarget, { updateHash: true });
+    if (tab.dataset.aiTarget === "skills-preview") {
+      syncSkillPreviewLimits();
+      renderSkillPreview();
+    }
+  });
+}
 window.addEventListener("hashchange", () => {
   showSettingsPage(pageFromHash());
   if (pageFromHash() === "history") showExportPage(exportPageFromHash());
+  if (pageFromHash() === "ai") showAiPage(aiPageFromHash());
 });
 showSettingsPage(pageFromHash());
 showExportPage(exportPageFromHash());
+showAiPage(aiPageFromHash());
 
 function normalizeExportSettings(value = {}) {
   return {
@@ -302,6 +330,73 @@ function collectProfile() {
   };
   return profile;
 }
+
+function skillPriorityLabel(skill) {
+  if (!skill.technical) return skill.source === "both" ? "JD + Resume · soft skill" : "Soft skill allowance";
+  if (skill.source === "both") return "JD + Resume · highest priority";
+  if (skill.source === "jd") return "Requested by the JD";
+  return "Supported by your resume";
+}
+
+function syncSkillPreviewLimits() {
+  document.querySelector("#previewMaxSkills").value = form.elements.namedItem("maxSkills").value || 15;
+  document.querySelector("#previewMaxNonTechnicalSkills").value = form.elements.namedItem("maxNonTechnicalSkills").value || 0;
+}
+
+function renderPreviewRows(element, skills, labelForSkill) {
+  element.replaceChildren();
+  if (!skills.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-preview";
+    empty.textContent = "None";
+    element.append(empty);
+    return;
+  }
+  for (const skill of skills) {
+    const row = document.createElement("div");
+    row.className = "preview-row";
+    const name = document.createElement("strong");
+    name.textContent = skill.name;
+    const explanation = document.createElement("span");
+    explanation.textContent = labelForSkill(skill);
+    row.append(name, explanation);
+    element.append(row);
+  }
+}
+
+function renderSkillPreview() {
+  const actualMax = form.elements.namedItem("maxSkills");
+  const actualSoftMax = form.elements.namedItem("maxNonTechnicalSkills");
+  const previewMax = document.querySelector("#previewMaxSkills");
+  const previewSoftMax = document.querySelector("#previewMaxNonTechnicalSkills");
+  if (!previewMax.value) previewMax.value = actualMax.value || 15;
+  if (previewSoftMax.value === "") previewSoftMax.value = actualSoftMax.value || 0;
+  actualMax.value = previewMax.value;
+  actualSoftMax.value = previewSoftMax.value;
+
+  const result = buildSkillPreview({
+    jdSkills: document.querySelector("#previewJdSkills").value,
+    resumeSkills: document.querySelector("#previewResumeSkills").value,
+    maxSkills: previewMax.value,
+    maxNonTechnicalSkills: previewSoftMax.value,
+  });
+  const selectedBox = document.querySelector("#previewSelectedSkills");
+  selectedBox.replaceChildren();
+  for (const skill of result.selected) {
+    const token = document.createElement("span");
+    token.className = `skill-token ${!skill.technical ? "source-soft" : `source-${skill.source}`}`;
+    token.textContent = skill.name;
+    selectedBox.append(token);
+  }
+  document.querySelector("#previewCount").textContent = `${result.selected.length} of ${result.maxSkills} slots used · ${result.selected.filter((skill) => !skill.technical).length} of ${result.maxNonTechnicalSkills} soft-skill slots`;
+  renderPreviewRows(document.querySelector("#previewPriorityList"), result.selected, skillPriorityLabel);
+  renderPreviewRows(document.querySelector("#previewExcludedList"), result.excluded, (skill) => skill.reason);
+}
+
+for (const id of ["previewMaxSkills", "previewMaxNonTechnicalSkills", "previewJdSkills", "previewResumeSkills"]) {
+  document.querySelector(`#${id}`).addEventListener("input", renderSkillPreview);
+}
+document.querySelector("#runSkillPreview").addEventListener("click", renderSkillPreview);
 
 async function saveProfile(event) {
   event?.preventDefault();
@@ -604,6 +699,7 @@ async function initialize() {
   document.querySelector("#notionRedirectUrl").textContent = chrome.identity.getRedirectURL("notion");
   const cached = await chrome.storage.local.get([PROFILE_KEY, NOTE_SETTINGS_KEY]);
   renderProfile(cached[PROFILE_KEY]);
+  renderSkillPreview();
   renderExportSettings(cached[NOTE_SETTINGS_KEY]);
   await refreshResumeStatus();
   await Promise.all([

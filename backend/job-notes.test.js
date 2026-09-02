@@ -181,6 +181,8 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /id="exportSpreadsheet"/);
   assert.match(optionsHtml, /data-settings-target="profile"/);
   assert.match(optionsHtml, /data-settings-target="ai"/);
+  assert.match(optionsHtml, /data-ai-target="skills-preview"/);
+  assert.match(optionsHtml, /id="previewSelectedSkills"/);
   assert.match(optionsHtml, /data-settings-target="history"/);
   assert.match(optionsHtml, /data-export-target="markdown"/);
   assert.match(optionsHtml, /data-export-target="excel"/);
@@ -189,5 +191,6 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsSource, /chooseExportDirectory/);
   assert.match(optionsSource, /refreshExportFolderStatus/);
   assert.match(optionsSource, /showSettingsPage/);
+  assert.match(optionsSource, /renderSkillPreview/);
   assert.match(optionsSource, /launchWebAuthFlow/);
 });
