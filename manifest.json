@@ -1,8 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Local Job Application Autofill",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Fill job applications from a local Docker profile, resume, and adaptive AI answer service.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage"],
   "host_permissions": [
     "http://127.0.0.1:11434/*",
@@ -15,7 +21,11 @@
   },
   "action": {
     "default_title": "Fill this application",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
   },
   "options_page": "options.html"
 }
