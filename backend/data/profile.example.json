@@ -1,14 +1,14 @@
 {
-  "firstName": "Your first name",
-  "lastName": "Your last name",
+  "firstName": "",
+  "lastName": "",
   "preferredName": "",
-  "email": "you@example.com",
+  "email": "",
   "phone": "",
   "address": "",
   "city": "",
   "province": "",
   "postalCode": "",
-  "country": "Canada",
+  "country": "",
   "linkedin": "",
   "github": "",
   "portfolio": "",
@@ -48,73 +48,17 @@
   "raceEthnicity": "",
   "disabilityStatus": "",
   "veteranStatus": "",
-  "workExperiences": [
-    {
-      "jobTitle": "Software Developer",
-      "company": "Example Company",
-      "location": "Toronto, ON",
-      "startMonth": "01",
-      "startYear": "2025",
-      "endMonth": "08",
-      "endYear": "2025",
-      "current": false,
-      "description": "1. First accomplishment.\n2. Second accomplishment."
-    }
-  ],
-  "educationEntries": [
-    {
-      "school": "Example University",
-      "degree": "Bachelors",
-      "fieldOfStudy": "Software Engineering",
-      "gpa": "",
-      "startMonth": "",
-      "startDay": "",
-      "startYear": "",
-      "endMonth": "",
-      "endDay": "",
-      "endYear": ""
-    }
-  ],
-  "languages": [
-    {
-      "name": "English",
-      "fluent": true,
-      "overall": "Fluent",
-      "reading": "Fluent",
-      "speaking": "Fluent",
-      "writing": "Fluent"
-    },
-    {
-      "name": "Chinese",
-      "fluent": true,
-      "overall": "Fluent",
-      "reading": "Fluent",
-      "speaking": "Fluent",
-      "writing": "Fluent"
-    },
-    {
-      "name": "French",
-      "fluent": false,
-      "overall": "Classroom",
-      "reading": "Classroom",
-      "speaking": "Classroom",
-      "writing": "Classroom"
-    }
-  ],
-  "skills": ["C#", "Angular", "SQL", "Azure"],
-  "indeedPreferences": {
-    "willingToCommute": "Yes",
-    "willingToRelocate": "Yes",
-    "previouslyWorkedForEmployer": "No",
-    "employeeReferral": "No",
-    "relativesAtEmployer": "No"
-  },
+  "workExperiences": [],
+  "educationEntries": [],
+  "languages": [],
+  "skills": [],
+  "indeedPreferences": {},
   "customAnswers": [],
   "settings": {
     "highlightUnmatched": true,
     "overwriteExisting": true
   },
-  "aiEnabled": true,
+  "aiEnabled": false,
   "includeJdSkills": false,
   "maxSkills": 15,
   "maxNonTechnicalSkills": 2,

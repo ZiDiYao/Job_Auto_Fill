@@ -21,7 +21,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Supports explicit employer-friendly defaults for travel, onsite work, flexible schedules, screenings, and criminal-record questions while keeping unsupported factual claims out of AI-generated answers.
 - Uses AI to rank skills found in both the JD and resume first, followed by job-relevant technical skills and resume-only skills; user-editable total and non-technical limits prevent overcrowded skill lists.
 - Reconciles existing Workday skill tokens in overwrite mode, inserts each retained skill through a real portal search result, and stops at the configured maximum.
-- Creates missing Workday language rows and fills English and Chinese as Fluent plus French as Classroom, with aliases for tenant-specific proficiency labels.
+- Creates missing Workday language rows and fills each language and proficiency level saved by the user, with aliases for tenant-specific proficiency labels.
 - Creates missing Workday experience rows with Add Another so every saved work experience receives its own structured entry.
 - Adds Workday skills one at a time by waiting for and selecting a real suggestion, then verifies that each skill token appears before continuing.
 - Types each Workday skill with per-character keyboard/input events, presses Enter to run the portal search, waits for the result list to stabilize, clicks the matching option row, and verifies the selected token before continuing.
@@ -54,31 +54,33 @@ The same process works in Edge or another Chromium browser from its extensions m
 
 ## Start the local backend
 
-Requirements: macOS and Node.js 20 or newer.
+Requirements for the double-click launcher: macOS and Node.js 20 or newer.
 
 1. Double-click **Start Job Autofill Backend.command** and leave that Terminal window open.
 2. Open the extension. Paste the JD or click **Detect from current page**, then click **Fill with CV + JD**.
 
-This personal build reads its API credentials and connection settings from `backend/config/local-config.json`. That file is ignored by Git and Docker builds; keys are never copied into the image, extension, or application webpage. **Configure DeepSeek Key.command** remains available if you later remove the DeepSeek key from the local config and prefer macOS Keychain.
+The direct Node.js launcher reads API credentials and connection settings from `backend/config/local-config.json`. That file is ignored by Git and Docker builds; keys are never copied into the image, extension, or application webpage. Copy `backend/config/local-config.example.json` to that filename before configuring a provider. **Configure DeepSeek Key.command** can instead save the DeepSeek key in macOS Keychain.
 
-The backend listens only on `http://127.0.0.1:17840`. Its `/api/context` endpoint supplies the extension with the saved profile and `backend/data/Resume_2027_ZIDI.pdf`. Its `/api/answer` endpoint calls the selected provider strategy and validates every returned answer before the extension inserts it.
+The backend listens only on `http://127.0.0.1:17840`. Its `/api/context` endpoint supplies the extension with the current user's saved profile and optional resume. Its `/api/answer` endpoint calls the selected provider strategy and validates every returned answer before the extension inserts it.
 
 As an alternative to macOS Keychain, copy `.env.example` to `.env` and put a newly generated key there. `.env` is ignored by Git.
 
 ## Run the backend with Docker
 
-The committed Docker image uses Node.js 24 LTS and contains only the backend code plus PDF.js. Runtime credentials and candidate data remain local bind mounts.
+The committed Docker image uses Node.js 24 LTS and contains only the backend code, blank templates, and PDF.js. Runtime credentials and candidate data remain in one ignored, host-local directory.
 
 ```bash
 docker compose up --build -d
 docker compose ps
 ```
 
-The service is exposed only at `127.0.0.1:17840`. Docker Compose mounts these untracked local files at runtime:
+The first startup creates `local-data/` and seeds blank `local-config.json` and `profile.json` files. The service is exposed only at `127.0.0.1:17840`, and Docker Compose mounts this one ignored directory as `/data`:
 
-- `backend/config/local-config.json` - DeepSeek/OpenAI API keys, base URLs, models, server, and storage configuration.
-- `backend/data/profile.json` - saved autofill answers and personal profile.
-- `backend/data/Resume_2027_ZIDI.pdf` - resume used for evidence and file uploads.
+- `local-data/local-config.json` - this installation's provider keys, base URLs, and model choices.
+- `local-data/profile.json` - this installation's saved autofill answers and personal profile.
+- `local-data/resume.pdf` - created only after this user uploads a resume through the extension.
+
+Edit `local-data/local-config.json` after the first startup, insert only your own provider credentials, and restart with `docker compose restart`. Each clone therefore starts empty and retains only the profile and resume created on that computer. The entire `local-data/` directory is excluded from both Git and Docker build context.
 
 Stop the backend with:
 
@@ -86,7 +88,7 @@ Stop the backend with:
 docker compose down
 ```
 
-For a fresh clone, copy `local-config.example.json` and `profile.example.json` to their non-example filenames, then add a local resume PDF. None of those personal runtime files should be committed.
+No manual copying is required for a fresh clone. Open **Edit profile & answers** after startup, save that user's information, and upload a resume from the popup. Do not use `docker compose down -v` as a substitute for deleting the host `local-data/` directory; the bind-mounted files remain on that computer until deliberately removed.
 
 ## Custom rules
 
@@ -94,8 +96,8 @@ Custom rules override built-in mappings. Each rule has a case-insensitive regula
 
 ```json
 [
-  { "match": "available.*start|start date", "value": "January 2027" },
-  { "match": "length.*work term|co-?op duration", "value": "8 months" },
+  { "match": "available.*start|start date", "value": "your configured date" },
+  { "match": "length.*work term|co-?op duration", "value": "your configured duration" },
   { "match": "how did you hear", "value": "Company website" }
 ]
 ```
@@ -106,7 +108,7 @@ Keep legal and sensitive answers truthful. Leave them blank when the correct res
 
 The saved PDF/DOCX is used for the application page's file-upload control. PDF and TXT content is extracted automatically into the **Resume text used as AI evidence** box. DOCX files can still be attached automatically, but their text must currently be pasted into that box manually.
 
-DeepSeek through the local backend is the default. Select **OpenAI** under **Backend AI provider** after configuring its key and model in `backend/config/local-config.json`. An entirely local Ollama fallback remains available:
+DeepSeek through the local backend is the default adapter. Select **OpenAI** under **Backend AI provider** after configuring its key and model in the active configuration file (`local-data/local-config.json` for Docker). An entirely local Ollama fallback remains available:
 
 1. Install [Ollama](https://ollama.com/download).
 2. In Terminal, download and start a model, for example: `ollama run qwen3:4b`.

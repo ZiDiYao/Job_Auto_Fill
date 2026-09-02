@@ -7,3 +7,5 @@ backend/data/profile.json
 backend/data/*.pdf
 backend/data/*.db
 backend/data/*.sqlite*
+local-data/*
+!local-data/.gitkeep

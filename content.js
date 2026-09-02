@@ -143,22 +143,18 @@
   const indeedPreferenceRules = [
     {
       key: "willingToCommute",
-      fallback: "Yes",
       pattern: /\b(willingness to|willing to|able to|prepared to).{0,80}\b(commute|relocat(?:e|ion)|travel to|work on[ -]?site|work in[ -]?office)\b|\b(commute|relocat(?:e|ion)).{0,80}\b(willing|able|prepared)\b/,
     },
     {
       key: "previouslyWorkedForEmployer",
-      fallback: "No",
       pattern: /\b(have you|did you|were you|are you).{0,100}\b(worked|employed|employee)\b.{0,100}\b(with|for|by|at)\b.{0,120}\b(before|previously|formerly|erstwhile|ever)\b|\bpreviously employed (?:with|by|at)\b/,
     },
     {
       key: "relativesAtEmployer",
-      fallback: "No",
       pattern: /\b(relative|close kin|kinship|family member|acquaintance|close friend).{0,120}\b(work|working|employ|company|organization|organisation|group companies)\b/,
     },
     {
       key: "employeeReferral",
-      fallback: "No",
       pattern: /\b(were you|have you|did you).{0,80}\b(referred|referral)\b|\b(employee referral|referred by (?:an?|a current) employee|internal referral)\b/,
     },
   ];
@@ -243,8 +239,8 @@
     if (!onIndeed) return null;
     for (const rule of indeedPreferenceRules) {
       if (!rule.pattern.test(label)) continue;
-      const configured = profile.indeedPreferences?.[rule.key];
-      return String(configured || rule.fallback);
+      const configured = profile.indeedPreferences?.[rule.key] ?? profile[rule.key];
+      return configured === undefined || configured === null || configured === "" ? null : String(configured);
     }
     return null;
   }

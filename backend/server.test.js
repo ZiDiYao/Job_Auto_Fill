@@ -1,7 +1,27 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { rankSkillCandidates, validateFieldPlans } from "./server.js";
+
+test("ships blank candidate and credential templates", async () => {
+  const profile = JSON.parse(await readFile(new URL("./data/profile.example.json", import.meta.url), "utf8"));
+  const config = JSON.parse(await readFile(new URL("./config/local-config.example.json", import.meta.url), "utf8"));
+  const candidateFields = [
+    "firstName", "lastName", "email", "phone", "address", "city", "province", "postalCode",
+    "country", "school", "gpa", "graduationYear", "workAuthorized", "sponsorship",
+  ];
+
+  assert.ok(candidateFields.every((key) => profile[key] === ""));
+  assert.deepEqual(profile.workExperiences, []);
+  assert.deepEqual(profile.educationEntries, []);
+  assert.deepEqual(profile.languages, []);
+  assert.deepEqual(profile.skills, []);
+  assert.deepEqual(profile.indeedPreferences, {});
+  assert.equal(config.deepSeek.apiKey, "");
+  assert.equal(config.openAI.apiKey, "");
+  assert.equal(config.storage.resumePath, "./data/resume.pdf");
+});
 
 test("ranks shared evidence first and enforces total and non-technical limits", () => {
   assert.deepEqual(

@@ -1,5 +1,5 @@
 import http from "node:http";
-import { readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
@@ -25,8 +25,24 @@ function resolveLocalPath(configuredPath, fallback) {
     : path.resolve(currentDirectory, configuredPath);
 }
 
-const profilePath = resolveLocalPath(runtimeConfig.storage?.profilePath, "data/profile.json");
-const resumePath = resolveLocalPath(runtimeConfig.storage?.resumePath, "data/Resume_2027_ZIDI.pdf");
+const profilePath = resolveLocalPath(
+  process.env.JOB_AUTOFILL_PROFILE_PATH || runtimeConfig.storage?.profilePath,
+  "data/profile.json",
+);
+const resumePath = resolveLocalPath(
+  process.env.JOB_AUTOFILL_RESUME_PATH || runtimeConfig.storage?.resumePath,
+  "data/resume.pdf",
+);
+
+async function initializeLocalStorage() {
+  await mkdir(path.dirname(profilePath), { recursive: true });
+  await mkdir(path.dirname(resumePath), { recursive: true });
+  if (!existsSync(profilePath)) {
+    await copyFile(path.join(currentDirectory, "data", "profile.example.json"), profilePath);
+  }
+}
+
+await initializeLocalStorage();
 
 async function loadLocalEnv() {
   if (!existsSync(envPath)) return;
@@ -93,6 +109,7 @@ async function extractPdfText(filePath) {
 
 let resumeTextPromise;
 function getResumeText() {
+  if (!existsSync(resumePath)) return Promise.resolve("");
   resumeTextPromise ||= extractPdfText(resumePath);
   return resumeTextPromise;
 }
@@ -485,20 +502,17 @@ export function createServer() {
       }
 
       if (request.method === "GET" && request.url === "/api/context") {
-        const [profile, resumeText, resumeBytes] = await Promise.all([
-          getProfile(),
-          getResumeText(),
-          readFile(resumePath),
-        ]);
+        const [profile, resumeText] = await Promise.all([getProfile(), getResumeText()]);
+        const resumeBytes = existsSync(resumePath) ? await readFile(resumePath) : null;
         return sendJson(response, 200, {
           profile: { ...profile, resumeText },
-          resume: {
+          resume: resumeBytes ? {
             name: profile.resumeFileName || path.basename(resumePath),
             type: "application/pdf",
             size: resumeBytes.length,
             lastModified: Date.now(),
             base64: resumeBytes.toString("base64"),
-          },
+          } : null,
         });
       }
 

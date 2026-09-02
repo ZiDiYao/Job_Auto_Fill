@@ -1,13 +1,13 @@
 {
   "deepSeek": {
-    "apiKey": "replace_with_your_key",
+    "apiKey": "",
     "baseUrl": "https://api.deepseek.com",
     "model": "deepseek-v4-flash"
   },
   "openAI": {
-    "apiKey": "replace_with_your_key",
+    "apiKey": "",
     "baseUrl": "https://api.openai.com/v1",
-    "model": "set_your_openai_model"
+    "model": ""
   },
   "server": {
     "host": "127.0.0.1",
@@ -15,6 +15,6 @@
   },
   "storage": {
     "profilePath": "./data/profile.json",
-    "resumePath": "./data/Resume_2027_ZIDI.pdf"
+    "resumePath": "./data/resume.pdf"
   }
 }

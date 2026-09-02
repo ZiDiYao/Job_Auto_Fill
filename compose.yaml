@@ -10,19 +10,14 @@ services:
     environment:
       JOB_AUTOFILL_HOST: 0.0.0.0
       JOB_AUTOFILL_PORT: 17840
-      JOB_AUTOFILL_CONFIG_PATH: /app/backend/config/local-config.json
+      JOB_AUTOFILL_CONFIG_PATH: /data/local-config.json
+      JOB_AUTOFILL_PROFILE_PATH: /data/profile.json
+      JOB_AUTOFILL_RESUME_PATH: /data/resume.pdf
     ports:
       - "127.0.0.1:17840:17840"
     volumes:
       - type: bind
-        source: ./backend/config/local-config.json
-        target: /app/backend/config/local-config.json
-        read_only: true
-      - type: bind
-        source: ./backend/data/profile.json
-        target: /app/backend/data/profile.json
-      - type: bind
-        source: ./backend/data/Resume_2027_ZIDI.pdf
-        target: /app/backend/data/Resume_2027_ZIDI.pdf
+        source: ./local-data
+        target: /data
     security_opt:
       - no-new-privileges:true
