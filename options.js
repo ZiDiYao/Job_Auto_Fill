@@ -79,7 +79,6 @@ function showSettingsPage(page, { updateHash = false } = {}) {
   }
   document.querySelector("#settingsTitle").textContent = SETTINGS_PAGES[selected].title;
   document.querySelector("#settingsDescription").textContent = SETTINGS_PAGES[selected].description;
-  document.querySelector("#syncBackend").hidden = selected === "history";
   if (updateHash && location.hash !== SETTINGS_PAGES[selected].hash) {
     history.replaceState(null, "", SETTINGS_PAGES[selected].hash);
   }
@@ -636,24 +635,14 @@ form.addEventListener("input", queueChangedSetting);
 form.addEventListener("change", queueChangedSetting);
 form.addEventListener("submit", (event) => event.preventDefault());
 
-async function syncFromBackend(showStatus = true) {
-  if (showStatus) saveStatus.textContent = "Loading profile and resume from Docker backend…";
+async function syncFromBackend() {
   const result = await chrome.runtime.sendMessage({ type: "sync-backend-context" });
   if (!result?.ok) throw new Error(result?.error || "Could not reach the Docker backend.");
   renderProfile(result.profile);
   renderSkillPreview();
   await refreshResumeStatus();
-  if (showStatus) saveStatus.textContent = "Loaded profile and resume from Docker backend";
   return result;
 }
-
-document.querySelector("#syncBackend").addEventListener("click", async () => {
-  try {
-    await syncFromBackend(true);
-  } catch (error) {
-    saveStatus.textContent = `Backend sync failed: ${error.message}`;
-  }
-});
 
 document.querySelector("#exportProfile").addEventListener("click", async () => {
   try {
@@ -1060,7 +1049,7 @@ async function initialize() {
     refreshExportFolderStatus("spreadsheet", excelFolderStatus),
   ]);
   try {
-    await syncFromBackend(true);
+    await syncFromBackend();
   } catch (error) {
     saveStatus.textContent = `Docker backend unavailable · showing browser cache (${error.message})`;
   }

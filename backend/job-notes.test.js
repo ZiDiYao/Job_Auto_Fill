@@ -217,6 +217,7 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /id="notionConnectionAction"/);
   assert.doesNotMatch(optionsHtml, /id="resetNotion"|Reset Notion link/);
   assert.match(optionsHtml, /id="saveStatus"[^>]*>All changes saved</);
+  assert.doesNotMatch(optionsHtml, /id="syncBackend"|Reload backend/);
   assert.match(optionsHtml, /<h2>Languages<\/h2>/);
   assert.match(optionsSource, /languages: \[\]/);
   assert.match(popupSource, /normalizeExtractedLanguages/);
