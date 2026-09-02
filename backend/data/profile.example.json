@@ -66,10 +66,26 @@
     {
       "name": "English",
       "fluent": true,
-      "overall": "Advanced",
-      "reading": "Advanced",
-      "speaking": "Advanced",
-      "writing": "Advanced"
+      "overall": "Fluent",
+      "reading": "Fluent",
+      "speaking": "Fluent",
+      "writing": "Fluent"
+    },
+    {
+      "name": "Chinese",
+      "fluent": true,
+      "overall": "Fluent",
+      "reading": "Fluent",
+      "speaking": "Fluent",
+      "writing": "Fluent"
+    },
+    {
+      "name": "French",
+      "fluent": false,
+      "overall": "Classroom",
+      "reading": "Classroom",
+      "speaking": "Classroom",
+      "writing": "Classroom"
     }
   ],
   "skills": ["C#", "Angular", "SQL", "Azure"],

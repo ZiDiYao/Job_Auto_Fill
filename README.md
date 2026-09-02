@@ -18,6 +18,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Applies saved Indeed preferences to commute/relocation, prior-employment, employee-referral, and relatives-at-employer questions by reading the complete radio-group question.
 - Supports explicit employer-friendly defaults for travel, onsite work, flexible schedules, screenings, and criminal-record questions while keeping unsupported factual claims out of AI-generated answers.
 - Merges saved candidate skills with technical skills extracted from the current JD, inserts each as a confirmed Workday token, and reports JD-only additions for manual review.
+- Creates missing Workday language rows and fills English and Chinese as Fluent plus French as Classroom, with aliases for tenant-specific proficiency labels.
 - Uses DeepSeek JSON output to draft answers from CV evidence plus the job description.
 - Works on ordinary HTML forms and dispatches the events commonly required by React-based forms.
 - Highlights required fields that still need manual review.

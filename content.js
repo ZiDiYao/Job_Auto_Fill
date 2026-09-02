@@ -469,7 +469,14 @@
     let match = null;
     for (let attempt = 0; attempt < 8 && !match; attempt += 1) {
       await wait(150);
-      match = visiblePromptOptions().find((option) => normalize(option.textContent) === normalize(value));
+      const desired = normalize(value);
+      match = visiblePromptOptions().find((option) => {
+        const candidate = normalize(option.textContent);
+        if (candidate === desired || candidate.includes(desired)) return true;
+        if (desired === "fluent") return candidate.includes("fluent") || candidate.includes("advanced") || candidate.includes("native or bilingual");
+        if (desired === "classroom") return candidate.includes("classroom") || candidate.includes("intermediate") || candidate.includes("limited working");
+        return false;
+      });
     }
     if (!match) return false;
     match.click();
@@ -477,6 +484,40 @@
     mark(button, "filled");
     result.filled += 1;
     return true;
+  }
+
+  function languageButtons() {
+    return [...document.querySelectorAll('button[id^="language-"][id$="--language"]')];
+  }
+
+  function languageSection(firstLanguageButton) {
+    let ancestor = firstLanguageButton?.parentElement;
+    for (let depth = 0; ancestor && depth < 9; depth += 1, ancestor = ancestor.parentElement) {
+      const addButton = [...ancestor.querySelectorAll(":scope button, button")]
+        .find((button) => normalize(button.textContent) === "add another");
+      if (addButton && ancestor.querySelectorAll('button[id^="language-"][id$="--language"]').length) {
+        return { container: ancestor, addButton };
+      }
+    }
+    return { container: null, addButton: null };
+  }
+
+  async function ensureLanguageRows(targetCount) {
+    let buttons = languageButtons();
+    if (!buttons.length || buttons.length >= targetCount) return buttons;
+    while (buttons.length < targetCount) {
+      const { addButton } = languageSection(buttons[0]);
+      if (!addButton) break;
+      const previousCount = buttons.length;
+      addButton.click();
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        await wait(150);
+        buttons = languageButtons();
+        if (buttons.length > previousCount) break;
+      }
+      if (buttons.length <= previousCount) break;
+    }
+    return buttons;
   }
 
   async function fillWorkdayStructuredSections() {
@@ -522,9 +563,11 @@
       setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionYear-input"), education.endYear);
     }
 
-    const language = Array.isArray(profile.languages) ? profile.languages[0] : null;
-    const languageButton = document.querySelector('button[id^="language-"][id$="--language"]');
-    if (language && languageButton) {
+    const languages = Array.isArray(profile.languages) ? profile.languages : [];
+    const availableLanguageButtons = await ensureLanguageRows(languages.length);
+    for (const [index, language] of languages.entries()) {
+      const languageButton = availableLanguageButtons[index];
+      if (!language || !languageButton) continue;
       const group = languageButton.closest('[role="group"]');
       await chooseWorkdayButton(languageButton, language.name);
       const fluent = group?.querySelector('input[name="native"]');
@@ -536,9 +579,11 @@
         result.filled += 1;
       }
       for (const button of group?.querySelectorAll('button[id^="language-"]') || []) {
+        if (button === languageButton) continue;
         const label = normalize(button.getAttribute("aria-label"));
-        if (label.startsWith("overall assessment")) await chooseWorkdayButton(button, language.overall);
-        else if (label.startsWith("reading")) await chooseWorkdayButton(button, language.reading);
+        if (label.startsWith("overall assessment") || label.startsWith("reading speaking writing")) {
+          await chooseWorkdayButton(button, language.overall);
+        } else if (label.startsWith("reading")) await chooseWorkdayButton(button, language.reading);
         else if (label.startsWith("speaking")) await chooseWorkdayButton(button, language.speaking);
         else if (label.startsWith("writing")) await chooseWorkdayButton(button, language.writing);
       }
