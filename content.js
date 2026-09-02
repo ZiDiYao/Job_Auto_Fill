@@ -41,6 +41,8 @@
     if (fieldset) {
       const legend = fieldset.querySelector(":scope > legend, legend");
       if (legend?.textContent) return legend.textContent;
+      const question = fieldset.querySelector(":scope > p, p");
+      if (question?.textContent) return question.textContent;
     }
     const semanticGroup = field.closest('[role="radiogroup"], [role="group"]');
     if (semanticGroup) {
@@ -50,7 +52,8 @@
     }
     let ancestor = field.parentElement;
     for (let depth = 0; ancestor && depth < 7; depth += 1, ancestor = ancestor.parentElement) {
-      const choices = ancestor.querySelectorAll('input[type="radio"]');
+      const selector = field.type === "checkbox" ? 'input[type="checkbox"]' : 'input[type="radio"]';
+      const choices = ancestor.querySelectorAll(selector);
       if (choices.length < 2 || ![...choices].includes(field)) continue;
       const text = String(ancestor.innerText || ancestor.textContent || "").trim();
       if (text) return text;
@@ -301,7 +304,10 @@
           ? false
           : null;
       const candidateText = optionLabel(field);
-      const desired = booleanValue ?? candidateText.includes(normalizedValue);
+      const desired = booleanValue ?? (
+        candidateText.includes(normalizedValue)
+        || (candidateText.length > 2 && normalizedValue.includes(candidateText))
+      );
       const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
       descriptor?.set?.call(field, desired);
       dispatch(field);
@@ -341,7 +347,7 @@
     field.style.outlineOffset = "2px";
   }
 
-  const fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
+  let fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
   const result = {
     filled: 0,
     skipped: 0,
@@ -514,21 +520,29 @@
   }
 
   async function fillWorkdayQuestionDropdowns() {
-    const buttons = [...document.querySelectorAll('button[aria-haspopup="listbox"]')]
-      .filter((button) => isVisible(button) && button.closest("fieldset"));
-    for (const button of buttons) {
-      if (button.dataset.localJobAutofillStructured === "true") continue;
-      const label = workdayQuestionLabel(button);
+    const completed = new Set();
+    for (let pass = 0; pass < 60; pass += 1) {
+      const buttons = [...document.querySelectorAll('button[aria-haspopup="listbox"]')]
+        .filter((button) => isVisible(button) && button.closest("fieldset"));
+      const next = buttons.find((button) => {
+        const key = button.id || workdayQuestionLabel(button);
+        return key && !completed.has(key) && button.dataset.localJobAutofillStructured !== "true";
+      });
+      if (!next) break;
+
+      const key = next.id || workdayQuestionLabel(next);
+      completed.add(key);
+      const label = workdayQuestionLabel(next);
       if (!label) continue;
       const value = mappedValue(label);
       if (value !== null) {
-        const changed = await chooseWorkdayButton(button, value);
-        if (!changed && normalize(button.textContent) !== normalize(value)) {
-          mark(button, "review");
+        const changed = await chooseWorkdayButton(next, value);
+        if (!changed && !normalize(next.textContent).includes(normalize(value))) {
+          mark(next, "review");
           result.review += 1;
         }
-      } else if (/\brequired\b/i.test(button.getAttribute("aria-label") || "") && normalize(button.textContent) === "select one") {
-        mark(button, "review");
+      } else if (/\brequired\b/i.test(next.getAttribute("aria-label") || "") && normalize(next.textContent) === "select one") {
+        mark(next, "review");
         result.review += 1;
       }
     }
@@ -653,6 +667,7 @@
 
   await fillWorkdayStructuredSections();
   await fillWorkdayQuestionDropdowns();
+  fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
 
   function base64ToBytes(base64) {
     const binary = atob(base64);

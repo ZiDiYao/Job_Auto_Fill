@@ -20,6 +20,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Merges saved candidate skills with technical skills extracted from the current JD, inserts each as a confirmed Workday token, and reports JD-only additions for manual review.
 - Creates missing Workday language rows and fills English and Chinese as Fluent plus French as Classroom, with aliases for tenant-specific proficiency labels.
 - Fills Workday questionnaire button/listbox controls by reading the enclosing fieldset question and selecting only explicit saved answers.
+- Re-scans Workday's React-rendered dropdowns and conditional checkbox groups after every answer so later questions and follow-up identity fields are not skipped.
 - Uses DeepSeek JSON output to draft answers from CV evidence plus the job description.
 - Works on ordinary HTML forms and dispatches the events commonly required by React-based forms.
 - Highlights required fields that still need manual review.
