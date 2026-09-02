@@ -18,6 +18,7 @@ const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 const AUTO_ADVANCE_STATUS_KEY = "jobAutofillAutoAdvanceStatus";
 const AUTOMATION_PAUSED_KEY = "jobAutofillAutomationPaused";
 const LAST_DETECTED_JOB_KEY = "jobAutofillDetectedJobContext";
+const TARGET_APPLICATION_TAB_KEY = "jobAutofillTargetApplicationTabId";
 const ONBOARDING_VISITED_KEY = "jobAutofillOnboardingVisited";
 const settingsLabel = document.querySelector("#settingsLabel");
 const settingsRequired = document.querySelector("#settingsRequired");
@@ -39,7 +40,7 @@ function renderSetupState(visited) {
   settingsLabel.textContent = setupComplete
     ? "Profile & settings"
     : onboardingVisited
-      ? "Add a default resume"
+      ? "Upload a resume"
       : "Complete profile & settings";
   settingsRequired.hidden = setupComplete;
 }
@@ -85,13 +86,21 @@ function normalizeExportSettings(value = {}) {
   };
 }
 
+async function getTargetApplicationTab() {
+  const response = await chrome.runtime.sendMessage({ type: "get-target-application-tab" });
+  if (!response?.ok || !response.tab?.id) {
+    throw new Error(response?.error || "Open a job posting or application webpage first.");
+  }
+  return response.tab;
+}
+
 chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY, AUTOMATION_PAUSED_KEY, LAST_DETECTED_JOB_KEY, ONBOARDING_VISITED_KEY]).then(async ({ jobAutofillProfile, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus, [AUTOMATION_PAUSED_KEY]: paused, [LAST_DETECTED_JOB_KEY]: detectedJob, [ONBOARDING_VISITED_KEY]: visited }) => {
   applyTheme(jobAutofillProfile?.theme);
   hasDefaultResume = Boolean(jobAutofillResume?.base64);
   renderSetupState(visited);
   renderAutomationPausedState(paused);
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  activeTabId = Number(activeTab?.id || 0);
+  const targetTab = await getTargetApplicationTab().catch(() => null);
+  activeTabId = Number(targetTab?.id || 0);
   overwriteCheckbox.checked = true;
   autoNextCheckbox.checked = jobAutofillProfile?.autoAdvanceEnabled === true;
   chrome.storage.local.set({
@@ -127,6 +136,14 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.jobAutofillProfile) applyTheme(changes.jobAutofillProfile.newValue?.theme);
   if (area === "local" && changes[AUTO_ADVANCE_STATUS_KEY]) renderAutoAdvanceStatus(changes[AUTO_ADVANCE_STATUS_KEY].newValue);
   if (area === "local" && changes[AUTOMATION_PAUSED_KEY]) renderAutomationPausedState(changes[AUTOMATION_PAUSED_KEY].newValue);
+  if (area === "local" && changes[TARGET_APPLICATION_TAB_KEY]) {
+    activeTabId = Number(changes[TARGET_APPLICATION_TAB_KEY].newValue || 0);
+    chrome.storage.local.get(LAST_DETECTED_JOB_KEY).then(({ [LAST_DETECTED_JOB_KEY]: detected }) => {
+      jobDescription.value = Number(detected?.tabId || 0) === activeTabId
+        ? String(detected?.jobDescription || "")
+        : "";
+    });
+  }
   if (area === "local" && changes[LAST_DETECTED_JOB_KEY]) {
     const detected = changes[LAST_DETECTED_JOB_KEY].newValue;
     if (Number(detected?.tabId || 0) === activeTabId && String(detected?.jobDescription || "").length >= 180) {
@@ -140,8 +157,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
 function showResume(resume) {
   hasDefaultResume = Boolean(resume?.base64);
   resumeStatus.textContent = resume?.name
-    ? `${resume.name} · ${Math.max(1, Math.round(Number(resume.size || 0) / 1024))} KB · default`
-    : "No default resume saved yet";
+    ? `${resume.name} · ${Math.max(1, Math.round(Number(resume.size || 0) / 1024))} KB · saved`
+    : "No resume uploaded yet";
   renderSetupState(onboardingVisited);
 }
 
@@ -398,7 +415,7 @@ function extractJobMetadataFromPage() {
 async function currentJobRecord() {
   const description = jobDescription.value.trim();
   if (!description) throw new Error("Add or detect a job description before saving a note.");
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = await getTargetApplicationTab();
   if (!tab?.id || !/^https?:/i.test(tab.url || "")) throw new Error("Open the job posting or application page first.");
   const [result] = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
@@ -469,7 +486,7 @@ notesSettingsButton.addEventListener("click", () => {
 
 async function detectJobDescription(showFailure = true) {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = await getTargetApplicationTab();
     if (!tab?.id || !/^https?:/i.test(tab.url || "")) throw new Error("Open a job posting webpage first.");
     const [result] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -540,7 +557,7 @@ autoNextCheckbox.addEventListener("change", async () => {
 
 automationToggleButton.addEventListener("click", async () => {
   automationToggleButton.disabled = true;
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = await getTargetApplicationTab().catch(() => null);
   const nextPaused = !automationPaused;
   try {
     const result = await chrome.runtime.sendMessage({

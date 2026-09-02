@@ -11,12 +11,12 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Stores a user-selected resume locally and attaches it to recognizable Resume/CV upload fields.
 - Uses the configured backend AI after a resume upload to prefill only blank, evidence-backed contact and education fields; validated legal, demographic, medical, and criminal-history fields are never inferred from a resume.
 - Optionally uses a free local Ollama model to draft unmatched open-ended questions from resume text and visible job context.
-- Provides a popup window for pasting a job description or detecting it from the current page.
+- Opens a movable, resizable extension window for reviewing the detected job description and controlling autofill while the application remains visible behind it.
 - Fills the current application without opening the popup through `Command+Shift+Y` on macOS or `Ctrl+Shift+Y` on Windows/Linux.
 - Optionally watches full navigations and single-page application step changes, recognizes application forms, and fills each new page automatically after one-time website access is approved.
 - Automatically saves Profile, AI, and Application History settings after editing stops; slow writes are serialized so older data cannot overwrite newer changes.
 - Offers White + Green, Current Blue, and Dark appearance themes; the selected theme is saved immediately and shared by the popup and settings pages.
-- Opens on a leftmost General settings page for appearance and automatic-fill behaviour, while keeping candidate data and the default resume in Profile.
+- Opens on a leftmost General settings page for appearance and automatic-fill behaviour, while keeping candidate data and the uploaded resume in Profile.
 - Syncs the saved profile and resume from a backend bound to `127.0.0.1`.
 - Uses structured Workday mappings for repeated experience, education, language, and skill controls instead of asking AI to guess field boundaries.
 - Scans unresolved visible controls into a compact semantic DOM schema containing labels, sections, control types, requirements, and exact available options.
@@ -41,7 +41,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Commits Workday's segmented month/year controls through real focus transitions so the portal clears stale required-field errors after autofill.
 - Normalizes expected-graduation dates from the saved month/day/year and commits masked Workday date widgets through sequential input events so values such as `05/01/2028` are accepted by React validation.
 - Supports Workday tenants that identify the school control as either `schoolName` or `school`, detects Education From/To years both by stable field IDs and row order, and verifies the React-controlled values after filling.
-- Lets users drop a PDF into the popup and persists it in the local Docker-mounted resume file until another PDF replaces it.
+- Lets users drop a PDF into the autofill window and persists it in the local Docker-mounted resume file until another PDF replaces it.
 - Gives Markdown, Excel, and Notion separate collapsible Application History sections that reveal their settings only when enabled.
 - Lets users save application history manually, when autofill runs, or automatically after their own final Submit action; the extension records the status as `Submitted` without clicking Submit itself.
 - Lets Markdown and Excel use independent remembered folders instead of coupling both formats to one destination.
@@ -165,11 +165,11 @@ The extension creates the **Job Application** root page (or your chosen name) an
 page containing the summary, full JD, and interview sections. Notion credentials and generated IDs are stored only in that
 Chrome profile; they are not included in Git, Docker images, profile exports, or application webpages.
 
-## Default resume and AI profile setup
+## Resume upload and AI profile setup
 
-Add a default PDF at the top of the **Profile** page or from the popup. It remains the active resume for applications until the user replaces or removes it. After upload, its text is extracted automatically for AI evidence and safe, empty-only profile prefilling; existing profile values are never overwritten. Common application fields that the resume does not establish are marked in red for the user to complete.
+Upload a PDF at the top of the **Profile** page or from the autofill window. It remains the active resume for applications until the user replaces or removes it. After upload, its text is extracted automatically for AI evidence and safe, empty-only profile prefilling; existing profile values are never overwritten. Common application fields that the resume does not establish are marked in red for the user to complete.
 
-The popup uses separate sections for profile setup, the default resume, the captured job description, application history, and automation controls. The full-width **Profile & settings** entry remains highlighted until the one-time setup page has been opened.
+The movable autofill window uses separate sections for profile setup, resume upload, the captured job description, application history, and automation controls. The full-width **Profile & settings** entry remains highlighted until the one-time setup page has been opened.
 
 DeepSeek through the local backend is the default adapter. Select **OpenAI** under **Backend AI provider** after configuring its key and model in the active configuration file (`local-data/local-config.json` for Docker). An entirely local Ollama fallback remains available:
 

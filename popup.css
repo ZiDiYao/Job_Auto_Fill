@@ -11,7 +11,8 @@
 }
 
 * { box-sizing: border-box; }
-body { width: 400px; margin: 0; color: var(--text); background: #f5f7fa; }
+html { min-width: 400px; min-height: 640px; }
+body { width: 100%; min-width: 400px; margin: 0; color: var(--text); background: #f5f7fa; }
 main { display: grid; gap: 10px; padding: 16px; }
 .popup-header { display: flex; align-items: center; min-height: 32px; }
 h1 { margin: 0; font-size: 21px; font-weight: 720; letter-spacing: -0.02em; }

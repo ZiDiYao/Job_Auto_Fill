@@ -41,7 +41,7 @@ const SETTINGS_PAGES = {
   profile: {
     hash: "#profile",
     title: "Profile",
-    description: "Default resume, personal details, education, languages, and reusable application answers.",
+    description: "Resume, personal details, education, languages, and reusable application answers.",
   },
   general: {
     hash: "#general",
@@ -739,16 +739,16 @@ function updateIncompleteProfileFields() {
     if (missing) {
       missingCount += 1;
       field.setAttribute("aria-invalid", "true");
-      field.title = "Not found in the default resume — please review";
+      field.title = "Not found in the uploaded resume — please review";
     } else {
       field.removeAttribute("aria-invalid");
-      if (field.title === "Not found in the default resume — please review") field.removeAttribute("title");
+      if (field.title === "Not found in the uploaded resume — please review") field.removeAttribute("title");
     }
   }
   if (!profileCompletionHint) return;
   profileCompletionHint.classList.toggle("needs-attention", missingCount > 0);
   profileCompletionHint.textContent = !hasDefaultResume
-    ? "Upload a default resume to prefill your profile."
+    ? "Upload a resume to prefill your profile."
     : missingCount
       ? `AI filled what it could. ${missingCount} common application field${missingCount === 1 ? "" : "s"} still need your attention.`
       : "Your common application fields are complete.";
@@ -760,8 +760,8 @@ async function refreshResumeStatus() {
   document.querySelector(".default-resume-section")?.classList.toggle("needs-resume", !hasDefaultResume);
   removeResumeButton.hidden = !resume?.name;
   resumeStatus.textContent = resume?.name
-    ? `${resume.name} (${Math.max(1, Math.round(resume.size / 1024))} KB) · default`
-    : "No default resume saved";
+    ? `${resume.name} (${Math.max(1, Math.round(resume.size / 1024))} KB) · saved`
+    : "No resume uploaded";
   updateIncompleteProfileFields();
 }
 

@@ -6,13 +6,17 @@ import vm from "node:vm";
 const source = (await readFile(new URL("../background.js", import.meta.url), "utf8"))
   .replace(/^import .*;\n/gm, "");
 
-function loadBackground({ fetchImpl, initialStorage = {}, scripting, tabs, permissions, setTimeoutImpl = setTimeout, historyDependencies } = {}) {
+function loadBackground({ fetchImpl, initialStorage = {}, scripting, tabs, permissions, action, windows, setTimeoutImpl = setTimeout, historyDependencies } = {}) {
   const listeners = [];
   const commandListeners = [];
+  const actionListeners = [];
+  const tabActivatedListeners = [];
+  const windowRemovedListeners = [];
   const storage = structuredClone(initialStorage);
   const chrome = {
     runtime: {
       onMessage: { addListener: (listener) => listeners.push(listener) },
+      getURL: (path) => `chrome-extension://test/${path}`,
     },
     storage: {
       local: {
@@ -33,14 +37,23 @@ function loadBackground({ fetchImpl, initialStorage = {}, scripting, tabs, permi
     },
     tabs: tabs || {
       async query() { return []; },
+      async get() { throw new Error("Unknown tab"); },
+      onActivated: { addListener: (listener) => tabActivatedListeners.push(listener) },
     },
     permissions: permissions || {
       async contains() { return true; },
     },
-    action: {
+    action: action || {
       async setBadgeBackgroundColor() {},
       async setBadgeText() {},
       async setTitle() {},
+      onClicked: { addListener: (listener) => actionListeners.push(listener) },
+    },
+    windows: windows || {
+      async create() { return { id: 90 }; },
+      async get() { throw new Error("Unknown window"); },
+      async update() {},
+      onRemoved: { addListener: (listener) => windowRemovedListeners.push(listener) },
     },
   };
   const context = vm.createContext({
@@ -76,8 +89,45 @@ function loadBackground({ fetchImpl, initialStorage = {}, scripting, tabs, permi
     for (const listener of commandListeners) listener(name);
   }
 
-  return { context, listener: listeners[0], send, storage, command, commandListeners };
+  function clickAction(tab) {
+    for (const listener of actionListeners) listener(tab);
+  }
+
+  return { context, listener: listeners[0], send, storage, command, commandListeners, clickAction, actionListeners };
 }
+
+test("toolbar action opens a movable popup window and remembers the application tab", async () => {
+  const createdWindows = [];
+  const webTab = { id: 73, windowId: 4, url: "https://jobs.example/apply", title: "Apply" };
+  const background = loadBackground({
+    tabs: {
+      async query(query) { return query.url ? [] : [webTab]; },
+      async get(tabId) { return tabId === webTab.id ? webTab : null; },
+    },
+    windows: {
+      async create(options) { createdWindows.push(options); return { id: 91 }; },
+      async get() { return { id: 91 }; },
+      async update() {},
+    },
+  });
+
+  assert.equal(background.actionListeners.length, 1);
+  background.clickAction(webTab);
+  for (let index = 0; index < 10 && createdWindows.length === 0; index += 1) await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(background.storage.jobAutofillTargetApplicationTabId, 73);
+  assert.deepEqual(JSON.parse(JSON.stringify(createdWindows[0])), {
+    url: "chrome-extension://test/popup.html",
+    type: "popup",
+    width: 440,
+    height: 780,
+    focused: true,
+  });
+
+  const target = await background.send({ type: "get-target-application-tab" });
+  assert.equal(target.ok, true);
+  assert.equal(target.tab.id, 73);
+  assert.equal(target.tab.url, webTab.url);
+});
 
 test("auto-advance button policy permits navigation but blocks final and consent actions", () => {
   const { context } = loadBackground();

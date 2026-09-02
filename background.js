@@ -15,11 +15,69 @@ const LAST_SKILL_SELECTION_KEY = "jobAutofillLastSkillSelection";
 const LAST_DETECTED_JOB_KEY = "jobAutofillDetectedJobContext";
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 const LAST_SUBMISSION_SAVE_KEY = "jobAutofillLastSubmissionSave";
+const TARGET_APPLICATION_TAB_KEY = "jobAutofillTargetApplicationTabId";
+const POPUP_PAGE_URL = chrome.runtime.getURL?.("popup.html") || "popup.html";
 const DEFAULT_AUTO_ADVANCE_DELAY_MS = 900;
 const MIN_AUTO_ADVANCE_DELAY_MS = 500;
 const activeAutoAdvanceSessions = new Map();
 const activeFillSessions = new Map();
 const lastAutomaticPageSignatures = new Map();
+let autofillPopupWindowId = 0;
+
+function isApplicationTab(tab) {
+  return Boolean(tab?.id && /^https?:/i.test(tab.url || ""));
+}
+
+async function rememberTargetApplicationTab(tab) {
+  if (!isApplicationTab(tab)) return null;
+  await chrome.storage.local.set({ [TARGET_APPLICATION_TAB_KEY]: tab.id });
+  return tab;
+}
+
+async function getTargetApplicationTab() {
+  const cached = await chrome.storage.local.get(TARGET_APPLICATION_TAB_KEY);
+  const savedTabId = Number(cached[TARGET_APPLICATION_TAB_KEY] || 0);
+  if (savedTabId && chrome.tabs.get) {
+    const savedTab = await chrome.tabs.get(savedTabId).catch(() => null);
+    if (isApplicationTab(savedTab)) return savedTab;
+  }
+
+  const activeTabs = await chrome.tabs.query({ active: true });
+  const activeWebTab = activeTabs.find(isApplicationTab);
+  if (activeWebTab) return rememberTargetApplicationTab(activeWebTab);
+  return null;
+}
+
+async function openAutofillPopupWindow(sourceTab) {
+  await rememberTargetApplicationTab(sourceTab);
+
+  if (autofillPopupWindowId && chrome.windows?.get) {
+    const existing = await chrome.windows.get(autofillPopupWindowId).catch(() => null);
+    if (existing) {
+      await chrome.windows.update(autofillPopupWindowId, { focused: true });
+      return existing;
+    }
+  }
+
+  if (chrome.tabs?.query) {
+    const [existingTab] = await chrome.tabs.query({ url: POPUP_PAGE_URL });
+    if (existingTab?.windowId && chrome.windows?.update) {
+      autofillPopupWindowId = existingTab.windowId;
+      await chrome.windows.update(existingTab.windowId, { focused: true });
+      return { id: existingTab.windowId };
+    }
+  }
+
+  const created = await chrome.windows.create({
+    url: POPUP_PAGE_URL,
+    type: "popup",
+    width: 440,
+    height: 780,
+    focused: true,
+  });
+  autofillPopupWindowId = Number(created?.id || 0);
+  return created;
+}
 
 function normalizeHistoryExportSettings(value = {}) {
   const legacyTrigger = Object.hasOwn(value, "autoSaveOnFill")
@@ -741,10 +799,37 @@ chrome.commands?.onCommand?.addListener((command) => {
     .catch(() => {});
 });
 
+chrome.action?.onClicked?.addListener((tab) => {
+  openAutofillPopupWindow(tab).catch(() => {});
+});
+
+chrome.tabs?.onActivated?.addListener(({ tabId }) => {
+  chrome.tabs.get(tabId)
+    .then((tab) => rememberTargetApplicationTab(tab))
+    .catch(() => {});
+});
+
+chrome.windows?.onRemoved?.addListener((windowId) => {
+  if (windowId === autofillPopupWindowId) autofillPopupWindowId = 0;
+});
+
 chrome.runtime.onInstalled?.addListener(() => { void restoreAutomaticFill().catch(() => {}); });
 chrome.runtime.onStartup?.addListener(() => { void restoreAutomaticFill().catch(() => {}); });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "get-target-application-tab") {
+    getTargetApplicationTab()
+      .then((tab) => {
+        if (!tab) throw new Error("Open a job posting or application webpage first.");
+        sendResponse({
+          ok: true,
+          tab: { id: tab.id, windowId: tab.windowId, url: tab.url || "", title: tab.title || "" },
+        });
+      })
+      .catch((error) => sendResponse({ ok: false, error: error.message || "No application tab is available." }));
+    return true;
+  }
+
   if (message?.type === "application-submitted") {
     saveSubmittedApplication(message, sender)
       .then((result) => sendResponse({ ok: true, ...(result || {}) }))
