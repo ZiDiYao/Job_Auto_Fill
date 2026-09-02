@@ -89,8 +89,8 @@
     return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
   }
 
-  const blockedQuestion = /\b(salary|compensation|criminal|conviction|pending charges?|background check|security clearance|bondable|driver'?s? licen[cs]e|transportation|government employee|public official|conflict of interest|non[ -]?compete|restrictive covenant|terminated|dismissed|rehire|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security)\b/i;
-  const neverAutomateDomQuestion = /\b(submit|send application|save and continue|sign(?:ed|ing)?|signature|e[ -]?signature|certif(?:y|ication)|attest|declaration|consent to|agree to|terms(?: of use)?|privacy policy|salary|compensation|expected pay|date of birth|birth date|social insurance number|\bsin\b|ssn|social security number)\b/i;
+  const blockedQuestion = /\b(salary|compensation|criminal|conviction|pending charges?|background check|security clearance|bondable|driver'?s? licen[cs]e|transportation|government employee|public official|conflict of interest|non[ -]?compete|restrictive covenant|terminated|dismissed|rehire|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security|national insurance|\bnin\b|tax identification|taxpayer id|\btin\b)\b/i;
+  const neverAutomateDomQuestion = /\b(submit|send application|save and continue|sign(?:ed|ing)?|signature|e[ -]?signature|certif(?:y|ication)|attest|declaration|consent to|agree to|terms(?: of use)?|privacy policy|salary|compensation|expected pay|date of birth|birth date|social insurance number|\bsin\b|ssn|social security number|national insurance number|\bnin\b|tax identification number|taxpayer id|\btin\b)\b/i;
 
   const sensitiveRules = [
     { key: "sexualOrientation", pattern: /\bsexual orientation\b/ },
@@ -165,12 +165,14 @@
       pattern: /\b(pending|outstanding|current).{0,50}\b(criminal charges?|charges? for (?:a )?criminal|prosecution)\b|\bcurrently (?:charged|facing criminal charges?)\b/,
     },
     {
-      key: "validSin",
-      pattern: /\b(valid|hold|have).{0,60}\b(social insurance number|sin)\b/,
+      key: "nationalTaxIdAvailable",
+      legacyKey: "validSin",
+      pattern: /\b(do you|can you|are you able to).{0,50}\b(have|hold|possess|provide).{0,40}\b(social (?:insurance|security) number|national insurance number|tax identification number|taxpayer id|sin|ssn|nin|tin)\b/,
     },
     {
-      key: "age18OrOlder",
-      pattern: /\b(at least|over|older than).{0,30}\b(18|eighteen)\b.{0,30}\b(years? of age|years? old|age)\b|\b(18|eighteen).{0,30}\b(or older|years? of age)\b/,
+      key: "meetsMinimumWorkingAge",
+      legacyKey: "age18OrOlder",
+      pattern: /\b(at least|over|older than).{0,30}\b(16|18|21|sixteen|eighteen|twenty one)\b.{0,30}\b(years? of age|years? old|age)\b|\b(16|18|21|sixteen|eighteen|twenty one).{0,30}\b(or older|years? of age)\b|\bminimum legal (?:working|employment) age\b/,
     },
     {
       key: "outsideActivitiesConflict",
@@ -285,7 +287,7 @@
   function employerPreferenceValue(label) {
     for (const rule of employerPreferenceRules) {
       if (!rule.pattern.test(label)) continue;
-      const configured = profile[rule.key];
+      const configured = profile[rule.key] || (rule.legacyKey ? profile[rule.legacyKey] : "");
       return configured === undefined || configured === null || configured === "" ? null : String(configured);
     }
     return null;

@@ -118,14 +118,16 @@ function getResumeText() {
 
 async function getProfile() {
   const savedProfile = JSON.parse(await readFile(profilePath, "utf8"));
+  if (!savedProfile.nationalTaxIdAvailable && savedProfile.validSin) savedProfile.nationalTaxIdAvailable = savedProfile.validSin;
+  if (!savedProfile.meetsMinimumWorkingAge && savedProfile.age18OrOlder) savedProfile.meetsMinimumWorkingAge = savedProfile.age18OrOlder;
   return Object.fromEntries(Object.entries(profileDefaults).map(([key, defaultValue]) => [
     key,
     Object.prototype.hasOwnProperty.call(savedProfile, key) ? savedProfile[key] : defaultValue,
   ]));
 }
 
-const sensitiveQuestion = /\b(salary|compensation|criminal|conviction|pending charges?|background|security clearance|bondable|driver'?s? licen[cs]e|transportation|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security|authori[sz]ed to work|work authori[sz]ation|sponsor|sponsorship|visa|government employee|public official|conflict of interest|non[ -]?compete|restrictive covenant|terminated|dismissed|rehire|gender|sex|sexual orientation|race|racial|ethnic|disability|disabled|veteran|indigenous|aboriginal|first nations?|m[eé]tis|inuit|pronouns?)\b/i;
-const neverAutomateQuestion = /\b(submit|send application|sign(?:ed|ing)?|signature|e[ -]?signature|certif(?:y|ication)|attest|declaration|consent to|agree to|terms(?: of use)?|privacy policy|salary|compensation|expected pay|date of birth|birth date|social insurance number|\bsin\b|ssn|social security number)\b/i;
+const sensitiveQuestion = /\b(salary|compensation|criminal|conviction|pending charges?|background|security clearance|bondable|driver'?s? licen[cs]e|transportation|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security|national insurance|\bnin\b|tax identification|taxpayer id|\btin\b|authori[sz]ed to work|work authori[sz]ation|sponsor|sponsorship|visa|government employee|public official|conflict of interest|non[ -]?compete|restrictive covenant|terminated|dismissed|rehire|gender|sex|sexual orientation|race|racial|ethnic|disability|disabled|veteran|indigenous|aboriginal|first nations?|m[eé]tis|inuit|pronouns?)\b/i;
+const neverAutomateQuestion = /\b(submit|send application|sign(?:ed|ing)?|signature|e[ -]?signature|certif(?:y|ication)|attest|declaration|consent to|agree to|terms(?: of use)?|privacy policy|salary|compensation|expected pay|date of birth|birth date|social insurance number|\bsin\b|ssn|social security number|national insurance number|\bnin\b|tax identification number|taxpayer id|\btin\b)\b/i;
 
 function safeProfileForModel(profile) {
   const allowedKeys = [
@@ -251,7 +253,7 @@ function decisionProfileForModel(profile) {
     "graduationDate", "startDate", "workTerm", "workAuthorized", "sponsorship",
     "willingToCommute", "willingToRelocate", "willingToTravel", "willingToWorkOnsite",
     "willingFlexibleSchedule", "backgroundCheckConsent", "drugScreeningConsent", "criminalRecord",
-    "pendingCriminalCharges", "validSin", "age18OrOlder", "holdsSecurityClearance",
+    "pendingCriminalCharges", "nationalTaxIdAvailable", "meetsMinimumWorkingAge", "holdsSecurityClearance",
     "eligibleForSecurityClearance", "bondable", "validDriversLicense", "reliableTransportation",
     "outsideActivitiesConflict", "conflictOfInterest", "previouslyWorkedForAuditor",
     "previouslyWorkedForEmployer", "previouslyAppliedToEmployer", "previouslyInterviewedByEmployer",

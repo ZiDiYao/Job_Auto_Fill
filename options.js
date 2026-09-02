@@ -247,8 +247,8 @@ const defaultProfile = {
   drugScreeningConsent: "",
   criminalRecord: "",
   pendingCriminalCharges: "",
-  validSin: "",
-  age18OrOlder: "",
+  nationalTaxIdAvailable: "",
+  meetsMinimumWorkingAge: "",
   holdsSecurityClearance: "",
   eligibleForSecurityClearance: "",
   bondable: "",
@@ -301,10 +301,13 @@ const defaultProfile = {
 let savedAiModel = defaultProfile.aiModel;
 
 function mergeProfile(profile = {}) {
+  const migrated = { ...profile };
+  if (!migrated.nationalTaxIdAvailable && migrated.validSin) migrated.nationalTaxIdAvailable = migrated.validSin;
+  if (!migrated.meetsMinimumWorkingAge && migrated.age18OrOlder) migrated.meetsMinimumWorkingAge = migrated.age18OrOlder;
   return {
     ...defaultProfile,
-    ...profile,
-    settings: { ...defaultProfile.settings, ...(profile.settings || {}) },
+    ...migrated,
+    settings: { ...defaultProfile.settings, ...(migrated.settings || {}) },
   };
 }
 

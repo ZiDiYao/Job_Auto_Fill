@@ -376,6 +376,55 @@ test("saved legal and employment facts map to equivalent portal questions", asyn
   assert.equal(result.review, 0);
 });
 
+test("global identity and working-age facts map without storing identifier values", async () => {
+  const fields = [
+    new FakeSelect({
+      ariaLabel: "Do you have a valid Social Security Number?",
+      options: [{ value: "", text: "Select one" }, { value: "Y", text: "Yes" }, { value: "N", text: "No" }],
+    }),
+    new FakeSelect({
+      ariaLabel: "Can you provide a National Insurance Number?",
+      options: [{ value: "", text: "Select one" }, { value: "Y", text: "Yes" }, { value: "N", text: "No" }],
+    }),
+    new FakeSelect({
+      ariaLabel: "Are you at least 16 years old?",
+      options: [{ value: "", text: "Select one" }, { value: "Y", text: "Yes" }, { value: "N", text: "No" }],
+    }),
+  ];
+  const result = await runContent({
+    profile: { nationalTaxIdAvailable: "Yes", meetsMinimumWorkingAge: "Yes", aiEnabled: false },
+    fields,
+  });
+  assert.deepEqual(fields.map((field) => field.value), ["Y", "Y", "Y"]);
+  assert.equal(result.filled, 3);
+});
+
+test("an actual national identifier input is never filled with an availability answer", async () => {
+  const identifier = new FakeInput({ ariaLabel: "Social Security Number", required: true });
+  const result = await runContent({
+    profile: { nationalTaxIdAvailable: "Yes", aiEnabled: false },
+    fields: [identifier],
+  });
+  assert.equal(identifier.value, "");
+  assert.equal(identifier.dataset.localJobAutofill, "review");
+  assert.equal(result.filled, 0);
+  assert.equal(result.review, 1);
+});
+
+test("legacy Canadian eligibility preferences migrate at fill time", async () => {
+  const identifier = new FakeSelect({
+    ariaLabel: "Do you hold a valid social insurance number?",
+    options: [{ value: "", text: "Select one" }, { value: "Y", text: "Yes" }, { value: "N", text: "No" }],
+  });
+  const age = new FakeSelect({
+    ariaLabel: "Are you at least 18 years of age?",
+    options: [{ value: "", text: "Select one" }, { value: "Y", text: "Yes" }, { value: "N", text: "No" }],
+  });
+  const result = await runContent({ profile: { validSin: "Yes", age18OrOlder: "Yes", aiEnabled: false }, fields: [identifier, age] });
+  assert.deepEqual([identifier.value, age.value], ["Y", "Y"]);
+  assert.equal(result.filled, 2);
+});
+
 test("unset criminal-history facts remain untouched for manual review", async () => {
   const conviction = new FakeSelect({
     ariaLabel: "Have you ever been convicted of a criminal offence?",
