@@ -186,6 +186,8 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(popupHtml, /id="settingsRequired">Required before your first autofill/);
   assert.match(popupHtml, /class="popup-card resume-section"/);
   assert.match(popupHtml, /class="popup-card job-section"/);
+  assert.doesNotMatch(popupHtml, /notesFolderStatus|folder access req/);
+  assert.doesNotMatch(popupSource, /refreshNotesFolderStatus|hasDirectoryPermission/);
   assert.doesNotMatch(popupHtml, /The job description is captured automatically/);
   assert.doesNotMatch(popupHtml, /id="fill"|>Fill application</);
   assert.match(popupSource, /saveCurrentJobNote/);

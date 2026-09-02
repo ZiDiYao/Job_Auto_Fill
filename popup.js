@@ -1,4 +1,4 @@
-import { getSavedExportDirectory, hasDirectoryPermission } from "./local-directory.js";
+import { getSavedExportDirectory } from "./local-directory.js";
 import { exportApplication } from "./application-export-service.js";
 
 const settingsButton = document.querySelector("#settings");
@@ -14,7 +14,6 @@ const resumeFile = document.querySelector("#resumeFile");
 const resumeStatus = document.querySelector("#resumeStatus");
 const saveNoteButton = document.querySelector("#saveNote");
 const notesSettingsButton = document.querySelector("#notesSettings");
-const notesFolderStatus = document.querySelector("#notesFolderStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 const AUTO_ADVANCE_STATUS_KEY = "jobAutofillAutoAdvanceStatus";
 const AUTOMATION_PAUSED_KEY = "jobAutofillAutomationPaused";
@@ -114,7 +113,6 @@ chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANC
     ? String(detectedJob?.jobDescription || "")
     : "";
   await detectJobDescription(false);
-  await refreshNotesFolderStatus();
   renderAutoAdvanceStatus(autoAdvanceStatus);
 });
 
@@ -397,40 +395,6 @@ function extractJobMetadataFromPage() {
   };
 }
 
-async function refreshNotesFolderStatus() {
-  try {
-    const cached = await chrome.storage.local.get(NOTE_SETTINGS_KEY);
-    const settings = normalizeExportSettings(cached[NOTE_SETTINGS_KEY]);
-    const enabled = [];
-    if (settings.destinations.markdown) enabled.push("Markdown");
-    if (settings.destinations.spreadsheet) enabled.push("Excel");
-    if (settings.destinations.notion) enabled.push("Notion");
-    if (!enabled.length) {
-      notesFolderStatus.textContent = "No export destination enabled";
-      return;
-    }
-    const handles = await Promise.all([
-      settings.destinations.markdown ? getSavedExportDirectory("markdown") : null,
-      settings.destinations.spreadsheet ? getSavedExportDirectory("spreadsheet") : null,
-    ]);
-    const needsFolder = settings.destinations.markdown || settings.destinations.spreadsheet;
-    if (needsFolder && handles.some((handle, index) => (index === 0 ? settings.destinations.markdown : settings.destinations.spreadsheet) && !handle)) {
-      notesFolderStatus.textContent = `${enabled.join(" + ")} · local folder required`;
-      return;
-    }
-    if (needsFolder) {
-      const ready = (await Promise.all(handles.filter(Boolean).map((handle) => hasDirectoryPermission(handle, false)))).every(Boolean);
-      notesFolderStatus.textContent = ready
-        ? `${enabled.join(" + ")} · ready`
-        : `${enabled.join(" + ")} · folder access required`;
-      return;
-    }
-    notesFolderStatus.textContent = settings.notion.dataSourceId ? "Notion · ready" : "Notion setup required";
-  } catch (error) {
-    notesFolderStatus.textContent = error.message || "Export destination unavailable";
-  }
-}
-
 async function currentJobRecord() {
   const description = jobDescription.value.trim();
   if (!description) throw new Error("Add or detect a job description before saving a note.");
@@ -480,7 +444,6 @@ async function saveCurrentJobNote({ showSuccess = true } = {}) {
       savedAt: new Date().toISOString(),
     },
   });
-  notesFolderStatus.textContent = `Saved to ${saved.join(" + ")}`;
   if (showSuccess) {
     status.className = failures.length ? "error" : "";
     status.textContent = `Saved to ${saved.join(" + ")}${failures.length ? ` · ${failures.join(" · ")}` : ""}`;
