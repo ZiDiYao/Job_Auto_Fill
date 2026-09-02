@@ -93,6 +93,23 @@ test("saved-state copy is rendered as quiet secondary text", async () => {
   assert.match(css, /#saveStatus \{[^}]*color: #98a2b3;[^}]*font-size: 10px;/);
 });
 
+test("popup and settings pages ship green, blue-default, and dark themes", async () => {
+  const [html, optionsCss, popupCss, optionsSource, popupSource] = await Promise.all([
+    readFile(path.join(repositoryRoot, "options.html"), "utf8"),
+    readFile(path.join(repositoryRoot, "options.css"), "utf8"),
+    readFile(path.join(repositoryRoot, "popup.css"), "utf8"),
+    readFile(path.join(repositoryRoot, "options.js"), "utf8"),
+    readFile(path.join(repositoryRoot, "popup.js"), "utf8"),
+  ]);
+  assert.match(html, /<select name="theme">[\s\S]*?value="green"[\s\S]*?value="blue"[\s\S]*?value="dark"/);
+  for (const css of [optionsCss, popupCss]) {
+    assert.match(css, /:root\[data-theme="green"\]/);
+    assert.match(css, /:root\[data-theme="dark"\]/);
+  }
+  assert.match(optionsSource, /function applyTheme\(/);
+  assert.match(popupSource, /function applyTheme\(/);
+});
+
 test("extension icons ship at every manifest size with transparent RGBA corners", async () => {
   for (const size of [16, 32, 48, 128]) {
     const png = await readFile(path.join(repositoryRoot, "icons", `icon-${size}.png`));

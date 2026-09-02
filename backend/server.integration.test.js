@@ -151,6 +151,7 @@ test("profile updates accept known fields and discard unknown fields", async () 
     method: "PUT",
     body: {
       firstName: "Test",
+      theme: "dark",
       genderIdentity: "Male",
       skills: ["SQL", "Teamwork", "SQL"],
       unknownPrivateField: "must not persist",
@@ -161,6 +162,7 @@ test("profile updates accept known fields and discard unknown fields", async () 
 
   const persisted = JSON.parse(await readFile(profilePath, "utf8"));
   assert.equal(persisted.firstName, "Test");
+  assert.equal(persisted.theme, "dark");
   assert.deepEqual(persisted.skills, ["SQL", "Teamwork", "SQL"]);
   assert.equal("unknownPrivateField" in persisted, false);
 });

@@ -203,6 +203,7 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /id="exportSpreadsheet"/);
   assert.match(optionsHtml, /data-settings-target="profile"/);
   assert.match(optionsHtml, /data-settings-target="overview"/);
+  assert.match(optionsHtml, /<select name="theme">[\s\S]*?White \+ Green[\s\S]*?Current Blue[\s\S]*?Dark/);
   assert.match(optionsHtml, /data-settings-target="ai"/);
   assert.match(optionsHtml, /data-settings-page="profile"[^>]*class="default-resume-section">[\s\S]*?<h2>Default resume<\/h2>/);
   assert.match(optionsHtml, /data-settings-page="overview"[^>]*hidden>[\s\S]*?<h2>Behaviour<\/h2>/);

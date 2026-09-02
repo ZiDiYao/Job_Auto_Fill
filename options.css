@@ -153,11 +153,85 @@ kbd { display: inline-block; min-width: 22px; margin-right: 3px; border: 1px sol
 .empty-preview { color: var(--muted); font-size: 11px; }
 code { border-radius: 3px; padding: 2px 4px; color: #344054; background: #eef1f4; }
 
+.theme-setting { display: grid; grid-template-columns: minmax(220px, 360px) minmax(0, 1fr); gap: 18px; align-items: end; }
+.theme-setting p { padding-bottom: 9px; font-size: 11px; }
+
+:root[data-theme="green"] {
+  color-scheme: light;
+  --blue: #23845f;
+  --blue-dark: #196b4d;
+  --border: #d7e3dc;
+  background: #fff;
+}
+:root[data-theme="green"] body { background: #fff; }
+:root[data-theme="green"] .settings-nav { background: rgba(255, 255, 255, 0.96); }
+:root[data-theme="green"] input:focus,
+:root[data-theme="green"] select:focus,
+:root[data-theme="green"] textarea:focus { outline-color: rgba(35, 132, 95, 0.16); }
+:root[data-theme="green"] button:focus-visible,
+:root[data-theme="green"] .file-button:focus-within { outline-color: rgba(35, 132, 95, 0.22); }
+:root[data-theme="green"] .field-action:hover { background: #edf8f3; }
+:root[data-theme="green"] .resume-prefilled { border-color: #6cad92; background: #f4fbf7; }
+:root[data-theme="green"] .export-destination.enabled { border-color: #9bbdab; }
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --blue: #72aef7;
+  --blue-dark: #4d94e8;
+  --text: #f2f4f7;
+  --muted: #a8b0bd;
+  --border: #343b47;
+  --surface: #171a20;
+  color: var(--text);
+  background: #0f1115;
+}
+:root[data-theme="dark"] body { background: #0f1115; }
+:root[data-theme="dark"] .settings-nav { background: rgba(15, 17, 21, 0.96); }
+:root[data-theme="dark"] h3,
+:root[data-theme="dark"] label,
+:root[data-theme="dark"] .resume-evidence summary,
+:root[data-theme="dark"] .ats-label { color: #d9dee7; }
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] .folder-path { border-color: #46505e; color: var(--text); background: #111419; }
+:root[data-theme="dark"] input:focus,
+:root[data-theme="dark"] select:focus,
+:root[data-theme="dark"] textarea:focus { outline-color: rgba(114, 174, 247, 0.22); }
+:root[data-theme="dark"] button:focus-visible,
+:root[data-theme="dark"] .file-button:focus-within { outline-color: rgba(114, 174, 247, 0.28); }
+:root[data-theme="dark"] .secondary,
+:root[data-theme="dark"] .remove-language:hover { border-color: #46505e; color: #d9dee7; background: #1d2128; }
+:root[data-theme="dark"] .secondary:hover { border-color: #657184; background: #252a33; }
+:root[data-theme="dark"] .danger { border-color: #704346; color: #ffb4b4; background: #211719; }
+:root[data-theme="dark"] .danger:hover { background: #2b1b1e; }
+:root[data-theme="dark"] .field-action:hover { background: #222a35; }
+:root[data-theme="dark"] .resume-prefilled { border-color: #4f79aa; background: #161f2b; }
+:root[data-theme="dark"] .profile-incomplete { border-color: #e16b6b; background: #28191b; }
+:root[data-theme="dark"] pre,
+:root[data-theme="dark"] code,
+:root[data-theme="dark"] kbd,
+:root[data-theme="dark"] .resume-text,
+:root[data-theme="dark"] .skill-token { border-color: #3c4552; color: #d9dee7; background: #22262e; }
+:root[data-theme="dark"] .export-destination,
+:root[data-theme="dark"] .oauth-card,
+:root[data-theme="dark"] .ats-mock,
+:root[data-theme="dark"] .skill-token-box { background: #13161b; }
+:root[data-theme="dark"] .export-destination.enabled { border-color: #657184; }
+:root[data-theme="dark"] .destination-options,
+:root[data-theme="dark"] .history-save-policy { background: #1a1e25; }
+:root[data-theme="dark"] .preview-row { border-top-color: #303641; }
+:root[data-theme="dark"] .settings-tab,
+:root[data-theme="dark"] .export-tab { color: #a8b0bd; }
+:root[data-theme="dark"] .settings-tab:hover,
+:root[data-theme="dark"] .export-tab:hover { color: #f2f4f7; }
+:root[data-theme="dark"] .primary { color: #0b1726; }
+
 @media (max-width: 680px) {
   main { padding: 24px 16px 40px; }
   header { display: block; }
   .header-actions { margin-top: 14px; }
   .settings-nav { gap: 18px; overflow-x: auto; }
-  .grid, .folder-picker, .language-row { grid-template-columns: 1fr; }
+  .grid, .folder-picker, .language-row, .theme-setting { grid-template-columns: 1fr; }
   .remove-language { width: 100%; }
 }

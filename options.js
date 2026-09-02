@@ -60,6 +60,12 @@ const SETTINGS_PAGES = {
   },
 };
 
+const THEMES = new Set(["green", "blue", "dark"]);
+
+function applyTheme(value) {
+  document.documentElement.dataset.theme = THEMES.has(value) ? value : "blue";
+}
+
 function pageFromHash(hash = location.hash) {
   if (hash.startsWith("#overview")) return "overview";
   if (hash.startsWith("#ai")) return "ai";
@@ -202,6 +208,7 @@ async function persistExportSettings(settings = null) {
 }
 
 const defaultProfile = {
+  theme: "blue",
   firstName: "",
   lastName: "",
   preferredName: "",
@@ -426,6 +433,7 @@ function normalizeMonthValue(value) {
 
 function renderProfile(profile) {
   const merged = mergeProfile(profile);
+  applyTheme(merged.theme);
   savedAiModel = String(merged.aiModel || defaultProfile.aiModel);
   for (const [key, value] of Object.entries(merged)) {
     if (key === "settings" || key === "languages") continue;
@@ -626,6 +634,7 @@ function queueChangedSetting(event) {
   const control = event.target;
   if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement)) return;
   if (control.type === "file") return;
+  if (control.name === "theme") applyTheme(control.value);
   if (control.name) updateIncompleteProfileFields();
   if (control.closest('[data-settings-page="history"]')) exportAutosave.schedule();
   else if (control.name) profileAutosave.schedule();

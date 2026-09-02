@@ -15,6 +15,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Fills the current application without opening the popup through `Command+Shift+Y` on macOS or `Ctrl+Shift+Y` on Windows/Linux.
 - Optionally watches full navigations and single-page application step changes, recognizes application forms, and fills each new page automatically after one-time website access is approved.
 - Automatically saves Profile, AI, and Application History settings after editing stops; slow writes are serialized so older data cannot overwrite newer changes.
+- Offers White + Green, Current Blue, and Dark appearance themes; the selected theme is saved immediately and shared by the popup and settings pages.
 - Separates candidate data into Profile and keeps resume management plus automatic-fill controls on a focused Overview page.
 - Syncs the saved profile and resume from a backend bound to `127.0.0.1`.
 - Uses structured Workday mappings for repeated experience, education, language, and skill controls instead of asking AI to guess field boundaries.

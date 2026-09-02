@@ -27,6 +27,12 @@ let onboardingVisited = false;
 let hasDefaultResume = false;
 let automationPaused = false;
 
+const THEMES = new Set(["green", "blue", "dark"]);
+
+function applyTheme(value) {
+  document.documentElement.dataset.theme = THEMES.has(value) ? value : "blue";
+}
+
 function renderSetupState(visited) {
   onboardingVisited = visited === true;
   const setupComplete = onboardingVisited && hasDefaultResume;
@@ -81,6 +87,7 @@ function normalizeExportSettings(value = {}) {
 }
 
 chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY, AUTOMATION_PAUSED_KEY, LAST_DETECTED_JOB_KEY, ONBOARDING_VISITED_KEY]).then(async ({ jobAutofillProfile, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus, [AUTOMATION_PAUSED_KEY]: paused, [LAST_DETECTED_JOB_KEY]: detectedJob, [ONBOARDING_VISITED_KEY]: visited }) => {
+  applyTheme(jobAutofillProfile?.theme);
   hasDefaultResume = Boolean(jobAutofillResume?.base64);
   renderSetupState(visited);
   renderAutomationPausedState(paused);
@@ -119,6 +126,7 @@ function renderAutoAdvanceStatus(autoAdvanceStatus) {
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.jobAutofillProfile) applyTheme(changes.jobAutofillProfile.newValue?.theme);
   if (area === "local" && changes[AUTO_ADVANCE_STATUS_KEY]) renderAutoAdvanceStatus(changes[AUTO_ADVANCE_STATUS_KEY].newValue);
   if (area === "local" && changes[AUTOMATION_PAUSED_KEY]) renderAutomationPausedState(changes[AUTOMATION_PAUSED_KEY].newValue);
   if (area === "local" && changes[LAST_DETECTED_JOB_KEY]) {
