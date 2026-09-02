@@ -519,6 +519,105 @@
     return normalize(question?.textContent || "");
   }
 
+  async function readWorkdayButtonOptions(button) {
+    if (!button || !isVisible(button)) return [];
+    button.click();
+    let options = [];
+    for (let attempt = 0; attempt < 8 && !options.length; attempt += 1) {
+      await wait(140);
+      options = visiblePromptOptions()
+        .filter((option) => option.getAttribute("aria-disabled") !== "true")
+        .map((option) => String(option.textContent || "").trim())
+        .filter((value) => value && normalize(value) !== "select one");
+    }
+
+    const uniqueOptions = [...new Map(options.map((value) => [normalize(value), value])).values()];
+    const active = document.activeElement || button;
+    active.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+    active.dispatchEvent(new KeyboardEvent("keyup", { key: "Escape", code: "Escape", bubbles: true }));
+    await wait(100);
+    if (visiblePromptOptions().length) {
+      const current = button.id ? document.getElementById(button.id) : button;
+      if (current && isVisible(current)) current.click();
+      await wait(100);
+    }
+    return uniqueOptions;
+  }
+
+  function findWorkdayQuestionButton(target) {
+    if (target.buttonId) return document.getElementById(target.buttonId);
+    return [...document.querySelectorAll('button[aria-haspopup="listbox"]')]
+      .find((button) => isVisible(button) && workdayQuestionLabel(button) === target.label);
+  }
+
+  async function resolveWorkdayDropdownsWithAi() {
+    if (
+      window.top !== window
+      || !profile.aiEnabled
+      || !profile.aiResolveDropdowns
+      || String(profile.aiProvider || "backend") !== "backend"
+    ) return;
+
+    for (let round = 0; round < 3; round += 1) {
+      const candidates = [...document.querySelectorAll('button[aria-haspopup="listbox"]')]
+        .filter((button) => (
+          isVisible(button)
+          && button.closest("fieldset")
+          && normalize(button.textContent) === "select one"
+          && workdayQuestionLabel(button)
+        ))
+        .slice(0, 30);
+      if (!candidates.length) break;
+
+      const questions = [];
+      const targets = [];
+      for (const originalButton of candidates) {
+        const button = originalButton.id ? document.getElementById(originalButton.id) : originalButton;
+        if (!button || normalize(button.textContent) !== "select one") continue;
+        const label = workdayQuestionLabel(button);
+        const options = await readWorkdayButtonOptions(button);
+        if (!options.length) continue;
+        const id = questions.length;
+        questions.push({ id, label, type: "select", options });
+        targets.push({ id, buttonId: button.id || "", label });
+      }
+      if (!questions.length) break;
+
+      let response;
+      try {
+        response = await chrome.runtime.sendMessage({
+          type: "resolve-workday-dropdowns",
+          jobDescription,
+          pageContext: `${document.title}\n${String(document.body?.innerText || "").slice(0, 8000)}`,
+          questions,
+          useSensitiveProfile: profile.aiUseSensitiveProfile === true,
+        });
+        if (!response?.ok) throw new Error(response?.error || "AI dropdown resolution failed.");
+      } catch (error) {
+        const message = `Dropdown AI: ${error.message || "resolution failed"}`;
+        result.aiError = [result.aiError, message].filter(Boolean).join(" | ");
+        break;
+      }
+
+      let changedCount = 0;
+      for (const answer of Array.isArray(response.answers) ? response.answers : []) {
+        const target = targets.find((candidate) => candidate.id === answer.id);
+        const button = target ? findWorkdayQuestionButton(target) : null;
+        if (!button || normalize(button.textContent) !== "select one") continue;
+        const wasReview = button.dataset.localJobAutofill === "review";
+        const changed = await chooseWorkdayButton(button, answer.value);
+        if (!changed) continue;
+        mark(button, "ai");
+        button.title = `Selected by backend AI: ${answer.value}. Review before submitting.`;
+        result.aiFilled += 1;
+        if (wasReview && result.review > 0) result.review -= 1;
+        changedCount += 1;
+      }
+      if (!changedCount) break;
+      await wait(180);
+    }
+  }
+
   async function fillWorkdayQuestionDropdowns() {
     const completed = new Set();
     for (let pass = 0; pass < 60; pass += 1) {
@@ -667,6 +766,7 @@
 
   await fillWorkdayStructuredSections();
   await fillWorkdayQuestionDropdowns();
+  await resolveWorkdayDropdownsWithAi();
   fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
 
   function base64ToBytes(base64) {

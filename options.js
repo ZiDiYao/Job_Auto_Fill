@@ -56,6 +56,8 @@ const defaultProfile = {
   veteranStatus: "",
   aiEnabled: false,
   includeJdSkills: false,
+  aiResolveDropdowns: false,
+  aiUseSensitiveProfile: false,
   aiProvider: "backend",
   aiModel: "qwen3:4b",
   resumeText: "",

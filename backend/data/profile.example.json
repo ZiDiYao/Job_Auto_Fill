@@ -108,6 +108,8 @@
   },
   "aiEnabled": true,
   "includeJdSkills": false,
+  "aiResolveDropdowns": false,
+  "aiUseSensitiveProfile": false,
   "aiProvider": "backend",
   "aiModel": "qwen3:4b",
   "resumeText": ""

@@ -111,12 +111,12 @@ function normalize(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function validateAnswers(rawAnswers, questions) {
+function validateAnswers(rawAnswers, questions, { allowSensitive = false } = {}) {
   const byId = new Map(questions.map((question) => [question.id, question]));
   const validated = [];
   for (const answer of Array.isArray(rawAnswers) ? rawAnswers : []) {
     const question = byId.get(answer?.id);
-    if (!question || sensitiveQuestion.test(question.label || "")) continue;
+    if (!question || (!allowSensitive && sensitiveQuestion.test(question.label || ""))) continue;
     let value = String(answer.value || "").trim();
     const confidence = Math.min(1, Math.max(0, Number(answer.confidence || 0)));
     if (!value || confidence < 0.65) continue;
@@ -202,6 +202,97 @@ async function callDeepSeek({ jobDescription, pageContext, questions }) {
     answers: validateAnswers(parsed.answers, safeQuestions),
     usage: payload.usage || null,
     model: payload.model || configuredDeepSeekModel(),
+  };
+}
+
+function decisionProfileForModel(profile) {
+  const keys = [
+    "firstName", "lastName", "preferredName", "city", "province", "country", "school", "degree",
+    "fieldOfStudy", "graduationYear", "startDate", "workTerm", "workAuthorized", "sponsorship",
+    "willingToCommute", "willingToRelocate", "willingToTravel", "willingToWorkOnsite",
+    "willingFlexibleSchedule", "backgroundCheckConsent", "drugScreeningConsent", "criminalRecord",
+    "validSin", "age18OrOlder", "outsideActivitiesConflict", "previouslyWorkedForAuditor",
+    "previouslyWorkedForEmployer", "employeeReferral", "relativesAtEmployer", "genderIdentity",
+    "pronouns", "sexualOrientation", "visibleMinority", "indigenousIdentity", "raceEthnicity",
+    "disabilityStatus", "veteranStatus",
+  ];
+  return {
+    ...Object.fromEntries(keys.map((key) => [key, profile[key] ?? ""])),
+    workHistory: (Array.isArray(profile.workExperiences) ? profile.workExperiences : []).map((experience) => ({
+      jobTitle: experience.jobTitle || "",
+      company: experience.company || "",
+      location: experience.location || "",
+      startYear: experience.startYear || "",
+      endYear: experience.endYear || "",
+    })),
+    languages: Array.isArray(profile.languages) ? profile.languages : [],
+    skills: Array.isArray(profile.skills) ? profile.skills : [],
+  };
+}
+
+async function resolveStructuredFields({ jobDescription, pageContext, questions, useSensitiveProfile }) {
+  const apiKey = configuredDeepSeekKey();
+  if (!apiKey || apiKey === "replace_with_a_new_key") {
+    throw Object.assign(new Error("A DeepSeek API key is not configured."), { statusCode: 503 });
+  }
+  const profile = await getProfile();
+  const resume = await getResumeText();
+  const eligibleQuestions = (Array.isArray(questions) ? questions : [])
+    .filter((question) => question && Number.isInteger(question.id) && Array.isArray(question.options) && question.options.length)
+    .filter((question) => useSensitiveProfile || !sensitiveQuestion.test(question.label || ""))
+    .slice(0, 30);
+  if (!eligibleQuestions.length) return { answers: [], model: configuredDeepSeekModel() };
+
+  const system = [
+    "You resolve structured job-application fields. Return JSON only in this exact shape:",
+    '{"answers":[{"id":0,"value":"exact option","confidence":0.95}]}',
+    "For every answer, value must exactly equal one of that question's supplied options.",
+    "Map semantically equivalent saved facts to portal wording, for example Male (Mr.) to Male, East Asian Chinese to Chinese, and No disability to No.",
+    "Use explicit candidate facts and preferences first. For subjective willingness or preference questions, choose the most employer-positive option consistent with the saved preferences.",
+    "Use the resume and complete work history to interpret prior-employer and experience questions.",
+    "Never invent a factual, legal, medical, licensing, clearance, education, employment-history, or criminal-history claim.",
+    "If the candidate data does not support an answer, omit that question instead of guessing.",
+  ].join(" ");
+
+  const request = {
+    candidateProfile: useSensitiveProfile ? decisionProfileForModel(profile) : safeProfileForModel(profile),
+    resume,
+    jobDescription: String(jobDescription || "").slice(0, 16000),
+    visiblePageContext: String(pageContext || "").slice(0, 8000),
+    questions: eligibleQuestions,
+  };
+  const baseUrl = String(
+    process.env.DEEPSEEK_BASE_URL || runtimeConfig.deepSeek?.baseUrl || "https://api.deepseek.com",
+  ).replace(/\/$/, "");
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: configuredDeepSeekModel(),
+      thinking: { type: "disabled" },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: JSON.stringify(request) },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 3000,
+      temperature: 0,
+      stream: false,
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw Object.assign(new Error(`DeepSeek returned ${response.status}: ${detail.slice(0, 300)}`), { statusCode: 502 });
+  }
+  const payload = await response.json();
+  const parsed = JSON.parse(payload?.choices?.[0]?.message?.content || "{}");
+  return {
+    answers: validateAnswers(parsed.answers, eligibleQuestions, { allowSensitive: useSensitiveProfile }),
+    model: payload.model || configuredDeepSeekModel(),
+    usage: payload.usage || null,
   };
 }
 
@@ -359,6 +450,17 @@ export function createServer() {
         const result = await extractJobSkills({
           jobDescription: body.jobDescription,
           pageContext: body.pageContext,
+        });
+        return sendJson(response, 200, result);
+      }
+
+      if (request.method === "POST" && request.url === "/api/resolve-fields") {
+        const body = await readJson(request, 2_000_000);
+        const result = await resolveStructuredFields({
+          jobDescription: body.jobDescription,
+          pageContext: body.pageContext,
+          questions: body.questions,
+          useSensitiveProfile: body.useSensitiveProfile === true,
         });
         return sendJson(response, 200, result);
       }

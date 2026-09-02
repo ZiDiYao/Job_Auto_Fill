@@ -120,6 +120,22 @@ async function extractJobSkills(message) {
   return { skills: Array.isArray(payload.skills) ? payload.skills : [] };
 }
 
+async function resolveWorkdayDropdowns(message) {
+  const response = await fetch(`${BACKEND_ENDPOINT}/api/resolve-fields`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jobDescription: message.jobDescription || "",
+      pageContext: message.pageContext || "",
+      questions: message.questions || [],
+      useSensitiveProfile: message.useSensitiveProfile === true,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `Local backend returned ${response.status}.`);
+  return { answers: Array.isArray(payload.answers) ? payload.answers : [] };
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "sync-backend-context") {
     fetch(`${BACKEND_ENDPOINT}/api/context`)
@@ -149,6 +165,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     extractJobSkills(message)
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => sendResponse({ ok: false, error: error.message || "JD skill extraction failed." }));
+    return true;
+  }
+
+  if (message?.type === "resolve-workday-dropdowns") {
+    resolveWorkdayDropdowns(message)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || "AI dropdown resolution failed." }));
     return true;
   }
 
