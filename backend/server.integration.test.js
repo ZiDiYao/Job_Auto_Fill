@@ -16,7 +16,10 @@ let temporaryDirectory;
 async function request(pathname, { method = "GET", body, headers = {} } = {}) {
   const response = await fetch(`${baseUrl}${pathname}`, {
     method,
-    headers: body === undefined ? headers : { "Content-Type": "application/json", ...headers },
+    // Avoid sharing an Undici keep-alive socket across concurrently executed test files.
+    headers: body === undefined
+      ? { Connection: "close", ...headers }
+      : { Connection: "close", "Content-Type": "application/json", ...headers },
     body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body),
   });
   const text = await response.text();
@@ -70,9 +73,9 @@ before(async () => {
       };
     } else if (payload.visibleDomFields) {
       data = {
-        plans: payload.visibleDomFields.flatMap((field) => {
-          if (field.options?.length) return [{ id: field.id, value: String(field.options[0]).toLowerCase(), confidence: 0.93 }];
-          return [{ id: field.id, value: "A concise evidence-based answer", confidence: 0.91 }];
+        suggestions: payload.visibleDomFields.flatMap((field) => {
+          if (field.options?.length) return [{ id: field.id, category: "preference", answer: String(field.options[0]).toLowerCase(), answers: [], confidence: 0.93 }];
+          return [{ id: field.id, category: "open_ended", answer: "A concise evidence-based answer", answers: [], confidence: 0.91 }];
         }),
       };
     } else {
@@ -244,72 +247,68 @@ test("resume profile endpoint extracts only validated non-sensitive facts", asyn
   assert.equal(aiRequests.at(-1).system.includes("never assume English"), true);
 });
 
-test("empty structured-field requests return empty validated results", async () => {
-  const resolved = await request("/api/resolve-fields", {
-    method: "POST",
-    body: { questions: [], provider: "deepseek" },
-  });
-  assert.equal(resolved.response.status, 200);
-  assert.deepEqual(resolved.payload.answers, []);
-
-  const planned = await request("/api/plan-fields", {
+test("empty semantic-field requests return empty validated suggestions", async () => {
+  const suggested = await request("/api/suggest-fields", {
     method: "POST",
     body: { fields: [], provider: "deepseek" },
   });
-  assert.equal(planned.response.status, 200);
-  assert.deepEqual(planned.payload.plans, []);
+  assert.equal(suggested.response.status, 200);
+  assert.deepEqual(suggested.payload.suggestions, []);
 });
 
-test("AI answer endpoint fails safely when the selected provider is unconfigured", async () => {
-  const { response, payload } = await request("/api/answer", {
+test("semantic suggestion endpoint fails safely when the selected provider is unconfigured", async () => {
+  const { response, payload } = await request("/api/suggest-fields", {
     method: "POST",
-    body: { questions: [], provider: "openai" },
+    body: {
+      fields: [{ id: 0, label: "Why this role?", type: "textarea", options: [] }],
+      provider: "openai",
+    },
   });
   assert.equal(response.status, 503);
   assert.match(payload.error, /OpenAI API key is not configured/);
 });
 
-test("answer endpoint calls the provider and filters sensitive questions before transmission", async () => {
+test("semantic suggestion endpoint filters sensitive questions before transmission", async () => {
   const beforeCount = aiRequests.length;
-  const { response, payload } = await request("/api/answer", {
+  const { response, payload } = await request("/api/suggest-fields", {
     method: "POST",
     body: {
       provider: "deepseek",
       jobDescription: "Hybrid software role",
       pageContext: "Application questionnaire",
-      questions: [
+      fields: [
         { id: 1, label: "Preferred work arrangement", type: "select", options: ["Hybrid", "Remote"] },
         { id: 2, label: "What is your gender?", type: "select", options: ["Male", "Female"] },
       ],
     },
   });
   assert.equal(response.status, 200);
-  assert.deepEqual(payload.answers, [{ id: 1, value: "Hybrid", confidence: 0.94 }]);
+  assert.deepEqual(payload.suggestions, [{ id: 1, category: "preference", answer: "Hybrid", confidence: 0.93 }]);
   assert.equal(payload.provider, "deepseek");
   assert.equal(payload.model, "mock-model");
   assert.equal(aiRequests.length, beforeCount + 1);
   const providerRequest = aiRequests.at(-1);
-  assert.deepEqual(providerRequest.payload.questions.map((question) => question.id), [1]);
+  assert.deepEqual(providerRequest.payload.visibleDomFields.map((field) => field.id), [1]);
   assert.equal(providerRequest.payload.jobDescription, "Hybrid software role");
-  assert.equal(providerRequest.system.includes("Never invent"), true);
+  assert.equal(providerRequest.system.includes("Never infer"), true);
 });
 
-test("structured dropdown resolution can use explicitly saved sensitive profile values", async () => {
-  const { response, payload } = await request("/api/resolve-fields", {
+test("semantic suggestions can use explicitly saved sensitive profile values", async () => {
+  const { response, payload } = await request("/api/suggest-fields", {
     method: "POST",
     body: {
       provider: "deepseek",
       useSensitiveProfile: true,
-      questions: [{ id: 3, label: "What is your gender?", type: "select", options: ["Male", "Female"] }],
+      fields: [{ id: 3, label: "What is your gender?", type: "select", options: ["Male", "Female"] }],
     },
   });
   assert.equal(response.status, 200);
-  assert.deepEqual(payload.answers, [{ id: 3, value: "Male", confidence: 0.94 }]);
+  assert.deepEqual(payload.suggestions, [{ id: 3, category: "preference", answer: "Male", confidence: 0.93 }]);
   assert.equal(aiRequests.at(-1).payload.candidateProfile.genderIdentity, "Male");
 });
 
-test("semantic DOM planning validates select options and bounds text length", async () => {
-  const { response, payload } = await request("/api/plan-fields", {
+test("semantic DOM suggestions validate select options and bound text length", async () => {
+  const { response, payload } = await request("/api/suggest-fields", {
     method: "POST",
     body: {
       provider: "deepseek",
@@ -321,9 +320,9 @@ test("semantic DOM planning validates select options and bounds text length", as
     },
   });
   assert.equal(response.status, 200);
-  assert.deepEqual(payload.plans, [
-    { id: 4, operation: "select", value: "Toronto", confidence: 0.93 },
-    { id: 5, operation: "fill", value: "A concise ev", confidence: 0.91 },
+  assert.deepEqual(payload.suggestions, [
+    { id: 4, category: "preference", answer: "Toronto", confidence: 0.93 },
+    { id: 5, category: "open_ended", answer: "A concise ev", confidence: 0.91 },
   ]);
   assert.deepEqual(aiRequests.at(-1).payload.visibleDomFields.map((field) => field.id), [4, 5]);
 });
@@ -351,7 +350,7 @@ test("AI skill extraction enforces ranking and user-configured limits", async ()
 });
 
 test("unsupported providers produce a bounded client error", async () => {
-  const { response, payload } = await request("/api/plan-fields", {
+  const { response, payload } = await request("/api/suggest-fields", {
     method: "POST",
     body: { fields: [], provider: "unsupported-provider" },
   });
@@ -419,4 +418,23 @@ test("preflight and unknown routes are handled predictably", async () => {
   const missing = await request("/missing");
   assert.equal(missing.response.status, 404);
   assert.deepEqual(missing.payload, { error: "Not found" });
+});
+
+test("data deletion resets the saved profile and removes the saved resume", async () => {
+  await request("/api/profile", {
+    method: "PUT",
+    body: { firstName: "Delete Me", email: "delete@example.com" },
+  });
+  await writeFile(resumePath, "%PDF-1.7\n% deletion fixture\n", "utf8");
+
+  const deleted = await request("/api/data", { method: "DELETE" });
+  assert.equal(deleted.response.status, 200);
+  assert.deepEqual(deleted.payload, { deleted: true });
+
+  const context = await request("/api/context");
+  assert.equal(context.payload.profile.firstName, "");
+  assert.equal(context.payload.profile.email, "");
+  assert.equal(context.payload.resume, null);
+  const health = await request("/health");
+  assert.equal(health.payload.resumeAvailable, false);
 });

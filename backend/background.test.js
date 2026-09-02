@@ -12,7 +12,18 @@ function loadBackground({ fetchImpl, initialStorage = {}, scripting, tabs, permi
   const actionListeners = [];
   const tabActivatedListeners = [];
   const windowRemovedListeners = [];
-  const storage = structuredClone(initialStorage);
+  const storage = structuredClone({
+    jobAutofillPrivacyConsent: {
+      version: 1,
+      acceptedAt: "2026-09-02T00:00:00.000Z",
+      localProcessing: true,
+      automaticPageAccess: true,
+      cloudAi: true,
+      sensitiveAi: true,
+      notion: true,
+    },
+    ...initialStorage,
+  });
   const chrome = {
     runtime: {
       onMessage: { addListener: (listener) => listeners.push(listener) },
@@ -531,12 +542,14 @@ test("automatic fill registration adds and removes the persistent page watcher",
   assert.equal(registrations[1][0], "unregister");
 });
 
-test("backend answer messages forward normalized request data", async () => {
+test("backend answer messages use the semantic suggestion endpoint", async () => {
   let captured;
   const background = loadBackground({
     fetchImpl: async (url, options) => {
       captured = { url, options, body: JSON.parse(options.body) };
-      return new Response(JSON.stringify({ answers: [{ id: 1, value: "Answer", confidence: 0.9 }] }), { status: 200 });
+      return new Response(JSON.stringify({
+        suggestions: [{ id: 1, category: "open_ended", answer: "Answer", answers: [], confidence: 0.9 }],
+      }), { status: 200 });
     },
   });
   const result = await background.send({
@@ -544,16 +557,16 @@ test("backend answer messages forward normalized request data", async () => {
     provider: "backend",
     jobDescription: "JD",
     jobContext: "Page",
-    questions: [{ id: 1 }],
+    questions: [{ id: 1, label: "Why this role?", type: "textarea", options: [] }],
   });
   assert.equal(result.ok, true);
   assert.deepEqual(JSON.parse(JSON.stringify(result.answers)), [{ id: 1, value: "Answer", confidence: 0.9 }]);
-  assert.equal(captured.url, "http://127.0.0.1:17840/api/answer");
+  assert.equal(captured.url, "http://127.0.0.1:17840/api/suggest-fields");
   assert.equal(captured.options.method, "POST");
   assert.deepEqual(captured.body, {
     jobDescription: "JD",
     pageContext: "Page",
-    questions: [{ id: 1 }],
+    fields: [{ id: 1, label: "Why this role?", type: "textarea", options: [] }],
     provider: "deepseek",
   });
 });
@@ -567,7 +580,7 @@ test("backend errors are returned to the extension caller", async () => {
   assert.equal(result.error, "Provider unavailable");
 });
 
-test("Ollama answers are parsed, trimmed, and filtered by integer id", async () => {
+test("Ollama semantic suggestions are validated and converted to local answers", async () => {
   let requestBody;
   const background = loadBackground({
     fetchImpl: async (_url, options) => {
@@ -575,9 +588,9 @@ test("Ollama answers are parsed, trimmed, and filtered by integer id", async () 
       return new Response(JSON.stringify({
         message: {
           content: JSON.stringify({
-            answers: [
-              { id: 2, value: "  concise answer  ", confidence: "0.88" },
-              { id: "bad", value: "ignored", confidence: 1 },
+            suggestions: [
+              { id: 2, category: "open_ended", answer: "  concise answer  ", answers: [], confidence: 0.88 },
+              { id: "bad", category: "other", answer: "ignored", answers: [], confidence: 1 },
             ],
           }),
         },
@@ -596,7 +609,8 @@ test("Ollama answers are parsed, trimmed, and filtered by integer id", async () 
   assert.deepEqual(JSON.parse(JSON.stringify(result.answers)), [{ id: 2, value: "concise answer", confidence: 0.88 }]);
   assert.equal(requestBody.model, "qwen-test");
   assert.equal(requestBody.stream, false);
-  assert.equal(requestBody.format.required[0], "answers");
+  assert.equal(requestBody.format.required[0], "suggestions");
+  assert.equal(requestBody.format.additionalProperties, false);
   assert.equal(requestBody.options.temperature, 0);
 });
 
@@ -646,29 +660,41 @@ test("Ollama network failures receive a useful local-service message", async () 
   assert.match(result.error, /Could not reach Ollama/);
 });
 
-test("skill, resume profile, dropdown, and DOM-plan messages use their dedicated endpoints", async () => {
+test("skill, resume profile, dropdown, and DOM messages use semantic-only field suggestions", async () => {
   const calls = [];
   const background = loadBackground({
     fetchImpl: async (url, options) => {
       calls.push({ url, body: JSON.parse(options.body) });
       if (url.endsWith("/api/extract-skills")) return new Response(JSON.stringify({ skills: ["SQL"], rankedSkills: [], maxSkills: 4, maxNonTechnicalSkills: 1 }));
       if (url.endsWith("/api/extract-profile")) return new Response(JSON.stringify({ profile: { school: "Example University" } }));
-      if (url.endsWith("/api/resolve-fields")) return new Response(JSON.stringify({ answers: [{ id: 1, value: "Yes" }] }));
-      return new Response(JSON.stringify({ plans: [{ id: 2, value: "Toronto" }] }));
+      const requested = JSON.parse(options.body).fields || [];
+      const id = requested[0]?.id;
+      const answer = id === 1 ? "Yes" : "Toronto";
+      return new Response(JSON.stringify({
+        suggestions: [{ id, category: "preference", answer, answers: [], confidence: 0.9 }],
+      }));
     },
   });
 
   const skills = await background.send({ type: "extract-job-skills", maxSkills: 4, maxNonTechnicalSkills: 1 });
   const resumeProfile = await background.send({ type: "extract-resume-profile", resumeText: "Resume text", backendProvider: "openai" });
-  const dropdowns = await background.send({ type: "resolve-workday-dropdowns", questions: [{ id: 1 }], useSensitiveProfile: true });
-  const plans = await background.send({ type: "plan-dom-fields", fields: [{ id: 2 }], backendProvider: "openai" });
+  const dropdowns = await background.send({
+    type: "resolve-workday-dropdowns",
+    questions: [{ id: 1, label: "Eligible?", type: "select", options: ["Yes", "No"] }],
+    useSensitiveProfile: true,
+  });
+  const suggestions = await background.send({
+    type: "suggest-dom-fields",
+    fields: [{ id: 2, label: "Office", type: "select", options: ["Toronto", "Ottawa"] }],
+    backendProvider: "openai",
+  });
   assert.deepEqual(JSON.parse(JSON.stringify(skills.skills)), ["SQL"]);
   assert.equal(background.storage.jobAutofillLastSkillSelection.usedJobDescription, false);
   assert.equal(background.storage.jobAutofillLastSkillSelection.maxSkills, 4);
   assert.deepEqual(JSON.parse(JSON.stringify(resumeProfile.profile)), { school: "Example University" });
-  assert.deepEqual(JSON.parse(JSON.stringify(dropdowns.answers)), [{ id: 1, value: "Yes" }]);
-  assert.deepEqual(JSON.parse(JSON.stringify(plans.plans)), [{ id: 2, value: "Toronto" }]);
-  assert.deepEqual(calls.map((call) => call.url.split("/").at(-1)), ["extract-skills", "extract-profile", "resolve-fields", "plan-fields"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(dropdowns.answers)), [{ id: 1, value: "Yes", confidence: 0.9 }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(suggestions.suggestions)), [{ id: 2, category: "preference", answer: "Toronto", answers: [], confidence: 0.9 }]);
+  assert.deepEqual(calls.map((call) => call.url.split("/").at(-1)), ["extract-skills", "extract-profile", "suggest-fields", "suggest-fields"]);
   assert.equal(calls[1].body.provider, "openai");
   assert.equal(calls[2].body.useSensitiveProfile, true);
   assert.equal(calls[3].body.provider, "openai");

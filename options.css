@@ -273,6 +273,8 @@ code { border-radius: 3px; padding: 2px 4px; color: #344054; background: #eef1f4
 :root[data-theme="dark"] .remove-language:hover,
 :root[data-theme="dark"] .icon-button:hover { color: #ffb4b4; background: #2b1b1e; }
 
+.privacy-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+
 @media (max-width: 680px) {
   main { padding: 24px 16px 40px; }
   header { display: block; }

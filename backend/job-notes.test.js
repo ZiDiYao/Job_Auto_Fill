@@ -266,8 +266,10 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.doesNotMatch(manifestSource, /"default_popup"/);
   assert.match(watcherSource, /MutationObserver/);
   assert.match(manifestSource, /"Command\+Shift\+Y"/);
-  assert.doesNotMatch(manifestSource, /"optional_host_permissions"/);
-  assert.match(manifestSource, /"http:\/\/\*\/\*"/);
+  assert.match(manifestSource, /"optional_host_permissions"/);
+  assert.doesNotMatch(manifestSource, /"unlimitedStorage"/);
+  assert.match(manifestSource, /"http:\/\/127\.0\.0\.1:17840\/\*"/);
+  assert.doesNotMatch(manifestSource, /"http:\/\/\*\/\*"/);
   assert.match(manifestSource, /"https:\/\/\*\/\*"/);
   assert.match(watcherSource, /MutationObserver/);
   assert.match(watcherSource, /job-page-observed/);

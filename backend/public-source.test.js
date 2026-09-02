@@ -165,3 +165,58 @@ test("extension icons ship at every manifest size with transparent RGBA corners"
     assert.equal(png[25], 6);
   }
 });
+
+test("MV3 AI protocol is semantic-only and cannot return executable browser instructions", async () => {
+  const [serverSource, contentSource, backgroundSource, manifestSource] = await Promise.all([
+    readFile(path.join(repositoryRoot, "backend/server.js"), "utf8"),
+    readFile(path.join(repositoryRoot, "content.js"), "utf8"),
+    readFile(path.join(repositoryRoot, "background.js"), "utf8"),
+    readFile(path.join(repositoryRoot, "manifest.json"), "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestSource);
+  assert.equal(manifest.manifest_version, 3);
+  assert.equal(manifest.permissions.includes("unlimitedStorage"), false);
+  assert.deepEqual(manifest.host_permissions, [
+    "http://127.0.0.1:17840/*",
+    "http://localhost:17840/*",
+    "http://127.0.0.1:11434/*",
+    "http://localhost:11434/*",
+  ]);
+  assert.ok(manifest.optional_host_permissions.includes("https://*/*"));
+  assert.deepEqual(manifest.optional_permissions, ["identity"]);
+  assert.equal(manifest.permissions.includes("identity"), false);
+  assert.equal(manifest.content_security_policy.extension_pages, "script-src 'self'; object-src 'self'");
+
+  assert.doesNotMatch(serverSource, /request\.url === "\/api\/plan-fields"/);
+  assert.doesNotMatch(serverSource, /request\.url === "\/api\/(?:answer|resolve-fields)"/);
+  assert.doesNotMatch(backgroundSource, /type === "plan-dom-fields"/);
+  assert.doesNotMatch(backgroundSource, /fetch\(`\$\{BACKEND_ENDPOINT\}\/api\/(?:answer|resolve-fields)`/);
+  assert.match(serverSource, /schemaName: "field_suggestions"/);
+  assert.match(serverSource, /additionalProperties: false/);
+  assert.match(serverSource, /const allowedKeys = new Set\(\["id", "category", "answer", "answers", "confidence"\]\)/);
+  assert.match(serverSource, /Never return selectors, element paths, JavaScript, event names, click instructions, wait times, navigation instructions, operations, or action sequences/);
+  assert.match(contentSource, /async function applySemanticSuggestion\(suggestion, target\)/);
+  assert.match(contentSource, /target\.kind === "text"/);
+  assert.match(contentSource, /target\.kind === "workday-button"/);
+  assert.match(contentSource, /target\.kind === "radio"/);
+  assert.match(contentSource, /target\.kind === "checkbox"/);
+  assert.doesNotMatch(contentSource, /suggestion\.(?:selector|javascript|operation|action|wait|click|navigate)/i);
+  assert.match(backgroundSource, /const semanticSuggestionSchema = \{/);
+  assert.match(backgroundSource, /additionalProperties: false/);
+  assert.match(backgroundSource, /Never return selectors, JavaScript, event names, clicks, waits, navigation, or action sequences/);
+});
+
+test("store-review materials and an extension privacy page ship with the source", async () => {
+  const [manifestSource, privacyHtml, privacyPolicy, reviewer, disclosure] = await Promise.all([
+    readFile(path.join(repositoryRoot, "manifest.json"), "utf8"),
+    readFile(path.join(repositoryRoot, "privacy.html"), "utf8"),
+    readFile(path.join(repositoryRoot, "PRIVACY.md"), "utf8"),
+    readFile(path.join(repositoryRoot, "REVIEWER_INSTRUCTIONS.md"), "utf8"),
+    readFile(path.join(repositoryRoot, "STORE_PRIVACY_DISCLOSURE.md"), "utf8"),
+  ]);
+  assert.match(manifestSource, /"description": "Locally controlled job-application autofill with optional AI answer suggestions\."/);
+  assert.match(privacyHtml, /Job Autofill Privacy Policy/);
+  assert.match(privacyPolicy, /AI responses are treated only as untrusted semantic suggestions/);
+  assert.match(reviewer, /AI is not an execution engine/);
+  assert.match(disclosure, /Single purpose/);
+});

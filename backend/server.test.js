@@ -10,7 +10,8 @@ import {
   parseSkillBlacklist,
   rankSkillCandidates,
   validateAnswers,
-  validateFieldPlans,
+  validateFieldSuggestionEnvelope,
+  validateFieldSuggestions,
   validateResumeEducationEntries,
   validateResumeLanguages,
   validateResumeProfileFields,
@@ -232,11 +233,11 @@ test("confidence scores clamp finite values and reject invalid values", () => {
 test("normalizes an exact portal option and rejects invented options", () => {
   const fields = [{ id: 0, label: "Are you willing to commute?", type: "select", options: ["Yes", "No"] }];
   assert.deepEqual(
-    validateFieldPlans([
-      { id: 0, value: "yes", confidence: 0.96 },
-      { id: 0, value: "Absolutely", confidence: 0.99 },
+    validateFieldSuggestions([
+      { id: 0, category: "preference", answer: "yes", confidence: 0.96 },
+      { id: 0, category: "preference", answer: "Absolutely", confidence: 0.99 },
     ], fields),
-    [{ id: 0, operation: "select", value: "Yes", confidence: 0.96 }],
+    [{ id: 0, category: "preference", answer: "Yes", confidence: 0.96 }],
   );
 });
 
@@ -249,8 +250,8 @@ test("validates multiple checkbox choices against the DOM option list", () => {
     options: ["Java", "C#", "Python"],
   }];
   assert.deepEqual(
-    validateFieldPlans([{ id: 2, values: ["java", "Rust", "C#"], confidence: 0.91 }], fields),
-    [{ id: 2, operation: "select_many", values: ["Java", "C#"], confidence: 0.91 }],
+    validateFieldSuggestions([{ id: 2, category: "skills", answers: ["java", "Rust", "C#"], confidence: 0.91 }], fields),
+    [{ id: 2, category: "skills", answers: ["Java", "C#"], confidence: 0.91 }],
   );
 });
 
@@ -259,47 +260,47 @@ test("rejects low-confidence and always-blocked actions", () => {
     { id: 3, label: "Submit application", type: "select", options: ["Yes"] },
     { id: 4, label: "Preferred office", type: "select", options: ["Toronto"] },
   ];
-  assert.deepEqual(validateFieldPlans([
-    { id: 3, value: "Yes", confidence: 1 },
-    { id: 4, value: "Toronto", confidence: 0.4 },
+  assert.deepEqual(validateFieldSuggestions([
+    { id: 3, category: "other", answer: "Yes", confidence: 1 },
+    { id: 4, category: "preference", answer: "Toronto", confidence: 0.4 },
   ], fields), []);
 });
 
 test("requires sensitive permission and enforces text length", () => {
   const sensitive = [{ id: 5, label: "What is your gender?", type: "select", options: ["Male", "Female"] }];
-  assert.deepEqual(validateFieldPlans([{ id: 5, value: "Male", confidence: 0.9 }], sensitive), []);
+  assert.deepEqual(validateFieldSuggestions([{ id: 5, category: "demographic", answer: "Male", confidence: 0.9 }], sensitive), []);
   assert.deepEqual(
-    validateFieldPlans([{ id: 5, value: "male", confidence: 0.9 }], sensitive, { allowSensitive: true }),
-    [{ id: 5, operation: "select", value: "Male", confidence: 0.9 }],
+    validateFieldSuggestions([{ id: 5, category: "demographic", answer: "male", confidence: 0.9 }], sensitive, { allowSensitive: true }),
+    [{ id: 5, category: "demographic", answer: "Male", confidence: 0.9 }],
   );
 
   const text = [{ id: 6, label: "Short answer", type: "text", maxLength: 5, options: [] }];
   assert.deepEqual(
-    validateFieldPlans([{ id: 6, value: "abcdefgh", confidence: 0.8 }], text),
-    [{ id: 6, operation: "fill", value: "abcde", confidence: 0.8 }],
+    validateFieldSuggestions([{ id: 6, category: "open_ended", answer: "abcdefgh", confidence: 0.8 }], text),
+    [{ id: 6, category: "open_ended", answer: "abcde", confidence: 0.8 }],
   );
 });
 
-test("field-plan validation ignores malformed, unknown, empty, and unsupported plans", () => {
+test("field-suggestion validation ignores malformed, unknown, empty, and unsupported suggestions", () => {
   const fields = [
     { id: 1, label: "Name", type: "text", options: [] },
     { id: 2, label: "Custom widget", type: "combobox", options: [] },
   ];
-  assert.deepEqual(validateFieldPlans([
+  assert.deepEqual(validateFieldSuggestions([
     null,
-    { id: 99, value: "Unknown", confidence: 1 },
-    { id: 1, value: "", confidence: 1 },
-    { id: 1, value: "Valid", confidence: "bad" },
-    { id: 2, value: "Cannot type freely", confidence: 1 },
+    { id: 99, category: "other", answer: "Unknown", confidence: 1 },
+    { id: 1, category: "personal_identity", answer: "", confidence: 1 },
+    { id: 1, category: "personal_identity", answer: "Valid", confidence: "bad" },
+    { id: 2, category: "other", answer: "Cannot type freely", confidence: 1 },
   ], fields), []);
-  assert.deepEqual(validateFieldPlans("not-an-array", fields), []);
+  assert.deepEqual(validateFieldSuggestions("not-an-array", fields), []);
 });
 
-test("field-plan validation clamps high confidence and accepts textarea values", () => {
+test("field-suggestion validation clamps high confidence and accepts textarea values", () => {
   const fields = [{ id: 7, label: "Why this role?", type: "textarea", maxLength: 12, options: [] }];
   assert.deepEqual(
-    validateFieldPlans([{ id: 7, value: "A specific reason", confidence: 8 }], fields),
-    [{ id: 7, operation: "fill", value: "A specific r", confidence: 1 }],
+    validateFieldSuggestions([{ id: 7, category: "open_ended", answer: "A specific reason", confidence: 8 }], fields),
+    [{ id: 7, category: "open_ended", answer: "A specific r", confidence: 1 }],
   );
 });
 
@@ -312,10 +313,10 @@ test("multiple selections are deduplicated and require exact supplied options", 
     options: ["Java", "Python"],
   }];
   assert.deepEqual(
-    validateFieldPlans([{ id: 8, values: ["java", "JAVA", "Rust"], confidence: 0.9 }], fields),
-    [{ id: 8, operation: "select_many", values: ["Java"], confidence: 0.9 }],
+    validateFieldSuggestions([{ id: 8, category: "skills", answers: ["java", "JAVA", "Rust"], confidence: 0.9 }], fields),
+    [{ id: 8, category: "skills", answers: ["Java"], confidence: 0.9 }],
   );
-  assert.deepEqual(validateFieldPlans([{ id: 8, values: ["Rust"], confidence: 1 }], fields), []);
+  assert.deepEqual(validateFieldSuggestions([{ id: 8, category: "skills", answers: ["Rust"], confidence: 1 }], fields), []);
 });
 
 test("always-blocked actions stay blocked even with sensitive permission", () => {
@@ -324,11 +325,22 @@ test("always-blocked actions stay blocked even with sensitive permission", () =>
     { id: 10, label: "Expected compensation", type: "text", options: [] },
     { id: 11, label: "Social insurance number", type: "text", options: [] },
   ];
-  assert.deepEqual(validateFieldPlans(fields.map((field) => ({
+  assert.deepEqual(validateFieldSuggestions(fields.map((field) => ({
     id: field.id,
-    value: "test",
+    category: "legal_disclosure",
+    answer: "test",
     confidence: 1,
   })), fields, { allowSensitive: true }), []);
+});
+
+test("semantic suggestion envelope rejects action-like or extra properties", () => {
+  const valid = {
+    suggestions: [{ id: 1, category: "education", answer: "BEng", answers: [], confidence: 0.95 }],
+  };
+  assert.equal(validateFieldSuggestionEnvelope(valid), true);
+  assert.equal(validateFieldSuggestionEnvelope({ suggestions: [{ ...valid.suggestions[0], selector: "#degree" }] }), false);
+  assert.equal(validateFieldSuggestionEnvelope({ suggestions: [{ ...valid.suggestions[0], operation: "click" }] }), false);
+  assert.equal(validateFieldSuggestionEnvelope({ suggestions: [{ ...valid.suggestions[0], confidence: 4 }] }), false);
 });
 
 test("answer validation normalizes exact options and truncates text", () => {

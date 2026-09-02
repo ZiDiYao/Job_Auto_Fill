@@ -82,7 +82,7 @@ Requirements for the double-click launcher: macOS and Node.js 20 or newer.
 
 The direct Node.js launcher reads API credentials and connection settings from `backend/config/local-config.json`. That file is ignored by Git and Docker builds; keys are never copied into the image, extension, or application webpage. Copy `backend/config/local-config.example.json` to that filename before configuring a provider. **Configure DeepSeek Key.command** can instead save the DeepSeek key in macOS Keychain.
 
-The backend listens only on `http://127.0.0.1:17840`. Its `/api/context` endpoint supplies the extension with the current user's saved profile and optional resume. Its `/api/answer` endpoint calls the selected provider strategy and validates every returned answer before the extension inserts it.
+The backend listens only on `http://127.0.0.1:17840`. Its `/api/context` endpoint supplies the extension with the current user's saved profile and optional resume. Its `/api/suggest-fields` endpoint accepts opaque field IDs plus semantic labels/types/options and returns only schema-validated categories, answer suggestions, and confidence values. It cannot return selectors or browser instructions.
 
 As an alternative to macOS Keychain, copy `.env.example` to `.env` and put a newly generated key there. `.env` is ignored by Git.
 
@@ -122,6 +122,14 @@ npm run test:coverage
 ```
 
 The suite exercises provider Strategy/Factory adapters, HTTP endpoints with isolated temporary storage and a local mock AI server, answer and skill validation, Chrome background-message routing, deterministic content-script form filling, privacy invariants, and Docker bootstrap configuration. The coverage command enforces minimum thresholds for the backend and AI adapter modules.
+
+Build the Chrome Web Store ZIP from an explicit allowlist of extension files:
+
+```bash
+./scripts/package-extension.sh
+```
+
+The archive is written under `dist/`. It deliberately excludes the Docker backend, `local-data/`, credentials, saved profiles, resumes, tests, and development documentation.
 
 ## Application history: Markdown, Excel, and Notion
 
@@ -180,7 +188,18 @@ DeepSeek through the local backend is the default adapter. Select **OpenAI** und
 3. In extension settings, choose **Local Ollama** and save. The extension uses the installed `qwen3:4b` model by default without exposing model configuration in the user interface.
 4. Open an application page. Deterministic answers are green, AI drafts are purple, and unresolved required fields are yellow. Use the popup's full-width pause/resume control to stop or continue automatic changes.
 
-All AI strategies are instructed to leave unsupported answers blank. Demographic, authorization, sponsorship, and other sensitive facts are available to the semantic planner only when **Allow backend AI to use saved demographic and legal answers** is enabled, and then only from explicitly saved profile values. Submit, signature, certification, attestation, consent, privacy, terms, compensation, government-identifier, and birth-date actions are always excluded. Review every purple field before submitting. The OpenAI strategy uses the [Responses API](https://developers.openai.com/api/reference/cli/resources/responses/methods/create); Ollama structured JSON responses are documented at [docs.ollama.com](https://docs.ollama.com/capabilities/structured-outputs).
+All AI strategies are instructed to leave unsupported answers blank. Demographic, authorization, sponsorship, and other sensitive facts are available to the semantic suggestion service only when **Allow backend AI to use saved demographic and legal answers** is enabled, and then only from explicitly saved profile values. AI receives opaque field IDs, labels, field types, and available choices; it can return only a semantic category, suggested answer, optional answer list, and confidence score. A strict schema rejects selectors, JavaScript, event names, click sequences, waits, navigation, and extra properties. All DOM discovery, value setting, option selection, waiting, verification, and Next/Continue behavior remains packaged in the extension. Submit, signature, certification, attestation, consent, privacy, terms, compensation, government-identifier, and birth-date actions are always excluded. Review every purple field before submitting. The OpenAI strategy uses the [Responses API](https://developers.openai.com/api/reference/cli/resources/responses/methods/create); Ollama structured JSON responses are documented at [docs.ollama.com](https://docs.ollama.com/capabilities/structured-outputs).
+
+## Privacy and Chrome Web Store review
+
+The first-run page requires consent for local processing and separately offers opt-in choices for automatic page access, cloud AI, sensitive-answer sharing with that AI, and Notion export. Broad website access is optional and requested only after the user enables automatic page access. Notion access is requested only when its integration is enabled. Users can revoke either permission from **Privacy & Data**, remove their saved resume, or use **Delete all local data** to clear browser storage and the companion backend's saved profile, resume, and extraction cache.
+
+- [`PRIVACY.md`](PRIVACY.md) is the privacy-policy source that must also be published at a stable public HTTPS URL for the Chrome Web Store listing.
+- [`STORE_PRIVACY_DISCLOSURE.md`](STORE_PRIVACY_DISCLOSURE.md) maps the extension's data use to the Web Store privacy questionnaire.
+- [`REVIEWER_INSTRUCTIONS.md`](REVIEWER_INSTRUCTIONS.md) explains the companion backend, optional features, test flow, and remote-code boundary to reviewers.
+- [`CHROME_WEB_STORE_CHECKLIST.md`](CHROME_WEB_STORE_CHECKLIST.md) is the final build, listing, permission-justification, and reviewer-access checklist.
+
+No repository can guarantee Web Store approval. Before submission, replace all placeholder contact and policy URLs, configure the listing and privacy questionnaire consistently with the shipped build, provide reviewer access/instructions, and upload a ZIP whose root contains `manifest.json`.
 
 PDF text extraction uses the open-source Mozilla PDF.js distribution; its license is included in `vendor/PDFJS-LICENSE.txt`.
 

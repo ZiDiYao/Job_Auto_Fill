@@ -25,6 +25,7 @@
         <button class="settings-tab" role="tab" type="button" data-settings-target="profile">Profile</button>
         <button class="settings-tab" role="tab" type="button" data-settings-target="ai">AI</button>
         <button class="settings-tab" role="tab" type="button" data-settings-target="history">Application History</button>
+        <button class="settings-tab" role="tab" type="button" data-settings-target="privacy">Privacy &amp; Data</button>
       </nav>
 
       <form id="profileForm">
@@ -430,6 +431,22 @@
             <label>Maximum pages per run<input name="autoAdvanceMaxSteps" type="number" min="1" max="30" step="1" /></label>
             <label>Wait after each Next click (milliseconds)<input name="autoAdvanceDelayMs" type="number" min="500" max="10000" step="100" /></label>
           </div>
+        </section>
+
+        <section data-settings-page="privacy" hidden>
+          <h2>Privacy permissions</h2>
+          <p class="help">Required local processing enables manual autofill. Every external or continuously monitored use is a separate, revocable choice.</p>
+          <label class="check"><input id="privacyLocalProcessing" type="checkbox" /><span><strong>Local autofill processing</strong><small>Store profile/resume data locally and inspect the active tab when you invoke autofill.</small></span></label>
+          <label class="check"><input id="privacyAutomaticPageAccess" type="checkbox" /><span><strong>Automatic job-site access</strong><small>Continuously detect job descriptions and application steps on sites you visit.</small></span></label>
+          <label class="check"><input id="privacyCloudAi" type="checkbox" /><span><strong>Cloud AI processing</strong><small>Send the minimum necessary CV evidence, JD, page context, questions, and options to the configured AI provider.</small></span></label>
+          <label class="check"><input id="privacySensitiveAi" type="checkbox" /><span><strong>Sensitive answers in AI requests</strong><small>Allow relevant demographic, disability, legal, criminal-history, and work-authorization answers to be sent for semantic matching.</small></span></label>
+          <label class="check"><input id="privacyNotion" type="checkbox" /><span><strong>Notion export</strong><small>Store a Notion token locally and export application records to the connected workspace.</small></span></label>
+          <div class="privacy-actions">
+            <button id="savePrivacyChoices" class="primary" type="button">Save privacy choices</button>
+            <button id="deleteLocalData" class="danger" type="button">Delete all local data</button>
+            <a href="privacy.html" target="_blank" rel="noreferrer">Privacy policy</a>
+          </div>
+          <p id="privacyStatus" class="help" role="status" aria-live="polite"></p>
         </section>
 
         <footer id="profileFooter" data-settings-page="profile" hidden>

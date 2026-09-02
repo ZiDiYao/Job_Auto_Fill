@@ -9,13 +9,16 @@ const AUTO_ADVANCE_ALLOW = "^(?:next(?: step)?|continue(?: application| to .+)?|
 const AUTO_ADVANCE_BLOCK = "submit|send application|apply now|finish application|complete application|certif|attest|signature|acknowledge|consent|agree|accept|terms|privacy|soumettre|envoyer|提交";
 const AUTO_ADVANCE_PAGE_BLOCK = "\\b(?:i certify|i attest|electronic signature|type (?:your|my) name as (?:a )?signature|consent to|agree to (?:the )?terms|declaration)\\b";
 const AUTO_FILL_SCRIPT_ID = "job-autofill-page-watcher";
-const AUTO_FILL_ORIGINS = ["http://*/*", "https://*/*"];
+const AUTO_FILL_ORIGINS = ["https://*/*"];
 const LAST_FILL_STATUS_KEY = "jobAutofillLastFillStatus";
 const LAST_SKILL_SELECTION_KEY = "jobAutofillLastSkillSelection";
 const LAST_DETECTED_JOB_KEY = "jobAutofillDetectedJobContext";
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 const LAST_SUBMISSION_SAVE_KEY = "jobAutofillLastSubmissionSave";
 const TARGET_APPLICATION_TAB_KEY = "jobAutofillTargetApplicationTabId";
+const PRIVACY_CONSENT_KEY = "jobAutofillPrivacyConsent";
+const PRIVACY_CONSENT_VERSION = 1;
+const ONBOARDING_PAGE_URL = chrome.runtime.getURL?.("onboarding.html") || "onboarding.html";
 const POPUP_PAGE_URL = chrome.runtime.getURL?.("popup.html") || "popup.html";
 const POPUP_DEFAULT_WIDTH = 460;
 const POPUP_DEFAULT_HEIGHT = 720;
@@ -26,6 +29,42 @@ const activeAutoAdvanceSessions = new Map();
 const activeFillSessions = new Map();
 const lastAutomaticPageSignatures = new Map();
 let autofillPopupWindowId = 0;
+
+function normalizePrivacyConsent(value = {}) {
+  return {
+    version: Number(value.version || 0),
+    acceptedAt: String(value.acceptedAt || ""),
+    localProcessing: value.localProcessing === true,
+    automaticPageAccess: value.automaticPageAccess === true,
+    cloudAi: value.cloudAi === true,
+    sensitiveAi: value.sensitiveAi === true,
+    notion: value.notion === true,
+  };
+}
+
+async function getPrivacyConsent() {
+  const stored = await chrome.storage.local.get(PRIVACY_CONSENT_KEY);
+  return normalizePrivacyConsent(stored[PRIVACY_CONSENT_KEY]);
+}
+
+function hasRequiredPrivacyConsent(consent) {
+  return consent.version === PRIVACY_CONSENT_VERSION && consent.localProcessing;
+}
+
+async function requirePrivacyConsent(capability = "localProcessing") {
+  const consent = await getPrivacyConsent();
+  if (!hasRequiredPrivacyConsent(consent)) throw new Error("Complete the privacy setup before using Job Autofill.");
+  if (capability !== "localProcessing" && consent[capability] !== true) {
+    throw new Error(`Enable ${capability === "cloudAi" ? "cloud AI" : capability === "sensitiveAi" ? "sensitive-answer AI" : capability} consent in Privacy settings first.`);
+  }
+  return consent;
+}
+
+async function openPrivacySetup() {
+  if (chrome.tabs?.create) return chrome.tabs.create({ url: ONBOARDING_PAGE_URL });
+  if (chrome.windows?.create) return chrome.windows.create({ url: ONBOARDING_PAGE_URL, type: "popup", width: 760, height: 760, focused: true });
+  return null;
+}
 
 function isApplicationTab(tab) {
   return Boolean(tab?.id && /^https?:/i.test(tab.url || ""));
@@ -147,6 +186,7 @@ function hostnameFromUrl(value) {
 }
 
 async function saveApplicationHistory(message, sender = {}, trigger = "fill") {
+  const consent = await requirePrivacyConsent();
   const cached = await chrome.storage.local.get([
     NOTE_SETTINGS_KEY,
     "jobAutofillResume",
@@ -155,6 +195,9 @@ async function saveApplicationHistory(message, sender = {}, trigger = "fill") {
     LAST_DETECTED_JOB_KEY,
   ]);
   const settings = normalizeHistoryExportSettings(cached[NOTE_SETTINGS_KEY]);
+  if (settings.destinations.notion && !consent.notion) {
+    settings.destinations.notion = false;
+  }
   const shouldSave = settings.historySaveTrigger === trigger
     || (trigger === "submit" && settings.historySaveTrigger === "fill");
   if (!shouldSave) return { skipped: "history-save-trigger" };
@@ -233,40 +276,92 @@ async function saveSubmittedApplication(message, sender = {}) {
   return saveApplicationHistory(message, sender, "submit");
 }
 
-const answerSchema = {
+const semanticCategories = [
+  "personal_identity", "contact", "education", "employment", "skills", "work_eligibility",
+  "demographic", "legal_disclosure", "preference", "open_ended", "other",
+];
+
+const semanticSuggestionSchema = {
   type: "object",
+  additionalProperties: false,
   properties: {
-    answers: {
+    suggestions: {
       type: "array",
+      maxItems: 20,
       items: {
         type: "object",
+        additionalProperties: false,
         properties: {
           id: { type: "integer" },
-          value: { type: "string" },
+          category: { type: "string", enum: semanticCategories },
+          answer: { type: "string", maxLength: 5000 },
+          answers: { type: "array", maxItems: 60, items: { type: "string", maxLength: 500 } },
           confidence: { type: "number", minimum: 0, maximum: 1 },
         },
-        required: ["id", "value", "confidence"],
+        required: ["id", "category", "answer", "answers", "confidence"],
       },
     },
   },
-  required: ["answers"],
+  required: ["suggestions"],
 };
 
+function validateLocalSemanticSuggestions(payload, fields) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return [];
+  if (Object.keys(payload).length !== 1 || !Array.isArray(payload.suggestions)) return [];
+  const byId = new Map((Array.isArray(fields) ? fields : []).map((field) => [field.id, field]));
+  const categorySet = new Set(semanticCategories);
+  const allowedKeys = new Set(["id", "category", "answer", "answers", "confidence"]);
+  const normalized = [];
+  for (const suggestion of payload.suggestions.slice(0, 20)) {
+    if (!suggestion || typeof suggestion !== "object" || Array.isArray(suggestion)) continue;
+    const keys = Object.keys(suggestion);
+    const field = byId.get(suggestion.id);
+    if (
+      keys.length !== allowedKeys.size
+      || !keys.every((key) => allowedKeys.has(key))
+      || !field
+      || !categorySet.has(suggestion.category)
+      || typeof suggestion.answer !== "string"
+      || !Array.isArray(suggestion.answers)
+      || !Number.isFinite(suggestion.confidence)
+      || suggestion.confidence < 0
+      || suggestion.confidence > 1
+    ) continue;
+    const options = Array.isArray(field.options) ? field.options.map(String) : [];
+    const answer = String(suggestion.answer).trim();
+    if (options.length && !options.includes(answer)) continue;
+    const maxLength = Math.max(0, Number(field.maxLength || 0));
+    normalized.push({
+      id: suggestion.id,
+      category: suggestion.category,
+      answer: maxLength ? answer.slice(0, maxLength) : answer,
+      answers: suggestion.answers.map(String).filter((value) => !options.length || options.includes(value)),
+      confidence: suggestion.confidence,
+    });
+  }
+  return normalized;
+}
+
 async function answerApplicationQuestions(message) {
+  await requirePrivacyConsent();
   if (message.provider === "backend") {
-    const response = await fetch(`${BACKEND_ENDPOINT}/api/answer`, {
+    await requirePrivacyConsent("cloudAi");
+    const response = await fetch(`${BACKEND_ENDPOINT}/api/suggest-fields`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         jobDescription: message.jobDescription || "",
         pageContext: message.jobContext || "",
-        questions: message.questions || [],
+        fields: message.questions || [],
         provider: message.backendProvider || "deepseek",
       }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `Local backend returned ${response.status}.`);
-    return { answers: Array.isArray(payload.answers) ? payload.answers : [] };
+    return {
+      answers: validateLocalSemanticSuggestions({ suggestions: payload.suggestions }, message.questions)
+        .map(({ id, answer: value, confidence }) => ({ id, value, confidence })),
+    };
   }
 
   const { model, resumeText, jobContext, questions } = message;
@@ -285,6 +380,8 @@ async function answerApplicationQuestions(message) {
     "Sound enthusiastic, adaptable, collaborative, and willing to learn without exaggerating the candidate's experience.",
     "Never answer compensation, work authorization, sponsorship, demographic, disability, veteran, consent, legal, or signature questions.",
     "For select fields, return exactly one supplied option. Keep written answers concise and specific, normally under 120 words.",
+    `Classify each answered question using exactly one category from: ${semanticCategories.join(", ")}.`,
+    "The numeric id is an opaque correlation identifier. Never return selectors, JavaScript, event names, clicks, waits, navigation, or action sequences.",
     "Return only data matching the provided JSON schema.",
   ].join(" ");
 
@@ -301,7 +398,7 @@ async function answerApplicationQuestions(message) {
       body: JSON.stringify({
         model: String(model).trim(),
         stream: false,
-        format: answerSchema,
+        format: semanticSuggestionSchema,
         options: { temperature: 0 },
         messages: [
           { role: "system", content: system },
@@ -318,15 +415,10 @@ async function answerApplicationQuestions(message) {
 
     const payload = await response.json();
     const parsed = JSON.parse(payload?.message?.content || "{}");
-    if (!Array.isArray(parsed.answers)) throw new Error("Ollama returned an invalid answer structure.");
+    const suggestions = validateLocalSemanticSuggestions(parsed, questions);
+    if (!Array.isArray(parsed.suggestions)) throw new Error("Ollama returned an invalid suggestion structure.");
     return {
-      answers: parsed.answers
-        .filter((answer) => Number.isInteger(answer.id))
-        .map((answer) => ({
-          id: answer.id,
-          value: String(answer.value || "").trim(),
-          confidence: Number(answer.confidence || 0),
-        })),
+      answers: suggestions.map(({ id, answer: value, confidence }) => ({ id, value, confidence })),
     };
   } catch (error) {
     if (error?.name === "AbortError") throw new Error("Local AI timed out after 60 seconds.");
@@ -340,6 +432,7 @@ async function answerApplicationQuestions(message) {
 }
 
 async function extractJobSkills(message) {
+  await requirePrivacyConsent("cloudAi");
   const response = await fetch(`${BACKEND_ENDPOINT}/api/extract-skills`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -374,6 +467,7 @@ async function extractJobSkills(message) {
 }
 
 async function extractResumeProfile(message) {
+  await requirePrivacyConsent("cloudAi");
   const response = await fetch(`${BACKEND_ENDPOINT}/api/extract-profile`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -388,24 +482,31 @@ async function extractResumeProfile(message) {
 }
 
 async function resolveWorkdayDropdowns(message) {
-  const response = await fetch(`${BACKEND_ENDPOINT}/api/resolve-fields`, {
+  await requirePrivacyConsent("cloudAi");
+  if (message.useSensitiveProfile === true) await requirePrivacyConsent("sensitiveAi");
+  const response = await fetch(`${BACKEND_ENDPOINT}/api/suggest-fields`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       jobDescription: message.jobDescription || "",
       pageContext: message.pageContext || "",
-      questions: message.questions || [],
+      fields: message.questions || [],
       useSensitiveProfile: message.useSensitiveProfile === true,
       provider: message.backendProvider || "deepseek",
     }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || `Local backend returned ${response.status}.`);
-  return { answers: Array.isArray(payload.answers) ? payload.answers : [] };
+  return {
+    answers: validateLocalSemanticSuggestions({ suggestions: payload.suggestions }, message.questions)
+      .map(({ id, answer: value, confidence }) => ({ id, value, confidence })),
+  };
 }
 
-async function planDomFields(message) {
-  const response = await fetch(`${BACKEND_ENDPOINT}/api/plan-fields`, {
+async function suggestDomFields(message) {
+  await requirePrivacyConsent("cloudAi");
+  if (message.useSensitiveProfile === true) await requirePrivacyConsent("sensitiveAi");
+  const response = await fetch(`${BACKEND_ENDPOINT}/api/suggest-fields`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -418,10 +519,11 @@ async function planDomFields(message) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || `Local backend returned ${response.status}.`);
-  return { plans: Array.isArray(payload.plans) ? payload.plans : [] };
+  return { suggestions: Array.isArray(payload.suggestions) ? payload.suggestions : [] };
 }
 
 async function saveBackendResume(message) {
+  await requirePrivacyConsent();
   const resume = message.resume || {};
   const response = await fetch(`${BACKEND_ENDPOINT}/api/resume`, {
     method: "PUT",
@@ -695,6 +797,7 @@ async function updateFillFeedback(tabId, summary, source, error = null) {
 }
 
 async function fillApplicationTab(tabId, { source = "shortcut", context = null } = {}) {
+  await requirePrivacyConsent();
   if (await isAutomationPaused()) throw new Error("Changes are paused. Resume changes before filling this application.");
   if (activeFillSessions.has(tabId)) return activeFillSessions.get(tabId);
   const task = (async () => {
@@ -736,6 +839,8 @@ async function configureAutomaticFill(enabled) {
   const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [AUTO_FILL_SCRIPT_ID] });
   if (registered.length) await chrome.scripting.unregisterContentScripts({ ids: [AUTO_FILL_SCRIPT_ID] });
   if (!enabled) return { enabled: false };
+  const consent = await getPrivacyConsent();
+  if (!hasRequiredPrivacyConsent(consent) || !consent.automaticPageAccess) return { enabled: false, consentRequired: true };
   const permitted = await chrome.permissions.contains({ origins: AUTO_FILL_ORIGINS });
   if (!permitted) throw new Error("Automatic job-description capture needs access to job websites.");
   await chrome.scripting.registerContentScripts([{
@@ -749,7 +854,11 @@ async function configureAutomaticFill(enabled) {
 }
 
 async function restoreAutomaticFill() {
-  const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
+  const [{ jobAutofillProfile = {} }, consent] = await Promise.all([
+    chrome.storage.local.get("jobAutofillProfile"),
+    getPrivacyConsent(),
+  ]);
+  if (!hasRequiredPrivacyConsent(consent) || !consent.automaticPageAccess) return configureAutomaticFill(false);
   return configureAutomaticFill(
     jobAutofillProfile.autoCaptureJobDescriptions !== false || jobAutofillProfile.autoFillOnPageChange === true,
   );
@@ -829,7 +938,9 @@ chrome.commands?.onCommand?.addListener((command) => {
 });
 
 chrome.action?.onClicked?.addListener((tab) => {
-  openAutofillPopupWindow(tab).catch(() => {});
+  getPrivacyConsent()
+    .then((consent) => hasRequiredPrivacyConsent(consent) ? openAutofillPopupWindow(tab) : openPrivacySetup())
+    .catch(() => {});
 });
 
 chrome.tabs?.onActivated?.addListener(({ tabId }) => {
@@ -842,7 +953,10 @@ chrome.windows?.onRemoved?.addListener((windowId) => {
   if (windowId === autofillPopupWindowId) autofillPopupWindowId = 0;
 });
 
-chrome.runtime.onInstalled?.addListener(() => { void restoreAutomaticFill().catch(() => {}); });
+chrome.runtime.onInstalled?.addListener((details) => {
+  void restoreAutomaticFill().catch(() => {});
+  if (details?.reason === "install") void openPrivacySetup().catch(() => {});
+});
 chrome.runtime.onStartup?.addListener(() => { void restoreAutomaticFill().catch(() => {}); });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -873,6 +987,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "privacy-consent-updated") {
+    restoreAutomaticFill()
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || "Privacy choices were saved, but monitoring could not be configured." }));
+    return true;
+  }
+
   if (message?.type === "fill-current-page") {
     const tabId = Number(message.tabId || sender.tab?.id || 0);
     if (!tabId) {
@@ -891,7 +1012,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: false, error: "Page monitoring could not identify this tab." });
       return false;
     }
-    persistDetectedJobContext({ jobDescription: message.jobDescription, metadata: message.metadata }, tabId)
+    requirePrivacyConsent("automaticPageAccess")
+      .then(() => persistDetectedJobContext({ jobDescription: message.jobDescription, metadata: message.metadata }, tabId))
       .then(async (capture) => {
         const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
         const applicationReady = message.type === "auto-fill-page-ready" || message.applicationReady === true;
@@ -931,7 +1053,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   if (message?.type === "sync-backend-context") {
-    fetch(`${BACKEND_ENDPOINT}/api/context`)
+    requirePrivacyConsent()
+      .then(() => fetch(`${BACKEND_ENDPOINT}/api/context`))
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || `Local backend returned ${response.status}.`);
@@ -975,10 +1098,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type === "plan-dom-fields") {
-    planDomFields(message)
+  if (message?.type === "suggest-dom-fields") {
+    suggestDomFields(message)
       .then((result) => sendResponse({ ok: true, ...result }))
-      .catch((error) => sendResponse({ ok: false, error: error.message || "AI DOM planning failed." }));
+      .catch((error) => sendResponse({ ok: false, error: error.message || "AI field suggestions failed." }));
     return true;
   }
 

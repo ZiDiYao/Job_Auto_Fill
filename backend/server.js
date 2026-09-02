@@ -1,5 +1,5 @@
 import http from "node:http";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
@@ -345,81 +345,112 @@ export function validateAnswers(rawAnswers, questions, { allowSensitive = false 
   return validated;
 }
 
-export function validateFieldPlans(rawPlans, fields, { allowSensitive = false } = {}) {
+export const semanticFieldCategories = Object.freeze([
+  "personal_identity",
+  "contact",
+  "education",
+  "employment",
+  "skills",
+  "work_eligibility",
+  "demographic",
+  "legal_disclosure",
+  "preference",
+  "open_ended",
+  "other",
+]);
+
+export const fieldSuggestionResponseSchema = Object.freeze({
+  type: "object",
+  additionalProperties: false,
+  required: ["suggestions"],
+  properties: {
+    suggestions: {
+      type: "array",
+      maxItems: 45,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "category", "answer", "answers", "confidence"],
+        properties: {
+          id: { type: "integer", minimum: 0, maximum: 44 },
+          category: { type: "string", enum: semanticFieldCategories },
+          answer: { type: "string", maxLength: 5000 },
+          answers: {
+            type: "array",
+            maxItems: 60,
+            uniqueItems: true,
+            items: { type: "string", maxLength: 500 },
+          },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+        },
+      },
+    },
+  },
+});
+
+const semanticFieldCategorySet = new Set(semanticFieldCategories);
+
+export function validateFieldSuggestions(rawSuggestions, fields, { allowSensitive = false } = {}) {
   const byId = new Map(fields.map((field) => [field.id, field]));
-  const plans = [];
-  for (const rawPlan of Array.isArray(rawPlans) ? rawPlans : []) {
-    const field = byId.get(rawPlan?.id);
+  const suggestions = [];
+  for (const rawSuggestion of Array.isArray(rawSuggestions) ? rawSuggestions : []) {
+    const field = byId.get(rawSuggestion?.id);
     if (!field || neverAutomateQuestion.test(field.label || "")) continue;
     if (!allowSensitive && sensitiveQuestion.test(field.label || "")) continue;
-    const confidence = confidenceScore(rawPlan.confidence);
+    const confidence = confidenceScore(rawSuggestion.confidence);
     if (confidence < 0.7) continue;
+    const category = String(rawSuggestion.category || "").trim();
+    if (!semanticFieldCategorySet.has(category)) continue;
 
     const options = Array.isArray(field.options) ? field.options.map(String) : [];
     const exactOption = (candidate) => options.find((option) => normalize(option) === normalize(candidate));
     if (field.multiple && options.length) {
-      const values = [...new Set((Array.isArray(rawPlan.values) ? rawPlan.values : [rawPlan.value])
+      const answers = [...new Set((Array.isArray(rawSuggestion.answers) ? rawSuggestion.answers : [rawSuggestion.answer])
         .map(exactOption)
         .filter(Boolean))];
-      if (!values.length) continue;
-      plans.push({ id: field.id, operation: "select_many", values, confidence });
+      if (!answers.length) continue;
+      suggestions.push({ id: field.id, category, answers, confidence });
       continue;
     }
 
-    let value = String(rawPlan.value || rawPlan.values?.[0] || "").trim();
-    if (!value) continue;
+    let answer = String(rawSuggestion.answer || rawSuggestion.answers?.[0] || "").trim();
+    if (!answer) continue;
     if (options.length) {
-      value = exactOption(value) || "";
-      if (!value) continue;
-      plans.push({ id: field.id, operation: "select", value, confidence });
+      answer = exactOption(answer) || "";
+      if (!answer) continue;
+      suggestions.push({ id: field.id, category, answer, confidence });
       continue;
     }
 
     if (!["text", "textarea"].includes(field.type)) continue;
-    if (Number(field.maxLength) > 0) value = value.slice(0, Number(field.maxLength));
-    plans.push({ id: field.id, operation: "fill", value, confidence });
+    if (Number(field.maxLength) > 0) answer = answer.slice(0, Number(field.maxLength));
+    suggestions.push({ id: field.id, category, answer, confidence });
   }
-  return plans;
+  return suggestions;
 }
 
-async function answerQuestions({ jobDescription, pageContext, questions, provider }) {
-  const profile = await getProfile();
-  const aiStrategy = selectedAiStrategy(profile, provider);
-  const resume = await getResumeText();
-  const safeQuestions = questions
-    .filter((question) => !sensitiveQuestion.test(question.label || ""))
-    .slice(0, 20);
-
-  const system = [
-    "You are a truthful job-application assistant. Return JSON only in this exact shape:",
-    '{"answers":[{"id":0,"value":"answer","confidence":0.9}]}',
-    "Use only facts explicitly present in the candidate profile or resume.",
-    "Use the job description only to tailor emphasis; never copy requirements into the candidate's experience.",
-    "Never invent employers, dates, metrics, education, technologies, authorization, or personal attributes.",
-    "When evidence is missing, omit that question from answers.",
-    "For subjective preference, motivation, teamwork, learning, and flexibility questions, choose the most employer-positive framing that remains consistent with the supplied evidence.",
-    "Sound enthusiastic, adaptable, collaborative, and willing to learn; tailor emphasis to the role without exaggerating experience.",
-    "Never improve an answer by inventing a factual, legal, medical, licensing, clearance, employment-history, or criminal-history claim.",
-    "Do not answer work authorization, sponsorship, compensation, legal, demographic, disability, veteran, consent, or signature questions.",
-    "For select questions, value must exactly equal one of the provided options.",
-    "Match the answer length to the field: use a short value for factual inputs and 60-140 first-person words only for essay-style questions.",
-  ].join(" ");
-
-  const request = {
-    candidateProfile: safeProfileForModel(profile),
-    resume,
-    jobDescription: String(jobDescription || "").slice(0, 16000),
-    visiblePageContext: String(pageContext || "").slice(0, 8000),
-    questions: safeQuestions,
-  };
-
-  const completion = await aiStrategy.completeJson({ system, request, maxTokens: 4000, temperature: 0 });
-  return {
-    answers: validateAnswers(completion.data.answers, safeQuestions),
-    usage: completion.usage,
-    model: completion.model,
-    provider: completion.provider,
-  };
+export function validateFieldSuggestionEnvelope(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (Object.keys(value).length !== 1 || !Array.isArray(value.suggestions) || value.suggestions.length > 45) return false;
+  const allowedKeys = new Set(["id", "category", "answer", "answers", "confidence"]);
+  return value.suggestions.every((suggestion) => {
+    if (!suggestion || typeof suggestion !== "object" || Array.isArray(suggestion)) return false;
+    const keys = Object.keys(suggestion);
+    return keys.length === allowedKeys.size
+      && keys.every((key) => allowedKeys.has(key))
+      && Number.isInteger(suggestion.id)
+      && suggestion.id >= 0
+      && suggestion.id <= 44
+      && semanticFieldCategorySet.has(suggestion.category)
+      && typeof suggestion.answer === "string"
+      && suggestion.answer.length <= 5000
+      && Array.isArray(suggestion.answers)
+      && suggestion.answers.length <= 60
+      && suggestion.answers.every((answer) => typeof answer === "string" && answer.length <= 500)
+      && Number.isFinite(suggestion.confidence)
+      && suggestion.confidence >= 0
+      && suggestion.confidence <= 1;
+  });
 }
 
 function decisionProfileForModel(profile) {
@@ -455,45 +486,7 @@ function decisionProfileForModel(profile) {
   };
 }
 
-async function resolveStructuredFields({ jobDescription, pageContext, questions, useSensitiveProfile, provider }) {
-  const profile = await getProfile();
-  const aiStrategy = selectedAiStrategy(profile, provider);
-  const resume = await getResumeText();
-  const eligibleQuestions = (Array.isArray(questions) ? questions : [])
-    .filter((question) => question && Number.isInteger(question.id) && Array.isArray(question.options) && question.options.length)
-    .filter((question) => useSensitiveProfile || !sensitiveQuestion.test(question.label || ""))
-    .slice(0, 30);
-  if (!eligibleQuestions.length) return { answers: [], model: aiStrategy.model, provider: aiStrategy.name.toLowerCase() };
-
-  const system = [
-    "You resolve structured job-application fields. Return JSON only in this exact shape:",
-    '{"answers":[{"id":0,"value":"exact option","confidence":0.95}]}',
-    "For every answer, value must exactly equal one of that question's supplied options.",
-    "Map semantically equivalent saved facts to portal wording, for example Male (Mr.) to Male, East Asian Chinese to Chinese, and No disability to No.",
-    "Use explicit candidate facts and preferences first. For subjective willingness or preference questions, choose the most employer-positive option consistent with the saved preferences.",
-    "For a recruitment-source question such as How did you hear about us, infer from the current application context: prefer the employer careers/company website when offered, otherwise an internet job board or internet search; never choose employee referral, agency, campus event, or personal contact without explicit evidence.",
-    "Use the resume and complete work history to interpret prior-employer and experience questions.",
-    "Never invent a factual, legal, medical, licensing, clearance, education, employment-history, or criminal-history claim.",
-    "If the candidate data does not support an answer, omit that question instead of guessing.",
-  ].join(" ");
-
-  const request = {
-    candidateProfile: useSensitiveProfile ? decisionProfileForModel(profile) : safeProfileForModel(profile),
-    resume,
-    jobDescription: String(jobDescription || "").slice(0, 16000),
-    visiblePageContext: String(pageContext || "").slice(0, 8000),
-    questions: eligibleQuestions,
-  };
-  const completion = await aiStrategy.completeJson({ system, request, maxTokens: 3000, temperature: 0 });
-  return {
-    answers: validateAnswers(completion.data.answers, eligibleQuestions, { allowSensitive: useSensitiveProfile }),
-    model: completion.model,
-    usage: completion.usage,
-    provider: completion.provider,
-  };
-}
-
-async function planDomFields({ jobDescription, pageContext, fields, useSensitiveProfile, provider }) {
+async function suggestDomFields({ jobDescription, pageContext, fields, useSensitiveProfile, provider }) {
   const profile = await getProfile();
   const aiStrategy = selectedAiStrategy(profile, provider);
   const resume = await getResumeText();
@@ -517,18 +510,19 @@ async function planDomFields({ jobDescription, pageContext, fields, useSensitive
         .map((option) => String(option || "").trim())
         .filter(Boolean))].slice(0, 60),
     }));
-  if (!eligibleFields.length) return { plans: [], model: aiStrategy.model, provider: aiStrategy.name.toLowerCase() };
+  if (!eligibleFields.length) return { suggestions: [], model: aiStrategy.model, provider: aiStrategy.name.toLowerCase() };
 
   const system = [
-    "You plan values for visible fields in a job application. Return JSON only in this exact shape:",
-    '{"plans":[{"id":0,"value":"answer","values":["option"],"confidence":0.95}]}',
-    "The supplied fields are a semantic summary of the current page DOM. Treat each numeric id as opaque.",
-    "For fields with options, value (or each item in values for a multiple field) must exactly equal a supplied option.",
+    "You classify visible job-application questions and suggest truthful answers. Return JSON only in this exact shape:",
+    '{"suggestions":[{"id":0,"category":"education","answer":"answer","answers":["option"],"confidence":0.95}]}',
+    `category must be exactly one of: ${semanticFieldCategories.join(", ")}.`,
+    "The numeric id is an opaque correlation identifier. Never return selectors, element paths, JavaScript, event names, click instructions, wait times, navigation instructions, operations, or action sequences.",
+    "For questions with options, answer (or each item in answers for a multiple-choice question) must exactly equal a supplied option.",
     "Use only facts explicitly present in the candidate profile or resume. Use the job description only to tailor truthful written answers.",
     "Use saved candidate facts and preferences to map equivalent portal wording. Never infer a referral, credential, employer, date, technology, authorization, demographic trait, medical fact, criminal-history fact, or conflict-of-interest fact.",
     "For subjective willingness and preference questions, choose the most employer-positive option that is consistent with the saved profile.",
     "For recruitment source, prefer an employer/company careers website when offered, otherwise an internet job board or internet search; never claim a referral or personal contact without evidence.",
-    "Omit any field when evidence is missing. Never plan a submit, continue, signature, certification, attestation, consent, privacy, terms, compensation, government identifier, or birth-date action.",
+    "Omit any question when evidence is missing. Never answer submit, continue, signature, certification, attestation, consent, privacy, terms, compensation, government identifier, or birth-date questions.",
     "Keep factual text short. Use 60-140 first-person words only for genuine essay or motivation fields.",
   ].join(" ");
 
@@ -539,9 +533,19 @@ async function planDomFields({ jobDescription, pageContext, fields, useSensitive
     visiblePageContext: String(pageContext || "").slice(0, 6000),
     visibleDomFields: eligibleFields,
   };
-  const completion = await aiStrategy.completeJson({ system, request, maxTokens: 5000, temperature: 0 });
+  const completion = await aiStrategy.completeJson({
+    system,
+    request,
+    maxTokens: 5000,
+    temperature: 0,
+    schema: fieldSuggestionResponseSchema,
+    schemaName: "field_suggestions",
+  });
+  if (!validateFieldSuggestionEnvelope(completion.data)) {
+    throw Object.assign(new Error("AI response did not match the field-suggestion schema."), { statusCode: 502 });
+  }
   return {
-    plans: validateFieldPlans(completion.data.plans, eligibleFields, { allowSensitive: useSensitiveProfile }),
+    suggestions: validateFieldSuggestions(completion.data.suggestions, eligibleFields, { allowSensitive: useSensitiveProfile }),
     model: completion.model,
     usage: completion.usage,
     provider: completion.provider,
@@ -795,15 +799,11 @@ export function createServer() {
         return sendJson(response, 200, { saved: true });
       }
 
-      if (request.method === "POST" && request.url === "/api/answer") {
-        const body = await readJson(request, 2_000_000);
-        const result = await answerQuestions({
-          jobDescription: body.jobDescription,
-          pageContext: body.pageContext,
-          questions: Array.isArray(body.questions) ? body.questions : [],
-          provider: body.provider,
-        });
-        return sendJson(response, 200, result);
+      if (request.method === "DELETE" && request.url === "/api/data") {
+        await writeFile(profilePath, `${JSON.stringify(profileDefaults, null, 2)}\n`, "utf8");
+        await rm(resumePath, { force: true });
+        resumeTextPromise = undefined;
+        return sendJson(response, 200, { deleted: true });
       }
 
       if (request.method === "POST" && request.url === "/api/extract-skills") {
@@ -824,21 +824,9 @@ export function createServer() {
         return sendJson(response, 200, result);
       }
 
-      if (request.method === "POST" && request.url === "/api/resolve-fields") {
-        const body = await readJson(request, 2_000_000);
-        const result = await resolveStructuredFields({
-          jobDescription: body.jobDescription,
-          pageContext: body.pageContext,
-          questions: body.questions,
-          useSensitiveProfile: body.useSensitiveProfile === true,
-          provider: body.provider,
-        });
-        return sendJson(response, 200, result);
-      }
-
-      if (request.method === "POST" && request.url === "/api/plan-fields") {
+      if (request.method === "POST" && request.url === "/api/suggest-fields") {
         const body = await readJson(request, 3_000_000);
-        const result = await planDomFields({
+        const result = await suggestDomFields({
           jobDescription: body.jobDescription,
           pageContext: body.pageContext,
           fields: body.fields,

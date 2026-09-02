@@ -11,6 +11,12 @@ import {
 } from "./notion-export.js";
 import { normalizeSkillKey, parseSkillList } from "./skills-preview.js";
 import { createDebouncedAutosave } from "./settings-autosave.mjs";
+import {
+  PRIVACY_CONSENT_KEY,
+  PRIVACY_CONSENT_VERSION,
+  hasRequiredPrivacyConsent,
+  normalizePrivacyConsent,
+} from "./privacy-consent.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("vendor/pdf.worker.mjs");
 
@@ -37,7 +43,15 @@ const notionParentPageId = document.querySelector("#notionParentPageId");
 const notionRootPageTitle = document.querySelector("#notionRootPageTitle");
 const notionStatus = document.querySelector("#notionStatus");
 const notionConnectionAction = document.querySelector("#notionConnectionAction");
+const privacyLocalProcessing = document.querySelector("#privacyLocalProcessing");
+const privacyAutomaticPageAccess = document.querySelector("#privacyAutomaticPageAccess");
+const privacyCloudAi = document.querySelector("#privacyCloudAi");
+const privacySensitiveAi = document.querySelector("#privacySensitiveAi");
+const privacyNotion = document.querySelector("#privacyNotion");
+const privacyStatus = document.querySelector("#privacyStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
+const AUTO_FILL_ORIGINS = ["https://*/*"];
+const NOTION_ORIGIN = "https://api.notion.com/*";
 
 const SETTINGS_PAGES = {
   profile: {
@@ -60,6 +74,11 @@ const SETTINGS_PAGES = {
     title: "Application history",
     description: "Choose where application records, job descriptions, and interview notes are saved.",
   },
+  privacy: {
+    hash: "#privacy",
+    title: "Privacy & data",
+    description: "Control page access, AI sharing, sensitive-answer use, Notion access, and locally stored data.",
+  },
 };
 
 const THEMES = new Set(["green", "blue", "dark"]);
@@ -73,6 +92,7 @@ function pageFromHash(hash = location.hash) {
   if (hash.startsWith("#profile")) return "profile";
   if (hash.startsWith("#ai")) return "ai";
   if (hash.startsWith("#application-history") || hash === "#interview-notes") return "history";
+  if (hash.startsWith("#privacy")) return "privacy";
   return "general";
 }
 
@@ -1181,6 +1201,81 @@ async function backendJson(path, options = {}) {
   return payload;
 }
 
+function renderPrivacyChoices(value) {
+  const consent = normalizePrivacyConsent(value);
+  privacyLocalProcessing.checked = consent.localProcessing;
+  privacyAutomaticPageAccess.checked = consent.automaticPageAccess;
+  privacyCloudAi.checked = consent.cloudAi;
+  privacySensitiveAi.checked = consent.cloudAi && consent.sensitiveAi;
+  privacySensitiveAi.disabled = !consent.cloudAi;
+  privacyNotion.checked = consent.notion;
+}
+
+async function currentPrivacyConsent() {
+  const cached = await chrome.storage.local.get(PRIVACY_CONSENT_KEY);
+  return normalizePrivacyConsent(cached[PRIVACY_CONSENT_KEY]);
+}
+
+async function savePrivacyChoices() {
+  privacyStatus.textContent = "Saving privacy choices…";
+  let automaticPageAccess = privacyLocalProcessing.checked && privacyAutomaticPageAccess.checked;
+  if (automaticPageAccess) {
+    automaticPageAccess = await chrome.permissions.request({ origins: AUTO_FILL_ORIGINS });
+  } else {
+    await chrome.permissions.remove({ origins: AUTO_FILL_ORIGINS }).catch(() => false);
+  }
+
+  let notion = privacyLocalProcessing.checked && privacyNotion.checked;
+  if (notion) notion = await chrome.permissions.request({ origins: [NOTION_ORIGIN] });
+  else {
+    await chrome.permissions.remove({ origins: [NOTION_ORIGIN] }).catch(() => false);
+    await chrome.permissions.remove({ permissions: ["identity"] }).catch(() => false);
+  }
+
+  const consent = {
+    version: PRIVACY_CONSENT_VERSION,
+    acceptedAt: privacyLocalProcessing.checked ? new Date().toISOString() : "",
+    localProcessing: privacyLocalProcessing.checked,
+    automaticPageAccess,
+    cloudAi: privacyLocalProcessing.checked && privacyCloudAi.checked,
+    sensitiveAi: privacyLocalProcessing.checked && privacyCloudAi.checked && privacySensitiveAi.checked,
+    notion,
+  };
+  await chrome.storage.local.set({ [PRIVACY_CONSENT_KEY]: consent });
+  await chrome.runtime.sendMessage({ type: "privacy-consent-updated" }).catch(() => null);
+  renderPrivacyChoices(consent);
+  privacyStatus.textContent = consent.localProcessing
+    ? "Privacy choices saved."
+    : "Consent withdrawn. Autofill and background monitoring are disabled.";
+}
+
+privacyCloudAi.addEventListener("change", () => {
+  privacySensitiveAi.disabled = !privacyCloudAi.checked;
+  if (!privacyCloudAi.checked) privacySensitiveAi.checked = false;
+});
+
+document.querySelector("#savePrivacyChoices").addEventListener("click", async () => {
+  try {
+    await savePrivacyChoices();
+  } catch (error) {
+    privacyStatus.textContent = error.message || "Could not save privacy choices.";
+  }
+});
+
+document.querySelector("#deleteLocalData").addEventListener("click", async () => {
+  if (!confirm("Delete the saved profile, resume, settings, history cache, and connected-service tokens from this browser and local backend? Exported files and existing Notion pages are not deleted.")) return;
+  privacyStatus.textContent = "Deleting local data…";
+  try {
+    await backendJson("/api/data", { method: "DELETE" });
+  } catch {
+    // Browser-local deletion remains available if the optional local backend is stopped.
+  }
+  await chrome.permissions.remove({ origins: [...AUTO_FILL_ORIGINS, NOTION_ORIGIN] }).catch(() => false);
+  await chrome.permissions.remove({ permissions: ["identity"] }).catch(() => false);
+  await chrome.storage.local.clear();
+  location.replace(chrome.runtime.getURL("onboarding.html"));
+});
+
 notionConnectionAction.addEventListener("click", async () => {
   const cached = await chrome.storage.local.get(NOTE_SETTINGS_KEY);
   const current = normalizeExportSettings(cached[NOTE_SETTINGS_KEY]);
@@ -1202,9 +1297,25 @@ notionConnectionAction.addEventListener("click", async () => {
     notionToken.value = "";
     notionParentPageId.value = "";
     await persistExportSettings(current);
+    await chrome.permissions.remove({ permissions: ["identity"] }).catch(() => false);
     renderNotionConnectionAction(current.notion);
     updateExportOptionVisibility();
     notionStatus.textContent = "Notion disconnected; existing Notion pages were not deleted";
+    return;
+  }
+
+  const privacy = await currentPrivacyConsent();
+  if (!privacy.notion) {
+    notionStatus.textContent = "Enable Notion export in Privacy & Data before connecting.";
+    showSettingsPage("privacy", { updateHash: true });
+    return;
+  }
+  const notionPermission = await chrome.permissions.request({
+    permissions: ["identity"],
+    origins: [NOTION_ORIGIN],
+  });
+  if (!notionPermission) {
+    notionStatus.textContent = "Notion access was not granted.";
     return;
   }
 
@@ -1272,6 +1383,17 @@ notionConnectionAction.addEventListener("click", async () => {
 });
 
 document.querySelector("#setupNotion").addEventListener("click", async () => {
+  const privacy = await currentPrivacyConsent();
+  if (!privacy.notion) {
+    notionStatus.textContent = "Enable Notion export in Privacy & Data before connecting.";
+    showSettingsPage("privacy", { updateHash: true });
+    return;
+  }
+  const notionPermission = await chrome.permissions.request({ origins: [NOTION_ORIGIN] });
+  if (!notionPermission) {
+    notionStatus.textContent = "Notion access was not granted.";
+    return;
+  }
   notionStatus.textContent = "Connecting to Notion and preparing Application List…";
   try {
     let settings = await collectExportSettings();
@@ -1295,12 +1417,19 @@ document.querySelector("#setupNotion").addEventListener("click", async () => {
 });
 
 async function initialize() {
+  document.querySelector("#notionRedirectUrl").textContent = `https://${chrome.runtime.id}.chromiumapp.org/notion`;
+  const cached = await chrome.storage.local.get([PROFILE_KEY, NOTE_SETTINGS_KEY, LAST_SKILL_SELECTION_KEY, PRIVACY_CONSENT_KEY]);
+  if (!hasRequiredPrivacyConsent(cached[PRIVACY_CONSENT_KEY])) {
+    renderPrivacyChoices(cached[PRIVACY_CONSENT_KEY]);
+    showSettingsPage("privacy", { updateHash: true });
+    privacyStatus.textContent = "Review and save your privacy choices before using Job Autofill.";
+    return;
+  }
   await chrome.storage.local.set({ [ONBOARDING_VISITED_KEY]: true });
-  document.querySelector("#notionRedirectUrl").textContent = chrome.identity.getRedirectURL("notion");
-  const cached = await chrome.storage.local.get([PROFILE_KEY, NOTE_SETTINGS_KEY, LAST_SKILL_SELECTION_KEY]);
   renderProfile(cached[PROFILE_KEY]);
   renderSkillPreview(cached[LAST_SKILL_SELECTION_KEY]);
   renderExportSettings(cached[NOTE_SETTINGS_KEY]);
+  renderPrivacyChoices(cached[PRIVACY_CONSENT_KEY]);
   await refreshResumeStatus();
   await Promise.all([
     refreshExportFolderStatus("markdown", markdownFolderStatus),

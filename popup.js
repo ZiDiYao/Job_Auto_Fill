@@ -25,6 +25,7 @@ const AUTOMATION_PAUSED_KEY = "jobAutofillAutomationPaused";
 const LAST_DETECTED_JOB_KEY = "jobAutofillDetectedJobContext";
 const TARGET_APPLICATION_TAB_KEY = "jobAutofillTargetApplicationTabId";
 const ONBOARDING_VISITED_KEY = "jobAutofillOnboardingVisited";
+const PRIVACY_CONSENT_KEY = "jobAutofillPrivacyConsent";
 const settingsLabel = document.querySelector("#settingsLabel");
 const settingsRequired = document.querySelector("#settingsRequired");
 let activeTabId = 0;
@@ -107,7 +108,11 @@ async function getTargetApplicationTab() {
   return response.tab;
 }
 
-chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY, AUTOMATION_PAUSED_KEY, LAST_DETECTED_JOB_KEY, ONBOARDING_VISITED_KEY]).then(async ({ jobAutofillProfile, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus, [AUTOMATION_PAUSED_KEY]: paused, [LAST_DETECTED_JOB_KEY]: detectedJob, [ONBOARDING_VISITED_KEY]: visited }) => {
+chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY, AUTOMATION_PAUSED_KEY, LAST_DETECTED_JOB_KEY, ONBOARDING_VISITED_KEY, PRIVACY_CONSENT_KEY]).then(async ({ jobAutofillProfile, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus, [AUTOMATION_PAUSED_KEY]: paused, [LAST_DETECTED_JOB_KEY]: detectedJob, [ONBOARDING_VISITED_KEY]: visited, [PRIVACY_CONSENT_KEY]: privacyConsent }) => {
+  if (privacyConsent?.version !== 1 || privacyConsent?.localProcessing !== true) {
+    location.replace(chrome.runtime.getURL("onboarding.html"));
+    return;
+  }
   applyTheme(jobAutofillProfile?.theme);
   hasDefaultResume = Boolean(jobAutofillResume?.base64);
   renderSetupState(visited);

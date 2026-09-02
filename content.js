@@ -1363,43 +1363,43 @@
     return choices.find((choice) => normalize(choice.label) === desired);
   }
 
-  async function executeSemanticPlan(plan, target) {
+  async function applySemanticSuggestion(suggestion, target) {
     if (
       !target
       || !target.control?.isConnected
-      || Number(plan.confidence || 0) < 0.7
+      || Number(suggestion.confidence || 0) < 0.7
       || neverAutomateDomQuestion.test(target.label || "")
     ) return false;
     let accepted = false;
-    if (plan.operation === "fill" && target.kind === "text") {
-      accepted = setNativeValue(target.control, String(plan.value || ""));
+    if (target.kind === "text") {
+      accepted = setNativeValue(target.control, String(suggestion.answer || ""));
       await wait(160);
-      accepted = accepted && normalize(target.control.value || target.control.textContent).includes(normalize(plan.value));
-    } else if (plan.operation === "select" && target.kind === "select") {
-      accepted = setNativeValue(target.control, plan.value);
+      accepted = accepted && normalize(target.control.value || target.control.textContent).includes(normalize(suggestion.answer));
+    } else if (target.kind === "select") {
+      accepted = setNativeValue(target.control, suggestion.answer);
       await wait(160);
       const selected = target.control.selectedOptions?.[0]?.textContent || target.control.value;
-      accepted = accepted && normalize(selected) === normalize(plan.value);
-    } else if (plan.operation === "select" && target.kind === "workday-button") {
-      accepted = await chooseWorkdayButton(target.control, plan.value);
+      accepted = accepted && normalize(selected) === normalize(suggestion.answer);
+    } else if (target.kind === "workday-button") {
+      accepted = await chooseWorkdayButton(target.control, suggestion.answer);
       await wait(180);
-      accepted = accepted || normalize(target.control.textContent).includes(normalize(plan.value));
-    } else if (plan.operation === "select" && target.kind === "combobox") {
-      accepted = await chooseWorkdayPrompt(target.control, plan.value);
+      accepted = accepted || normalize(target.control.textContent).includes(normalize(suggestion.answer));
+    } else if (target.kind === "combobox") {
+      accepted = await chooseWorkdayPrompt(target.control, suggestion.answer);
       await wait(180);
       const container = target.control.closest('[data-automation-id="multiSelectContainer"], [data-automation-id="multiselectInputContainer"]')
         ?.parentElement;
       const selected = String(container?.querySelector('[role="listbox"]')?.textContent || target.control.value || "");
-      accepted = accepted || normalize(selected).includes(normalize(plan.value));
-    } else if (plan.operation === "select" && target.kind === "radio") {
-      const choice = exactChoice(target.choices, plan.value);
+      accepted = accepted || normalize(selected).includes(normalize(suggestion.answer));
+    } else if (target.kind === "radio") {
+      const choice = exactChoice(target.choices, suggestion.answer);
       if (choice) {
         choice.control.click();
         await wait(160);
         accepted = choice.control.checked;
       }
-    } else if (plan.operation === "select_many" && target.kind === "checkbox") {
-      const requested = Array.isArray(plan.values) ? plan.values : [];
+    } else if (target.kind === "checkbox") {
+      const requested = Array.isArray(suggestion.answers) ? suggestion.answers : [];
       const choices = requested.map((value) => exactChoice(target.choices, value)).filter(Boolean);
       for (const choice of choices) {
         if (!choice.control.checked) choice.control.click();
@@ -1416,7 +1416,7 @@
     return true;
   }
 
-  async function planSemanticDomWithAi() {
+  async function applySemanticDomSuggestions() {
     if (
       window.top !== window
       || !profile.aiEnabled
@@ -1430,23 +1430,23 @@
       let response;
       try {
         response = await chrome.runtime.sendMessage({
-          type: "plan-dom-fields",
+          type: "suggest-dom-fields",
           jobDescription,
           pageContext: `${document.title}\nPage URL: ${location.href}\n${String(document.body?.innerText || "").slice(0, 6000)}`,
           fields: descriptors,
           useSensitiveProfile: profile.aiUseSensitiveProfile === true,
           backendProvider: profile.backendAiProvider || "deepseek",
         });
-        if (!response?.ok) throw new Error(response?.error || "AI DOM planning failed.");
+        if (!response?.ok) throw new Error(response?.error || "AI field suggestions failed.");
       } catch (error) {
-        const message = `DOM AI: ${error.message || "planning failed"}`;
+        const message = `DOM AI: ${error.message || "suggestion request failed"}`;
         result.aiError = [result.aiError, message].filter(Boolean).join(" | ");
         break;
       }
 
       let changedCount = 0;
-      for (const plan of Array.isArray(response.plans) ? response.plans : []) {
-        if (await executeSemanticPlan(plan, targets.get(plan.id))) changedCount += 1;
+      for (const suggestion of Array.isArray(response.suggestions) ? response.suggestions : []) {
+        if (await applySemanticSuggestion(suggestion, targets.get(suggestion.id))) changedCount += 1;
       }
       if (!changedCount) break;
       await wait(450);
@@ -1785,7 +1785,7 @@
   }
 
   if (await changesArePaused(true)) return result;
-  await planSemanticDomWithAi();
+  await applySemanticDomSuggestions();
   if (await changesArePaused(true)) return result;
   fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
 

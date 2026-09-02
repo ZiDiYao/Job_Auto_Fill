@@ -5,7 +5,7 @@ export class OpenAiStrategy extends AiProviderStrategy {
     super({ name: "OpenAI", ...options });
   }
 
-  async completeJson({ system, request, maxTokens = 4000 }) {
+  async completeJson({ system, request, maxTokens = 4000, schema, schemaName = "response" }) {
     this.assertConfigured();
     const response = await this.fetchImpl(`${this.baseUrl}/responses`, {
       method: "POST",
@@ -17,7 +17,11 @@ export class OpenAiStrategy extends AiProviderStrategy {
         model: this.model,
         instructions: system,
         input: JSON.stringify(request),
-        text: { format: { type: "json_object" } },
+        text: {
+          format: schema
+            ? { type: "json_schema", name: schemaName, strict: true, schema }
+            : { type: "json_object" },
+        },
         max_output_tokens: maxTokens,
         store: false,
       }),
