@@ -434,6 +434,30 @@
     return monthIndex >= 0 ? String(monthIndex + 1) : text;
   }
 
+  function workdayEducationYearFields(prefix) {
+    const exactStart = workdayField(prefix, "firstYearAttended-dateSectionYear-input");
+    const exactEnd = workdayField(prefix, "lastYearAttended-dateSectionYear-input");
+    const yearFields = [...document.querySelectorAll(
+      `input[id^="${CSS.escape(prefix)}--"][data-automation-id="dateSectionYear-input"]`,
+    )].filter(isVisible);
+    return {
+      start: exactStart || yearFields[0] || null,
+      end: exactEnd || yearFields[1] || null,
+    };
+  }
+
+  async function setVerifiedStructuredValue(field, value) {
+    if (!field || value === undefined || value === null || !String(value).trim()) return false;
+    const id = field.id;
+    const changed = setStructuredValue(field, value);
+    await wait(180);
+    const current = id ? document.getElementById(id) : field;
+    if (current && String(current.value || "").trim() !== String(value).trim()) {
+      setStructuredValue(current, value);
+    }
+    return changed;
+  }
+
   function visiblePromptOptions() {
     return [...document.querySelectorAll('[role="option"], [data-automation-id="promptOption"]')]
       .filter((option) => {
@@ -849,7 +873,9 @@
       endDay: profile.graduationDay || storedEducation.endDay || "",
       endYear: profile.graduationYear || storedEducation.endYear || "",
     };
-    const schoolField = document.querySelector('input[id^="education-"][id$="--school"]');
+    const schoolField = document.querySelector(
+      'input[id^="education-"][id$="--schoolName"], input[id^="education-"][id$="--school"]',
+    );
     if (education.school && schoolField) {
       const prefix = workdayPrefix(schoolField);
       await chooseWorkdayPrompt(schoolField, education.school);
@@ -858,10 +884,11 @@
       setStructuredValue(workdayField(prefix, "gradeAverage"), education.gpa);
       setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionMonth-input"), workdayMonthValue(education.startMonth));
       setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionDay-input"), education.startDay);
-      setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionYear-input"), education.startYear);
       setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionMonth-input"), workdayMonthValue(education.endMonth));
       setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionDay-input"), education.endDay);
-      setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionYear-input"), education.endYear);
+      const educationYears = workdayEducationYearFields(prefix);
+      await setVerifiedStructuredValue(educationYears.start, education.startYear);
+      await setVerifiedStructuredValue(educationYears.end, education.endYear);
     }
 
     const languages = Array.isArray(profile.languages) ? profile.languages : [];
