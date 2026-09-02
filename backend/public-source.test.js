@@ -99,6 +99,12 @@ test("settings dropdown arrows are consistently inset from the right edge", asyn
   assert.match(css, /:root\[data-theme="dark"\] select \{[\s\S]*?background-image:/);
 });
 
+test("destructive icon controls use subtle round buttons instead of square boxes", async () => {
+  const css = await readFile(path.join(repositoryRoot, "options.css"), "utf8");
+  assert.match(css, /\.remove-language,\n\.icon-button \{[^}]*border: 0;[^}]*border-radius: 50%;[^}]*background: transparent;/);
+  assert.match(css, /\.remove-language:hover,\n\.icon-button:hover \{[^}]*background: #fef3f2;/);
+});
+
 test("popup and settings pages ship green, blue-default, and dark themes", async () => {
   const [html, optionsCss, popupCss, optionsSource, popupSource] = await Promise.all([
     readFile(path.join(repositoryRoot, "options.html"), "utf8"),
