@@ -7,6 +7,7 @@ const AUTO_ADVANCE_PAGE_BLOCK = "\\b(?:i certify|i attest|electronic signature|t
 const AUTO_FILL_SCRIPT_ID = "job-autofill-page-watcher";
 const AUTO_FILL_ORIGINS = ["http://*/*", "https://*/*"];
 const LAST_FILL_STATUS_KEY = "jobAutofillLastFillStatus";
+const LAST_SKILL_SELECTION_KEY = "jobAutofillLastSkillSelection";
 const activeAutoAdvanceSessions = new Map();
 const activeFillSessions = new Map();
 const lastAutomaticPageSignatures = new Map();
@@ -131,12 +132,24 @@ async function extractJobSkills(message) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || `Local backend returned ${response.status}.`);
-  return {
+  const result = {
     skills: Array.isArray(payload.skills) ? payload.skills : [],
     rankedSkills: Array.isArray(payload.rankedSkills) ? payload.rankedSkills : [],
     maxSkills: payload.maxSkills,
     maxNonTechnicalSkills: payload.maxNonTechnicalSkills,
   };
+  if (message.rememberSelection !== false) {
+    await chrome.storage.local.set({
+      [LAST_SKILL_SELECTION_KEY]: {
+        ...result,
+        pageTitle: String(message.pageTitle || "").slice(0, 300),
+        pageUrl: String(message.pageUrl || "").slice(0, 2000),
+        usedJobDescription: Boolean(String(message.jobDescription || "").trim()),
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  }
+  return result;
 }
 
 async function extractResumeProfile(message) {

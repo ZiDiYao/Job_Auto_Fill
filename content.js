@@ -576,6 +576,8 @@
         maxSkills,
         maxNonTechnicalSkills,
         backendProvider: profile.backendAiProvider || "deepseek",
+        pageTitle: document.title,
+        pageUrl: location.href,
       });
       if (!extracted?.ok) throw new Error(extracted?.error || "JD skill extraction failed.");
       jdSkills = Array.isArray(extracted.skills) ? extracted.skills : [];

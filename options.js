@@ -9,13 +9,14 @@ import {
   createNotionWorkspace,
   verifyNotionWorkspace,
 } from "./notion-export.js";
-import { buildSkillPreview } from "./skills-preview.js";
+import { normalizeSkillKey, parseSkillList } from "./skills-preview.js";
 import { createDebouncedAutosave } from "./settings-autosave.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("vendor/pdf.worker.mjs");
 
 const PROFILE_KEY = "jobAutofillProfile";
 const RESUME_KEY = "jobAutofillResume";
+const LAST_SKILL_SELECTION_KEY = "jobAutofillLastSkillSelection";
 const form = document.querySelector("#profileForm");
 const saveStatus = document.querySelector("#saveStatus");
 const markdownFolderStatus = document.querySelector("#markdownFolderStatus");
@@ -57,21 +58,6 @@ function pageFromHash(hash = location.hash) {
   return "profile";
 }
 
-function aiPageFromHash(hash = location.hash) {
-  return hash === "#ai/skills-preview" ? "skills-preview" : "settings";
-}
-
-function showAiPage(page, { updateHash = false } = {}) {
-  const selected = page === "skills-preview" ? page : "settings";
-  for (const panel of document.querySelectorAll("[data-ai-page]")) panel.hidden = panel.dataset.aiPage !== selected;
-  for (const tab of document.querySelectorAll("[data-ai-target]")) {
-    const active = tab.dataset.aiTarget === selected;
-    tab.classList.toggle("active", active);
-    tab.setAttribute("aria-selected", String(active));
-  }
-  if (updateHash) history.replaceState(null, "", `#ai/${selected}`);
-}
-
 function showSettingsPage(page, { updateHash = false } = {}) {
   const selected = SETTINGS_PAGES[page] ? page : "profile";
   for (const section of document.querySelectorAll("[data-settings-page]")) {
@@ -94,24 +80,12 @@ function showSettingsPage(page, { updateHash = false } = {}) {
 for (const tab of document.querySelectorAll("[data-settings-target]")) {
   tab.addEventListener("click", () => {
     showSettingsPage(tab.dataset.settingsTarget, { updateHash: true });
-    if (tab.dataset.settingsTarget === "ai") showAiPage("settings", { updateHash: true });
-  });
-}
-for (const tab of document.querySelectorAll("[data-ai-target]")) {
-  tab.addEventListener("click", () => {
-    showAiPage(tab.dataset.aiTarget, { updateHash: true });
-    if (tab.dataset.aiTarget === "skills-preview") {
-      syncSkillPreviewLimits();
-      renderSkillPreview();
-    }
   });
 }
 window.addEventListener("hashchange", () => {
   showSettingsPage(pageFromHash());
-  if (pageFromHash() === "ai") showAiPage(aiPageFromHash());
 });
 showSettingsPage(pageFromHash());
-showAiPage(aiPageFromHash());
 
 function normalizeExportSettings(value = {}) {
   return {
@@ -288,14 +262,14 @@ const defaultProfile = {
   autoFillOnPageChange: false,
   autoAdvanceMaxSteps: 10,
   autoAdvanceDelayMs: 1800,
-  aiEnabled: false,
-  includeJdSkills: false,
+  aiEnabled: true,
+  includeJdSkills: true,
   maxSkills: 15,
   maxNonTechnicalSkills: 2,
   skillBlacklist: "",
   aiAnalyzeDom: true,
-  aiResolveDropdowns: false,
-  aiUseSensitiveProfile: false,
+  aiResolveDropdowns: true,
+  aiUseSensitiveProfile: true,
   aiProvider: "backend",
   backendAiProvider: "deepseek",
   aiModel: "qwen3:4b",
@@ -417,11 +391,6 @@ function skillPriorityLabel(skill) {
   return "Supported by your resume";
 }
 
-function syncSkillPreviewLimits() {
-  document.querySelector("#previewMaxSkills").value = form.elements.namedItem("maxSkills").value || 15;
-  document.querySelector("#previewMaxNonTechnicalSkills").value = form.elements.namedItem("maxNonTechnicalSkills").value || 0;
-}
-
 function renderPreviewRows(element, skills, labelForSkill) {
   element.replaceChildren();
   if (!skills.length) {
@@ -443,48 +412,47 @@ function renderPreviewRows(element, skills, labelForSkill) {
   }
 }
 
-function renderSkillPreview() {
-  const actualMax = form.elements.namedItem("maxSkills");
-  const actualSoftMax = form.elements.namedItem("maxNonTechnicalSkills");
-  const previewMax = document.querySelector("#previewMaxSkills");
-  const previewSoftMax = document.querySelector("#previewMaxNonTechnicalSkills");
-  if (!previewMax.value) previewMax.value = actualMax.value || 15;
-  if (previewSoftMax.value === "") previewSoftMax.value = actualSoftMax.value || 0;
-  actualMax.value = previewMax.value;
-  actualSoftMax.value = previewSoftMax.value;
+let latestSkillSelection = null;
 
-  const result = buildSkillPreview({
-    jdSkills: document.querySelector("#previewJdSkills").value,
-    resumeSkills: document.querySelector("#previewResumeSkills").value,
-    blacklistedSkills: document.querySelector("#previewSkillBlacklist").value,
-    maxSkills: previewMax.value,
-    maxNonTechnicalSkills: previewSoftMax.value,
-  });
+function renderSkillPreview(selection = latestSkillSelection) {
+  latestSkillSelection = selection || null;
+  const blacklist = parseSkillList(form.elements.namedItem("skillBlacklist")?.value || "");
+  const blacklistKeys = new Set(blacklist.map(normalizeSkillKey));
+  const rankedSkills = (Array.isArray(selection?.rankedSkills) ? selection.rankedSkills : [])
+    .filter((skill) => skill?.name && !blacklistKeys.has(normalizeSkillKey(skill.name)));
   const selectedBox = document.querySelector("#previewSelectedSkills");
   selectedBox.replaceChildren();
-  for (const skill of result.selected) {
+  for (const skill of rankedSkills) {
     const token = document.createElement("span");
     token.className = "skill-token";
     token.textContent = skill.name;
     selectedBox.append(token);
   }
-  document.querySelector("#previewCount").textContent = `${result.selected.length} of ${result.maxSkills} slots used · ${result.selected.filter((skill) => !skill.technical).length} of ${result.maxNonTechnicalSkills} soft-skill slots`;
-  renderPreviewRows(document.querySelector("#previewPriorityList"), result.selected, skillPriorityLabel);
-  document.querySelector("#previewBlacklistStatus").textContent = result.blacklist.length
-    ? `${result.blacklist.length} skill${result.blacklist.length === 1 ? "" : "s"} will always be skipped during preview and ATS autofill.`
+  const maxSkills = Number(selection?.maxSkills || form.elements.namedItem("maxSkills").value || 15);
+  const maxSoft = Number(selection?.maxNonTechnicalSkills ?? form.elements.namedItem("maxNonTechnicalSkills").value ?? 2);
+  document.querySelector("#previewCount").textContent = rankedSkills.length
+    ? `${rankedSkills.length} of ${maxSkills} slots · ${rankedSkills.filter((skill) => !skill.technical).length} of ${maxSoft} soft-skill slots`
+    : "No selection yet";
+  renderPreviewRows(document.querySelector("#previewPriorityList"), rankedSkills, skillPriorityLabel);
+  document.querySelector("#previewBlacklistStatus").textContent = blacklist.length
+    ? `${blacklist.length} skill${blacklist.length === 1 ? "" : "s"} will always be skipped by AI ranking and ATS autofill.`
     : "No skills are currently blacklisted.";
+  const context = document.querySelector("#previewContext");
+  if (!rankedSkills.length) {
+    context.textContent = "Upload a CV to create a baseline. The selection refreshes automatically when a job description is available.";
+  } else {
+    const generated = selection?.generatedAt ? new Date(selection.generatedAt).toLocaleString() : "recently";
+    const source = selection?.usedJobDescription
+      ? `CV + JD${selection?.pageTitle ? ` for ${selection.pageTitle}` : ""}`
+      : "CV baseline";
+    context.textContent = `Generated ${generated} from ${source}. It will refresh automatically on the next application.`;
+  }
 }
 
-for (const id of ["previewMaxSkills", "previewMaxNonTechnicalSkills", "previewJdSkills", "previewResumeSkills", "previewSkillBlacklist"]) {
-  document.querySelector(`#${id}`).addEventListener("input", () => {
-    renderSkillPreview();
-    if (id === "previewMaxSkills" || id === "previewMaxNonTechnicalSkills") profileAutosave.schedule();
-  });
+document.querySelector("#skillBlacklist").addEventListener("input", () => renderSkillPreview());
+for (const name of ["maxSkills", "maxNonTechnicalSkills"]) {
+  form.elements.namedItem(name).addEventListener("input", () => renderSkillPreview());
 }
-document.querySelector("#runSkillPreview").addEventListener("click", () => {
-  renderSkillPreview();
-  profileAutosave.schedule();
-});
 
 async function persistProfile() {
   const profile = collectProfile();
@@ -565,7 +533,6 @@ async function syncFromBackend(showStatus = true) {
   const result = await chrome.runtime.sendMessage({ type: "sync-backend-context" });
   if (!result?.ok) throw new Error(result?.error || "Could not reach the Docker backend.");
   renderProfile(result.profile);
-  syncSkillPreviewLimits();
   renderSkillPreview();
   await refreshResumeStatus();
   if (showStatus) saveStatus.textContent = "Loaded profile and resume from Docker backend";
@@ -679,6 +646,21 @@ async function prefillEmptyProfileFields(resumeText) {
   return filledKeys;
 }
 
+async function generateResumeSkillBaseline() {
+  const profile = collectProfile();
+  const response = await chrome.runtime.sendMessage({
+    type: "extract-job-skills",
+    jobDescription: "",
+    pageContext: "",
+    maxSkills: profile.maxSkills,
+    maxNonTechnicalSkills: profile.maxNonTechnicalSkills,
+    backendProvider: profile.backendAiProvider,
+    pageTitle: "Saved CV baseline",
+  });
+  if (!response?.ok) throw new Error(response?.error || "AI could not generate CV skills.");
+  return response.rankedSkills?.length || 0;
+}
+
 resumeFile.addEventListener("change", async (event) => {
   const [file] = event.target.files;
   if (!file) return;
@@ -711,7 +693,8 @@ resumeFile.addEventListener("change", async (event) => {
       try {
         resumeStatus.textContent += " · analyzing profile…";
         const filledKeys = await prefillEmptyProfileFields(extractedText);
-        resumeStatus.textContent = `${resume.name} saved · AI filled ${filledKeys.length} previously blank profile field${filledKeys.length === 1 ? "" : "s"}`;
+        const skillCount = await generateResumeSkillBaseline();
+        resumeStatus.textContent = `${resume.name} saved · AI filled ${filledKeys.length} blank profile field${filledKeys.length === 1 ? "" : "s"} and selected ${skillCount} baseline skill${skillCount === 1 ? "" : "s"}`;
       } catch (error) {
         resumeStatus.textContent += ` · profile prefill unavailable: ${error.message}`;
       }
@@ -900,9 +883,9 @@ document.querySelector("#setupNotion").addEventListener("click", async () => {
 
 async function initialize() {
   document.querySelector("#notionRedirectUrl").textContent = chrome.identity.getRedirectURL("notion");
-  const cached = await chrome.storage.local.get([PROFILE_KEY, NOTE_SETTINGS_KEY]);
+  const cached = await chrome.storage.local.get([PROFILE_KEY, NOTE_SETTINGS_KEY, LAST_SKILL_SELECTION_KEY]);
   renderProfile(cached[PROFILE_KEY]);
-  renderSkillPreview();
+  renderSkillPreview(cached[LAST_SKILL_SELECTION_KEY]);
   renderExportSettings(cached[NOTE_SETTINGS_KEY]);
   await refreshResumeStatus();
   await Promise.all([
@@ -915,5 +898,11 @@ async function initialize() {
     saveStatus.textContent = `Docker backend unavailable · showing browser cache (${error.message})`;
   }
 }
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes[LAST_SKILL_SELECTION_KEY]) {
+    renderSkillPreview(changes[LAST_SKILL_SELECTION_KEY].newValue);
+  }
+});
 
 initialize();

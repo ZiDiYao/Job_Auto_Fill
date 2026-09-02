@@ -172,6 +172,24 @@ test("skill extraction can rank saved skills without calling an AI provider", as
   assert.equal(payload.maxNonTechnicalSkills, 0);
 });
 
+test("skill extraction generates a resume-only AI baseline when CV evidence exists without a JD", async () => {
+  await request("/api/profile", {
+    method: "PUT",
+    body: { resumeText: "TypeScript, SQL, communication, and unit testing experience." },
+  });
+  const beforeCount = aiRequests.length;
+  const { response, payload } = await request("/api/extract-skills", {
+    method: "POST",
+    body: { jobDescription: "", pageContext: "", maxSkills: 3, maxNonTechnicalSkills: 1 },
+  });
+  assert.equal(response.status, 200);
+  assert.equal(aiRequests.length, beforeCount + 1);
+  assert.deepEqual(payload.skills, ["SQL", "Communication", "TypeScript"]);
+  assert.deepEqual(aiRequests.at(-1).payload.jobDescription, "");
+  assert.match(aiRequests.at(-1).system, /resume-only baseline/i);
+  await request("/api/profile", { method: "PUT", body: { resumeText: "" } });
+});
+
 test("resume profile endpoint extracts only validated non-sensitive facts", async () => {
   const beforeCount = aiRequests.length;
   const { response, payload } = await request("/api/extract-profile", {

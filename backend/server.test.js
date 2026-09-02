@@ -65,6 +65,9 @@ test("ships blank candidate and credential templates", async () => {
   assert.deepEqual(profile.languages, []);
   assert.deepEqual(profile.skills, []);
   assert.deepEqual(profile.indeedPreferences, {});
+  for (const key of ["aiEnabled", "includeJdSkills", "aiAnalyzeDom", "aiResolveDropdowns", "aiUseSensitiveProfile"]) {
+    assert.equal(profile[key], true, `${key} should work without first-run setup`);
+  }
   assert.equal(config.deepSeek.apiKey, "");
   assert.equal(config.openAI.apiKey, "");
   assert.equal(config.notion.oauth.clientId, "");

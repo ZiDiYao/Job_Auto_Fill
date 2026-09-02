@@ -132,6 +132,21 @@ async function prefillProfileFromSavedResume(resumeText) {
   return filled;
 }
 
+async function generateResumeSkillBaseline() {
+  const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
+  const response = await chrome.runtime.sendMessage({
+    type: "extract-job-skills",
+    jobDescription: "",
+    pageContext: "",
+    maxSkills: jobAutofillProfile.maxSkills || 15,
+    maxNonTechnicalSkills: jobAutofillProfile.maxNonTechnicalSkills ?? 2,
+    backendProvider: jobAutofillProfile.backendAiProvider || "deepseek",
+    pageTitle: "Saved CV baseline",
+  });
+  if (!response?.ok) throw new Error(response?.error || "AI could not generate CV skills.");
+  return response.rankedSkills?.length || 0;
+}
+
 async function saveResume(file) {
   if (!file) return;
   if (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name)) {
@@ -155,7 +170,8 @@ async function saveResume(file) {
   status.textContent = "CV saved locally. Analyzing supported profile facts…";
   try {
     const filled = await prefillProfileFromSavedResume(saved.resumeText || "");
-    status.textContent = `CV saved · AI filled ${filled} previously blank profile field${filled === 1 ? "" : "s"}.`;
+    const skillCount = await generateResumeSkillBaseline();
+    status.textContent = `CV saved · AI filled ${filled} blank profile field${filled === 1 ? "" : "s"} and selected ${skillCount} baseline skill${skillCount === 1 ? "" : "s"}.`;
   } catch (error) {
     status.textContent = `CV saved, but profile prefill was unavailable: ${error.message}`;
   }

@@ -339,6 +339,8 @@ test("skill, resume profile, dropdown, and DOM-plan messages use their dedicated
   const dropdowns = await background.send({ type: "resolve-workday-dropdowns", questions: [{ id: 1 }], useSensitiveProfile: true });
   const plans = await background.send({ type: "plan-dom-fields", fields: [{ id: 2 }], backendProvider: "openai" });
   assert.deepEqual(JSON.parse(JSON.stringify(skills.skills)), ["SQL"]);
+  assert.equal(background.storage.jobAutofillLastSkillSelection.usedJobDescription, false);
+  assert.equal(background.storage.jobAutofillLastSkillSelection.maxSkills, 4);
   assert.deepEqual(JSON.parse(JSON.stringify(resumeProfile.profile)), { school: "Example University" });
   assert.deepEqual(JSON.parse(JSON.stringify(dropdowns.answers)), [{ id: 1, value: "Yes" }]);
   assert.deepEqual(JSON.parse(JSON.stringify(plans.plans)), [{ id: 2, value: "Toronto" }]);

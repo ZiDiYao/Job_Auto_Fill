@@ -526,7 +526,7 @@ async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNon
   const profileSkills = Array.isArray(profile.skills) ? profile.skills.map(String).filter(Boolean) : [];
   const blacklistedSkills = parseSkillBlacklist(profile.skillBlacklist);
   const resume = String(profile.resumeText || await getResumeText().catch(() => "")).trim();
-  if (!description && !context) {
+  if (!description && !context && !resume) {
     const rankedSkills = rankSkillCandidates(
       profileSkills.map((name) => ({ name, source: "resume", technical: isLikelyTechnicalSkill(name) })),
       { maxSkills: totalLimit, maxNonTechnicalSkills: nonTechnicalLimit, blacklistedSkills },
@@ -538,6 +538,7 @@ async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNon
     "Rank job-application skill tokens using the supplied JD, resume, and saved profile skills.",
     "Return JSON only in this exact shape: {\"skills\":[{\"name\":\"Skill name\",\"source\":\"both|jd|resume\",\"technical\":true}]}.",
     "source=both only when the skill is supported by both the JD and the resume/profile; source=jd when it appears only in the JD; source=resume when it appears only in the resume/profile.",
+    "When no job description is supplied, create a resume-only baseline: include only skills supported by the resume/profile and label their source as resume.",
     "Order candidates by: (1) skills supported by both JD and resume/profile, (2) job-relevant technical or hard/domain skills, (3) resume/profile-only skills, and finally a very small number of genuinely useful non-technical skills.",
     "Technical/hard skills include languages, frameworks, platforms, tools, databases, cloud services, engineering practices, certifications, and concrete domain methods. Mark communication, teamwork, negotiation, leadership, adaptability, generic developer/software terms, and similar traits as technical=false.",
     "Use concise canonical recruiting-system names such as C#, ASP.NET Core, SQL, Azure, CI/CD, Apache Kafka, or Unit Testing. Never output complete sentences, responsibilities, years, degrees, locations, or vague labels such as Developer or Software.",
