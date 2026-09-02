@@ -151,6 +151,26 @@
 
   const employerPreferenceRules = [
     {
+      key: "validSin",
+      pattern: /\b(valid|hold|have).{0,60}\b(social insurance number|sin)\b/,
+    },
+    {
+      key: "age18OrOlder",
+      pattern: /\b(at least|over|older than).{0,30}\b(18|eighteen)\b.{0,30}\b(years? of age|years? old|age)\b|\b(18|eighteen).{0,30}\b(or older|years? of age)\b/,
+    },
+    {
+      key: "outsideActivitiesConflict",
+      pattern: /\b(outside activities|outside employment|external activities|conflict of interest).{0,500}\b(continue|employment|employer|company|business)\b/,
+    },
+    {
+      key: "previouslyWorkedForAuditor",
+      pattern: /\b(worked|employed).{0,100}\b(corporate auditor|kpmg|external auditor|auditor or any affiliates)\b|\b(corporate auditor|kpmg).{0,100}\b(worked|employed)\b/,
+    },
+    {
+      key: "visibleMinority",
+      pattern: /\bidentify as (?:a )?visible minority\b/,
+    },
+    {
       key: "backgroundCheckConsent",
       pattern: /\b(willing|consent|agree|authori[sz]e|undergo|submit to|complete|pass).{0,100}\b(background check|criminal record check|pre employment screening)\b|\b(background check|criminal record check).{0,100}\b(willing|consent|agree|authori[sz]e)\b/,
     },
@@ -472,7 +492,7 @@
       const desired = normalize(value);
       match = visiblePromptOptions().find((option) => {
         const candidate = normalize(option.textContent);
-        if (candidate === desired || candidate.includes(desired)) return true;
+        if (candidate === desired || candidate.includes(desired) || (candidate.length > 2 && desired.includes(candidate))) return true;
         if (desired === "fluent") return candidate.includes("fluent") || candidate.includes("advanced") || candidate.includes("native or bilingual");
         if (desired === "classroom") return candidate.includes("classroom") || candidate.includes("intermediate") || candidate.includes("limited working");
         return false;
@@ -484,6 +504,34 @@
     mark(button, "filled");
     result.filled += 1;
     return true;
+  }
+
+  function workdayQuestionLabel(button) {
+    const fieldset = button.closest("fieldset");
+    if (!fieldset) return "";
+    const question = fieldset.querySelector(":scope > legend, :scope > p, legend, p");
+    return normalize(question?.textContent || "");
+  }
+
+  async function fillWorkdayQuestionDropdowns() {
+    const buttons = [...document.querySelectorAll('button[aria-haspopup="listbox"]')]
+      .filter((button) => isVisible(button) && button.closest("fieldset"));
+    for (const button of buttons) {
+      if (button.dataset.localJobAutofillStructured === "true") continue;
+      const label = workdayQuestionLabel(button);
+      if (!label) continue;
+      const value = mappedValue(label);
+      if (value !== null) {
+        const changed = await chooseWorkdayButton(button, value);
+        if (!changed && normalize(button.textContent) !== normalize(value)) {
+          mark(button, "review");
+          result.review += 1;
+        }
+      } else if (/\brequired\b/i.test(button.getAttribute("aria-label") || "") && normalize(button.textContent) === "select one") {
+        mark(button, "review");
+        result.review += 1;
+      }
+    }
   }
 
   function languageButtons() {
@@ -604,6 +652,7 @@
   }
 
   await fillWorkdayStructuredSections();
+  await fillWorkdayQuestionDropdowns();
 
   function base64ToBytes(base64) {
     const binary = atob(base64);
