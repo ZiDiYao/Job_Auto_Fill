@@ -37,10 +37,24 @@ h1 {
 button.header-settings {
   width: auto;
   margin: 0;
+  border: 1px solid #075ebf;
   padding: 7px 10px;
   flex: 0 0 auto;
+  color: #ffffff;
+  background: #0969da;
+  box-shadow: 0 2px 6px rgba(9, 105, 218, 0.24);
   font-size: 11px;
   white-space: nowrap;
+}
+
+button.header-settings:hover {
+  background: #075ebf;
+  box-shadow: 0 3px 8px rgba(9, 105, 218, 0.3);
+}
+
+button.header-settings:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 3px rgba(9, 105, 218, 0.24);
 }
 
 p {
