@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local Job Application Autofill",
-  "version": "2.45.0",
+  "version": "2.45.1",
   "description": "Locally controlled job-application autofill with optional AI answer suggestions.",
   "icons": {
     "16": "icons/icon-16.png",

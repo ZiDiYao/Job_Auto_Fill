@@ -166,8 +166,9 @@ test("writes an Excel-compatible application list through the saved directory", 
 });
 
 test("popup and settings expose the notes workflow through module scripts", async () => {
-  const [popupHtml, popupSource, optionsHtml, optionsSource, manifestSource, watcherSource] = await Promise.all([
+  const [popupHtml, popupCss, popupSource, optionsHtml, optionsSource, manifestSource, watcherSource] = await Promise.all([
     readFile(new URL("../popup.html", import.meta.url), "utf8"),
+    readFile(new URL("../popup.css", import.meta.url), "utf8"),
     readFile(new URL("../popup.js", import.meta.url), "utf8"),
     readFile(new URL("../options.html", import.meta.url), "utf8"),
     readFile(new URL("../options.js", import.meta.url), "utf8"),
@@ -197,7 +198,8 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(popupHtml, /class="popup-card job-section"/);
   assert.match(popupHtml, /id="jobDescriptionFile"[^>]*\.pdf[^>]*\.txt[^>]*\.md/);
   assert.match(popupHtml, />\s*Upload JD\s*</);
-  assert.match(popupHtml, /class="notes-copy">[\s\S]*?Application history[\s\S]*?id="notesSettings"[\s\S]*?<\/div>[\s\S]*?id="saveNote"/);
+  assert.match(popupHtml, /class="notes-copy">[\s\S]*?Job Application Record[\s\S]*?id="notesSettings"[\s\S]*?<\/div>[\s\S]*?id="saveNote"/);
+  assert.match(popupCss, /\.notes-copy\s*\{[^}]*display:\s*grid;[^}]*gap:\s*3px;[^}]*justify-items:\s*start;/);
   assert.doesNotMatch(popupHtml, /notesFolderStatus|folder access req/);
   assert.doesNotMatch(popupSource, /refreshNotesFolderStatus|hasDirectoryPermission/);
   assert.doesNotMatch(popupHtml, /The job description is captured automatically/);

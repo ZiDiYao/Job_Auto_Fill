@@ -59,7 +59,7 @@ textarea:focus { outline: 2px solid rgba(35, 132, 95, 0.16); border-color: var(-
 .file-action input { display: none; }
 
 .notes-panel { display: flex; min-height: 54px; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; }
-.notes-copy { display: flex; min-width: 0; align-items: baseline; gap: 8px; white-space: nowrap; }
+.notes-copy { display: grid; min-width: 0; gap: 3px; justify-items: start; white-space: nowrap; }
 .notes-panel strong { color: #344054; font-size: 11px; line-height: 1.2; }
 .notes-panel .compact { flex: 0 0 auto; min-height: 30px; align-self: center; }
 button.compact { width: auto; margin: 0; padding: 7px 10px; font-size: 10px; }
