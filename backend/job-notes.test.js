@@ -204,11 +204,13 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /id="exportNotion"/);
   assert.match(optionsHtml, /id="exportSpreadsheet"/);
   assert.match(optionsHtml, /data-settings-target="profile"/);
-  assert.match(optionsHtml, /data-settings-target="overview"/);
+  assert.match(optionsHtml, /data-settings-target="general">General<\/button>/);
+  assert.ok(optionsHtml.indexOf('data-settings-target="general"') < optionsHtml.indexOf('data-settings-target="profile"'));
   assert.match(optionsHtml, /<select name="theme">[\s\S]*?White \+ Green[\s\S]*?Current Blue[\s\S]*?Dark/);
   assert.match(optionsHtml, /data-settings-target="ai"/);
-  assert.match(optionsHtml, /data-settings-page="profile"[^>]*class="default-resume-section">[\s\S]*?<h2>Default resume<\/h2>/);
-  assert.match(optionsHtml, /data-settings-page="overview"[^>]*hidden>[\s\S]*?<h2>Behaviour<\/h2>/);
+  assert.match(optionsHtml, /data-settings-page="profile"[^>]*class="default-resume-section"[^>]*hidden>[\s\S]*?<h2>Default resume<\/h2>/);
+  assert.match(optionsHtml, /data-settings-page="general">[\s\S]*?<h2>Behaviour<\/h2>/);
+  assert.match(optionsSource, /return "general";\n}/);
   assert.match(optionsHtml, /id="profileFooter" data-settings-page="profile"/);
   assert.doesNotMatch(optionsHtml, /data-ai-target|data-ai-page|Mock job description skills|Mock resume\/profile skills|Run skills preview/);
   assert.match(optionsHtml, /id="previewSelectedSkills"/);

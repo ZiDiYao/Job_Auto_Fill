@@ -43,10 +43,10 @@ const SETTINGS_PAGES = {
     title: "Profile",
     description: "Default resume, personal details, education, languages, and reusable application answers.",
   },
-  overview: {
-    hash: "#overview",
-    title: "Overview",
-    description: "Choose how autofill behaves while you browse and move through application pages.",
+  general: {
+    hash: "#general",
+    title: "General settings",
+    description: "Choose the appearance and automatic behaviour used while completing applications.",
   },
   ai: {
     hash: "#ai/settings",
@@ -67,14 +67,15 @@ function applyTheme(value) {
 }
 
 function pageFromHash(hash = location.hash) {
-  if (hash.startsWith("#overview")) return "overview";
+  if (hash.startsWith("#general") || hash.startsWith("#overview")) return "general";
+  if (hash.startsWith("#profile")) return "profile";
   if (hash.startsWith("#ai")) return "ai";
   if (hash.startsWith("#application-history") || hash === "#interview-notes") return "history";
-  return "profile";
+  return "general";
 }
 
 function showSettingsPage(page, { updateHash = false } = {}) {
-  const selected = SETTINGS_PAGES[page] ? page : "profile";
+  const selected = SETTINGS_PAGES[page] ? page : "general";
   for (const section of document.querySelectorAll("[data-settings-page]")) {
     section.hidden = section.dataset.settingsPage !== selected;
   }

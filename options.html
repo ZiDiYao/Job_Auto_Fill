@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Job Autofill Profile</title>
+    <title>Job Autofill Settings</title>
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
     <main>
       <header>
         <div>
-          <h1 id="settingsTitle">Profile</h1>
+          <h1 id="settingsTitle">General settings</h1>
           <p id="settingsDescription">
-            Personal details, education, languages, and reusable application answers.
+            Choose the appearance and automatic behaviour used while completing applications.
           </p>
         </div>
         <div class="header-actions">
@@ -21,14 +21,14 @@
       </header>
 
       <nav class="settings-nav" role="tablist" aria-label="Extension settings">
+        <button class="settings-tab" role="tab" type="button" data-settings-target="general">General</button>
         <button class="settings-tab" role="tab" type="button" data-settings-target="profile">Profile</button>
-        <button class="settings-tab" role="tab" type="button" data-settings-target="overview">Overview</button>
         <button class="settings-tab" role="tab" type="button" data-settings-target="ai">AI</button>
         <button class="settings-tab" role="tab" type="button" data-settings-target="history">Application History</button>
       </nav>
 
       <form id="profileForm">
-        <section data-settings-page="profile" class="default-resume-section">
+        <section data-settings-page="profile" class="default-resume-section" hidden>
           <h2>Default resume</h2>
           <p class="help">
             This resume is used for applications until you replace it. After upload, AI extracts supported profile facts,
@@ -47,7 +47,7 @@
           </p>
         </section>
 
-        <section data-settings-page="profile">
+        <section data-settings-page="profile" hidden>
           <h2>Personal information</h2>
           <div class="grid">
             <label>First name<input name="firstName" autocomplete="given-name" /></label>
@@ -71,7 +71,7 @@
           </div>
         </section>
 
-        <section data-settings-page="profile">
+        <section data-settings-page="profile" hidden>
           <h2>Education and availability</h2>
           <p class="help">Upload a resume below to prefill supported facts. Review the result, then complete anything the resume does not state.</p>
           <div class="grid">
@@ -147,7 +147,7 @@
           </div>
         </section>
 
-        <section data-settings-page="profile">
+        <section data-settings-page="profile" hidden>
           <h2>Languages</h2>
           <p class="help">Add only languages you can use. Nothing is assumed by default; each saved language is added to supported application forms at the selected level.</p>
           <div id="languageList" class="language-list"></div>
@@ -165,7 +165,7 @@
           </datalist>
         </section>
 
-        <section data-settings-page="profile">
+        <section data-settings-page="profile" hidden>
           <h2>Application facts and preferences</h2>
           <p class="help">
             Save only answers that are true for you. These are deterministic mappings, not AI guesses. Choose
@@ -391,7 +391,7 @@
           </div>
         </section>
 
-        <section data-settings-page="profile">
+        <section data-settings-page="profile" hidden>
           <h2>Optional self-identification</h2>
           <p class="help">
             Choose the answer you normally use. Select <code>Do not autofill</code> to leave that question untouched.
@@ -409,7 +409,7 @@
           </div>
         </section>
 
-        <section data-settings-page="overview" hidden>
+        <section data-settings-page="general">
           <h2>Appearance</h2>
           <div class="theme-setting">
             <label>
@@ -424,7 +424,7 @@
           </div>
         </section>
 
-        <section data-settings-page="overview" hidden>
+        <section data-settings-page="general">
           <h2>Behaviour</h2>
           <label class="check">
             <input name="highlightUnmatched" type="checkbox" />
@@ -462,7 +462,7 @@
           </div>
         </section>
 
-        <footer id="profileFooter" data-settings-page="profile">
+        <footer id="profileFooter" data-settings-page="profile" hidden>
           <button id="exportProfile" class="secondary" type="button">Export backup</button>
           <label class="secondary file-button">
             Import backup
