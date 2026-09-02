@@ -18,12 +18,46 @@ main {
   padding: 40px 24px 64px;
 }
 
+[hidden] { display: none !important; }
+
 header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 24px;
   margin-bottom: 24px;
+}
+
+.settings-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  gap: 6px;
+  margin: 0 0 22px;
+  padding: 6px;
+  border: 1px solid #d6e4f7;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 5px 18px rgba(9, 105, 218, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.settings-tab {
+  flex: 1 1 0;
+  color: #174a83;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-tab:hover {
+  background: #eef5ff;
+}
+
+.settings-tab.active {
+  color: #ffffff;
+  background: #0969da;
+  box-shadow: 0 2px 7px rgba(9, 105, 218, 0.24);
 }
 
 .header-actions {

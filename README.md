@@ -110,7 +110,7 @@ The suite exercises provider Strategy/Factory adapters, HTTP endpoints with isol
 
 ## Application history: Markdown, Notion, and Excel
 
-Open **Edit profile → Application history exports** and enable any combination of destinations. Local Markdown and Excel share
+The extension settings are separated into **Profile & Settings**, **AI**, and **Application History** tabs. Open **Edit profile → Application History** and enable any combination of destinations. Local Markdown and Excel share
 the folder selected through the browser's directory picker. The `.csv` file is UTF-8 Excel-compatible and stores one row per
 posting with application date, month, company, role, location, status, URL, resume, summary, complete JD, and last-saved time.
 Saving the same posting again updates its row.

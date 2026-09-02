@@ -11,8 +11,8 @@
       <header>
         <div>
           <div class="eyebrow">LOCAL JOB APPLICATION AUTOFILL</div>
-          <h1>Your profile and answer bank</h1>
-          <p>
+          <h1 id="settingsTitle">Profile &amp; settings</h1>
+          <p id="settingsDescription">
             Stored by your Docker backend on <code>127.0.0.1</code> and cached in
             <code>chrome.storage.local</code> for offline use.
           </p>
@@ -23,8 +23,14 @@
         </div>
       </header>
 
+      <nav class="settings-nav" role="tablist" aria-label="Extension settings">
+        <button class="settings-tab" role="tab" type="button" data-settings-target="profile">Profile &amp; Settings</button>
+        <button class="settings-tab" role="tab" type="button" data-settings-target="ai">AI</button>
+        <button class="settings-tab" role="tab" type="button" data-settings-target="history">Application History</button>
+      </nav>
+
       <form id="profileForm">
-        <section>
+        <section data-settings-page="profile">
           <h2>Personal information</h2>
           <div class="grid">
             <label>First name<input name="firstName" autocomplete="given-name" /></label>
@@ -43,7 +49,7 @@
           </div>
         </section>
 
-        <section>
+        <section data-settings-page="profile">
           <h2>Education and availability</h2>
           <p class="help">These values are editable profile data used at runtime; GPA and education dates are not embedded in the autofill code.</p>
           <div class="grid">
@@ -77,7 +83,7 @@
           </div>
         </section>
 
-        <section>
+        <section data-settings-page="profile">
           <h2>Employer-friendly defaults</h2>
           <p class="help">
             These are deterministic answers, not AI guesses. Choose <code>Always ask me</code> for anything that is not true.
@@ -102,7 +108,7 @@
           </div>
         </section>
 
-        <section>
+        <section data-settings-page="profile">
           <h2>Resume upload</h2>
           <p class="help">
             Your Docker backend supplies the saved resume and the extension keeps a browser-local cache for attachment to
@@ -119,7 +125,7 @@
           </div>
         </section>
 
-        <section id="interview-notes">
+        <section id="interview-notes" data-settings-page="history" hidden>
           <h2>Application history exports</h2>
           <p class="help">
             Save each application as a local Markdown note, an Excel-compatible data row, a Notion database page, or any
@@ -171,7 +177,7 @@
           <button id="saveExportSettings" class="primary export-save" type="button">Save export settings</button>
         </section>
 
-        <section>
+        <section data-settings-page="ai" hidden>
           <h2>Adaptive AI</h2>
           <p class="help">
             Unanswered open-ended questions can be drafted by the local backend using the selected cloud provider, or by an
@@ -235,7 +241,7 @@
           </label>
         </section>
 
-        <section>
+        <section data-settings-page="profile">
           <h2>Custom question rules</h2>
           <p class="help">
             Add repetitive questions as JSON. <code>match</code> is a case-insensitive regular expression tested against the
@@ -252,7 +258,7 @@
           </details>
         </section>
 
-        <section>
+        <section data-settings-page="profile">
           <h2>Optional self-identification</h2>
           <p class="help">
             Enter the wording you normally select, such as <code>Prefer not to answer</code>, <code>No</code>, or the identity
@@ -271,7 +277,7 @@
           </div>
         </section>
 
-        <section>
+        <section data-settings-page="profile">
           <h2>Behaviour</h2>
           <label class="check">
             <input name="highlightUnmatched" type="checkbox" />
@@ -283,7 +289,7 @@
           </label>
         </section>
 
-        <footer>
+        <footer id="profileFooter">
           <button id="saveBottom" class="primary" type="submit">Save profile</button>
           <button id="exportProfile" class="secondary" type="button">Export backup</button>
           <label class="secondary file-button">

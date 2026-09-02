@@ -346,7 +346,7 @@ saveNoteButton.addEventListener("click", async () => {
 });
 
 notesSettingsButton.addEventListener("click", () => {
-  chrome.tabs.create({ url: chrome.runtime.getURL("options.html#interview-notes") });
+  chrome.tabs.create({ url: chrome.runtime.getURL("options.html#application-history") });
 });
 
 async function detectJobDescription(showFailure = true) {

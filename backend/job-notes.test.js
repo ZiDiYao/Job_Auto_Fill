@@ -178,6 +178,10 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /id="autoSaveJobNotes"/);
   assert.match(optionsHtml, /id="exportNotion"/);
   assert.match(optionsHtml, /id="exportSpreadsheet"/);
+  assert.match(optionsHtml, /data-settings-target="profile"/);
+  assert.match(optionsHtml, /data-settings-target="ai"/);
+  assert.match(optionsHtml, /data-settings-target="history"/);
   assert.match(optionsSource, /chooseNotesDirectory/);
   assert.match(optionsSource, /refreshNotesFolderStatus/);
+  assert.match(optionsSource, /showSettingsPage/);
 });

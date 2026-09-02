@@ -30,6 +30,56 @@ const notionRootPageTitle = document.querySelector("#notionRootPageTitle");
 const notionStatus = document.querySelector("#notionStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 
+const SETTINGS_PAGES = {
+  profile: {
+    hash: "#profile",
+    title: "Profile & settings",
+    description: "Personal details, education, reusable answers, resume, and autofill behaviour.",
+  },
+  ai: {
+    hash: "#ai",
+    title: "AI settings",
+    description: "Configure AI execution, semantic DOM analysis, skill ranking, and resume evidence.",
+  },
+  history: {
+    hash: "#application-history",
+    title: "Application history",
+    description: "Choose where application records, job descriptions, and interview notes are saved.",
+  },
+};
+
+function pageFromHash(hash = location.hash) {
+  if (hash === "#ai") return "ai";
+  if (hash === "#application-history" || hash === "#interview-notes") return "history";
+  return "profile";
+}
+
+function showSettingsPage(page, { updateHash = false } = {}) {
+  const selected = SETTINGS_PAGES[page] ? page : "profile";
+  for (const section of document.querySelectorAll("[data-settings-page]")) {
+    section.hidden = section.dataset.settingsPage !== selected;
+  }
+  for (const tab of document.querySelectorAll("[data-settings-target]")) {
+    const active = tab.dataset.settingsTarget === selected;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", String(active));
+  }
+  document.querySelector("#settingsTitle").textContent = SETTINGS_PAGES[selected].title;
+  document.querySelector("#settingsDescription").textContent = SETTINGS_PAGES[selected].description;
+  document.querySelector("#profileFooter").hidden = selected === "history";
+  document.querySelector("#saveTop").hidden = selected === "history";
+  document.querySelector("#syncBackend").hidden = selected === "history";
+  if (updateHash && location.hash !== SETTINGS_PAGES[selected].hash) {
+    history.replaceState(null, "", SETTINGS_PAGES[selected].hash);
+  }
+}
+
+for (const tab of document.querySelectorAll("[data-settings-target]")) {
+  tab.addEventListener("click", () => showSettingsPage(tab.dataset.settingsTarget, { updateHash: true }));
+}
+window.addEventListener("hashchange", () => showSettingsPage(pageFromHash()));
+showSettingsPage(pageFromHash());
+
 function normalizeExportSettings(value = {}) {
   return {
     autoSaveOnFill: value.autoSaveOnFill !== false,
