@@ -5,8 +5,9 @@ import vm from "node:vm";
 
 const source = await readFile(new URL("../background.js", import.meta.url), "utf8");
 
-function loadBackground({ fetchImpl, initialStorage = {}, scripting, setTimeoutImpl = setTimeout } = {}) {
+function loadBackground({ fetchImpl, initialStorage = {}, scripting, tabs, permissions, setTimeoutImpl = setTimeout } = {}) {
   const listeners = [];
+  const commandListeners = [];
   const storage = structuredClone(initialStorage);
   const chrome = {
     runtime: {
@@ -26,6 +27,20 @@ function loadBackground({ fetchImpl, initialStorage = {}, scripting, setTimeoutI
     scripting: scripting || {
       async executeScript() { throw new Error("Unexpected script injection"); },
     },
+    commands: {
+      onCommand: { addListener: (listener) => commandListeners.push(listener) },
+    },
+    tabs: tabs || {
+      async query() { return []; },
+    },
+    permissions: permissions || {
+      async contains() { return true; },
+    },
+    action: {
+      async setBadgeBackgroundColor() {},
+      async setBadgeText() {},
+      async setTitle() {},
+    },
   };
   const context = vm.createContext({
     AbortController,
@@ -40,10 +55,10 @@ function loadBackground({ fetchImpl, initialStorage = {}, scripting, setTimeoutI
   vm.runInContext(source, context, { filename: "background.js" });
   assert.equal(listeners.length, 1);
 
-  async function send(message) {
+  async function send(message, sender = {}) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("Background listener did not respond")), 1000);
-      const asynchronous = listeners[0](message, {}, (response) => {
+      const asynchronous = listeners[0](message, sender, (response) => {
         clearTimeout(timer);
         resolve(response);
       });
@@ -54,7 +69,11 @@ function loadBackground({ fetchImpl, initialStorage = {}, scripting, setTimeoutI
     });
   }
 
-  return { context, listener: listeners[0], send, storage };
+  function command(name) {
+    for (const listener of commandListeners) listener(name);
+  }
+
+  return { context, listener: listeners[0], send, storage, command, commandListeners };
 }
 
 test("auto-advance button policy permits navigation but blocks final and consent actions", () => {
@@ -103,6 +122,89 @@ test("auto-advance does not click Next while required fields need review", async
   for (let index = 0; index < 4; index += 1) await Promise.resolve();
   assert.equal(injected, false);
   assert.equal(background.storage.jobAutofillAutoAdvanceStatus.state, "needs-review");
+});
+
+test("keyboard command fills the active application tab without opening the popup", async () => {
+  const injections = [];
+  const scripting = {
+    async executeScript(details) {
+      injections.push(details);
+      if (details.func) return [{ result: { jobDescription: "D".repeat(200), metadata: { jobTitle: "Developer", sourceUrl: "https://jobs.example/apply" } } }];
+      return [{ result: { filled: 4, review: 1, aiFilled: 0 } }];
+    },
+  };
+  const background = loadBackground({
+    initialStorage: { jobAutofillProfile: {} },
+    scripting,
+    tabs: { async query() { return [{ id: 17, url: "https://jobs.example/apply" }]; } },
+  });
+
+  assert.equal(background.commandListeners.length, 1);
+  background.command("fill-current-page");
+  for (let index = 0; index < 20 && !background.storage.jobAutofillLastFillStatus; index += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+
+  assert.equal(injections.some((details) => details.files?.includes("content.js")), true);
+  assert.equal(background.storage.jobAutofillJobDescription.length, 200);
+  assert.equal(background.storage.jobAutofillLastFillStatus.tabId, 17);
+  assert.equal(background.storage.jobAutofillLastFillStatus.filled, 4);
+  assert.equal(background.storage.jobAutofillLastFillStatus.source, "shortcut");
+});
+
+test("automatic page messages fill only when enabled and deduplicate page signatures", async () => {
+  let injections = 0;
+  const scripting = {
+    async executeScript(details) {
+      if (details.files?.includes("content.js")) injections += 1;
+      return [{ result: { filled: 2, review: 0, aiFilled: 1 } }];
+    },
+  };
+  const disabled = loadBackground({ initialStorage: { jobAutofillProfile: { autoFillOnPageChange: false } }, scripting });
+  const skipped = await disabled.send({ type: "auto-fill-page-ready", signature: "page-a" }, { tab: { id: 7 } });
+  assert.equal(skipped.skipped, "disabled");
+  assert.equal(injections, 0);
+
+  const enabled = loadBackground({ initialStorage: { jobAutofillProfile: { autoFillOnPageChange: true } }, scripting });
+  const message = {
+    type: "auto-fill-page-ready",
+    signature: "page-b",
+    jobDescription: "J".repeat(220),
+    metadata: { jobTitle: "Engineer", sourceUrl: "https://ats.example/apply" },
+  };
+  const filled = await enabled.send(message, { tab: { id: 8 } });
+  const duplicate = await enabled.send(message, { tab: { id: 8 } });
+
+  assert.equal(filled.filled, 2);
+  assert.equal(duplicate.skipped, "duplicate");
+  assert.equal(injections, 1);
+  assert.equal(enabled.storage.jobAutofillJobDescription.length, 220);
+});
+
+test("automatic fill registration adds and removes the persistent page watcher", async () => {
+  const registrations = [];
+  let registered = [];
+  const scripting = {
+    async executeScript() { return []; },
+    async getRegisteredContentScripts() { return registered; },
+    async unregisterContentScripts(details) {
+      registrations.push(["unregister", details.ids]);
+      registered = [];
+    },
+    async registerContentScripts(entries) {
+      registrations.push(["register", entries]);
+      registered = entries;
+    },
+  };
+  const background = loadBackground({ scripting });
+  const enabled = await background.send({ type: "configure-auto-fill", enabled: true });
+  const disabled = await background.send({ type: "configure-auto-fill", enabled: false });
+
+  assert.equal(enabled.enabled, true);
+  assert.equal(disabled.enabled, false);
+  assert.equal(registrations[0][0], "register");
+  assert.equal(registrations[0][1][0].js[0], "auto-fill-watcher.js");
+  assert.equal(registrations[1][0], "unregister");
 });
 
 test("backend answer messages forward normalized request data", async () => {

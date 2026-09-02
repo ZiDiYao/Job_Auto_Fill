@@ -11,6 +11,9 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Stores a user-selected resume locally and attaches it to recognizable Resume/CV upload fields.
 - Optionally uses a free local Ollama model to draft unmatched open-ended questions from resume text and visible job context.
 - Provides a popup window for pasting a job description or detecting it from the current page.
+- Fills the current application without opening the popup through `Command+Shift+Y` on macOS or `Ctrl+Shift+Y` on Windows/Linux.
+- Optionally watches full navigations and single-page application step changes, recognizes application forms, and fills each new page automatically after one-time website access is approved.
+- Automatically saves Profile, AI, and Application History settings after editing stops; slow writes are serialized so older data cannot overwrite newer changes.
 - Syncs the saved profile and resume from a backend bound to `127.0.0.1`.
 - Uses structured Workday mappings for repeated experience, education, language, and skill controls instead of asking AI to guess field boundaries.
 - Scans unresolved visible controls into a compact semantic DOM schema containing labels, sections, control types, requirements, and exact available options.
@@ -57,7 +60,9 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 4. Select this `job-application-autofill` folder.
 5. Pin **Local Job Application Autofill** to the toolbar.
 6. Open the extension and choose **Edit profile**.
-7. Save your information, open an application form, paste or detect the JD, and click **Fill with CV + JD**.
+7. Enter your information—it saves automatically—then open an application form and click **Fill with CV + JD** or use the configured keyboard shortcut.
+
+To fill each newly displayed application page automatically, enable **Automatically recognize and fill new application pages** under **Profile & Settings → Behaviour** and approve Chrome's one-time website-access request. This mode recognizes both full page loads and application steps rendered without a navigation. It never clicks a final Submit control. Keyboard shortcuts can be changed at `chrome://extensions/shortcuts`.
 
 The same process works in Edge or another Chromium browser from its extensions management page.
 
@@ -125,7 +130,7 @@ For Notion OAuth:
 1. Create a Notion **public integration** and enable read, insert, and update-content capabilities.
 2. Open **Application History → Notion** and copy the OAuth redirect URL shown by the extension into the integration's redirect URI settings.
 3. Add the public integration's client ID and client secret to `local-data/local-config.json` under `notion.oauth`, then run `docker compose restart`.
-4. Click **Sign in with Notion**. Chrome opens Notion's authorization screen; after approval, the backend exchanges the temporary code without exposing the client secret to the extension.
+4. Click **Connect Notion**. Chrome opens Notion's authorization screen; after approval, the backend exchanges the temporary code without exposing the client secret to the extension.
 
 ```json
 {

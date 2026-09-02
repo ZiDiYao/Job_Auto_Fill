@@ -347,6 +347,17 @@
             <input name="autoAdvanceEnabled" type="checkbox" />
             Automatically click Next / Continue after a page is fully completed; always stop before final Submit
           </label>
+          <label class="check">
+            <input name="autoFillOnPageChange" type="checkbox" />
+            <span>
+              Automatically recognize and fill new application pages
+              <small>Requires one-time access to job websites. Watches full page loads and single-page application steps, but never clicks final Submit.</small>
+            </span>
+          </label>
+          <p class="help shortcut-help">
+            Fill the current page anytime with <kbd>⌘</kbd><kbd>⇧</kbd><kbd>Y</kbd> on macOS or
+            <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Y</kbd> on Windows/Linux.
+          </p>
           <div class="grid auto-advance-grid">
             <label>Maximum pages per run<input name="autoAdvanceMaxSteps" type="number" min="1" max="30" step="1" /></label>
             <label>Wait after each Next click (milliseconds)<input name="autoAdvanceDelayMs" type="number" min="800" max="10000" step="100" /></label>

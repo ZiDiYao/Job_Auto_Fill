@@ -137,12 +137,13 @@ pre { overflow: auto; border-radius: 8px; padding: 14px; background: #f3f5f8; li
 
 .check {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 9px;
   margin-top: 12px;
 }
 
 .check input { width: auto; }
+.check > span { display: grid; gap: 2px; }
 
 footer {
   display: flex;
@@ -251,6 +252,9 @@ input[type="checkbox"] { accent-color: #0969da; }
 .skill-limit-grid { margin: 16px 0 10px; }
 .skill-limit-help { margin: 0 0 12px; }
 .auto-advance-grid { margin-top: 14px; }
+.shortcut-help { margin-top: 12px; }
+kbd { display: inline-block; min-width: 22px; margin-right: 3px; border: 1px solid #b8c7dc; border-bottom-width: 2px; border-radius: 5px; padding: 2px 5px; color: #174a83; background: #f6f9fd; font: 700 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; }
+.check small { color: #657187; font-size: 12px; font-weight: 450; line-height: 1.45; }
 .resume-text-label { margin-top: 12px; }
 .resume-text { min-height: 260px; }
 

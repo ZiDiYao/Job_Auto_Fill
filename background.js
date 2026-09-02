@@ -4,7 +4,12 @@ const AUTO_ADVANCE_STATUS_KEY = "jobAutofillAutoAdvanceStatus";
 const AUTO_ADVANCE_ALLOW = "^(?:next(?: step)?|continue(?: application| to .+)?|save(?: and)? continue|save & continue|proceed|review(?: application)?|suivant|continuer|enregistrer et continuer|下一步|继续)$";
 const AUTO_ADVANCE_BLOCK = "submit|send application|apply now|finish application|complete application|certif|attest|signature|acknowledge|consent|agree|accept|terms|privacy|soumettre|envoyer|提交";
 const AUTO_ADVANCE_PAGE_BLOCK = "\\b(?:i certify|i attest|electronic signature|type (?:your|my) name as (?:a )?signature|consent to|agree to (?:the )?terms|declaration)\\b";
+const AUTO_FILL_SCRIPT_ID = "job-autofill-page-watcher";
+const AUTO_FILL_ORIGINS = ["http://*/*", "https://*/*"];
+const LAST_FILL_STATUS_KEY = "jobAutofillLastFillStatus";
 const activeAutoAdvanceSessions = new Map();
+const activeFillSessions = new Map();
+const lastAutomaticPageSignatures = new Map();
 
 const answerSchema = {
   type: "object",
@@ -270,6 +275,140 @@ async function executeFillWithRetry(tabId, delayMs) {
   throw lastError || new Error("The next application page did not become ready.");
 }
 
+function detectJobContextFromPage() {
+  const visible = (element) => {
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+  };
+  const textOf = (element) => String(element?.innerText || element?.textContent || "").replace(/\s+/g, " ").trim();
+  const selectors = [
+    "[data-automation-id='jobPostingDescription']",
+    "[data-testid*='job-description' i]",
+    "#job-description",
+    ".job-description",
+    "[class*='jobDescription']",
+    "[class*='job-description']",
+  ];
+  const candidates = [];
+  for (const selector of selectors) {
+    for (const element of document.querySelectorAll(selector)) {
+      if (!visible(element)) continue;
+      const text = textOf(element);
+      if (text.length >= 180) candidates.push(text);
+    }
+  }
+  candidates.sort((left, right) => right.length - left.length);
+  return {
+    jobDescription: (candidates[0] || "").slice(0, 30000),
+    metadata: {
+      jobTitle: textOf(document.querySelector("h1")),
+      company: textOf(document.querySelector("[data-automation-id='company'], [data-testid*='company' i], .company")),
+      sourceUrl: location.href,
+    },
+  };
+}
+
+async function persistDetectedJobContext(context = {}) {
+  const description = String(context.jobDescription || "").trim();
+  const metadata = context.metadata || {};
+  if (description.length < 180) return;
+  const values = {};
+  values.jobAutofillJobDescription = description;
+  if (Object.values(metadata).some(Boolean)) {
+    values.jobAutofillJobMetadata = {
+      ...metadata,
+      descriptionStart: description ? description.slice(0, 240) : "",
+    };
+  }
+  if (Object.keys(values).length) await chrome.storage.local.set(values);
+}
+
+async function captureJobContext(tabId) {
+  try {
+    const [injection] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: detectJobContextFromPage,
+    });
+    const context = injection?.result || {};
+    await persistDetectedJobContext(context);
+    return context;
+  } catch {
+    return {};
+  }
+}
+
+async function updateFillFeedback(tabId, summary, source, error = null) {
+  const status = {
+    tabId,
+    source,
+    updatedAt: new Date().toISOString(),
+    ...(summary || {}),
+    error: error?.message || "",
+  };
+  await chrome.storage.local.set({ [LAST_FILL_STATUS_KEY]: status });
+  const badgeText = error ? "!" : summary?.review ? "!" : summary?.filled ? String(Math.min(99, summary.filled)) : "0";
+  await chrome.action?.setBadgeBackgroundColor?.({ tabId, color: error || summary?.review ? "#b42318" : "#0969da" });
+  await chrome.action?.setBadgeText?.({ tabId, text: badgeText });
+  await chrome.action?.setTitle?.({
+    tabId,
+    title: error
+      ? `Job Autofill: ${error.message || "fill failed"}`
+      : `Job Autofill: filled ${summary?.filled || 0}; ${summary?.review || 0} need review`,
+  });
+  return status;
+}
+
+async function fillApplicationTab(tabId, { source = "shortcut", context = null } = {}) {
+  if (activeFillSessions.has(tabId)) return activeFillSessions.get(tabId);
+  const task = (async () => {
+    try {
+      if (context) await persistDetectedJobContext(context);
+      else await captureJobContext(tabId);
+      const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
+      const summary = summarizeFrameResults(await executeFillWithRetry(tabId, jobAutofillProfile.autoAdvanceDelayMs || 1800));
+      await updateFillFeedback(tabId, summary, source);
+      if (jobAutofillProfile.autoAdvanceEnabled === true && !summary.aiError && summary.review === 0) {
+        void runAutoAdvanceSession({
+          tabId,
+          initialReview: summary.review,
+          maxSteps: jobAutofillProfile.autoAdvanceMaxSteps || 10,
+          delayMs: jobAutofillProfile.autoAdvanceDelayMs || 1800,
+        });
+      }
+      return summary;
+    } catch (error) {
+      await updateFillFeedback(tabId, null, source, error);
+      throw error;
+    } finally {
+      activeFillSessions.delete(tabId);
+    }
+  })();
+  activeFillSessions.set(tabId, task);
+  return task;
+}
+
+async function configureAutomaticFill(enabled) {
+  const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [AUTO_FILL_SCRIPT_ID] });
+  if (registered.length) await chrome.scripting.unregisterContentScripts({ ids: [AUTO_FILL_SCRIPT_ID] });
+  if (!enabled) return { enabled: false };
+  const permitted = await chrome.permissions.contains({ origins: AUTO_FILL_ORIGINS });
+  if (!permitted) throw new Error("Automatic filling needs access to job application websites.");
+  await chrome.scripting.registerContentScripts([{
+    id: AUTO_FILL_SCRIPT_ID,
+    matches: AUTO_FILL_ORIGINS,
+    js: ["auto-fill-watcher.js"],
+    runAt: "document_idle",
+    persistAcrossSessions: true,
+  }]);
+  return { enabled: true };
+}
+
+async function restoreAutomaticFill() {
+  const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
+  return configureAutomaticFill(jobAutofillProfile.autoFillOnPageChange === true);
+}
+
 async function runAutoAdvanceSession({ tabId, maxSteps, delayMs, initialReview = 0 }) {
   const session = { cancelled: false };
   activeAutoAdvanceSessions.get(tabId)?.cancel?.();
@@ -324,7 +463,62 @@ async function runAutoAdvanceSession({ tabId, maxSteps, delayMs, initialReview =
   }
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.commands?.onCommand?.addListener((command) => {
+  if (command !== "fill-current-page") return;
+  chrome.tabs.query({ active: true, lastFocusedWindow: true })
+    .then(([tab]) => {
+      if (!tab?.id || !/^https?:/i.test(tab.url || "")) throw new Error("Open a job application webpage first.");
+      return fillApplicationTab(tab.id, { source: "shortcut" });
+    })
+    .catch(() => {});
+});
+
+chrome.runtime.onInstalled?.addListener(() => { void restoreAutomaticFill().catch(() => {}); });
+chrome.runtime.onStartup?.addListener(() => { void restoreAutomaticFill().catch(() => {}); });
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "configure-auto-fill") {
+    configureAutomaticFill(message.enabled === true)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || "Could not configure automatic filling." }));
+    return true;
+  }
+
+  if (message?.type === "fill-current-page") {
+    const tabId = Number(message.tabId || sender.tab?.id || 0);
+    if (!tabId) {
+      sendResponse({ ok: false, error: "No application tab was provided." });
+      return false;
+    }
+    fillApplicationTab(tabId, { source: message.source || "manual" })
+      .then((summary) => sendResponse({ ok: true, ...summary }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || "The page could not be filled." }));
+    return true;
+  }
+
+  if (message?.type === "auto-fill-page-ready") {
+    const tabId = sender.tab?.id;
+    if (!tabId) {
+      sendResponse({ ok: false, error: "Automatic filling could not identify this tab." });
+      return false;
+    }
+    chrome.storage.local.get("jobAutofillProfile")
+      .then(({ jobAutofillProfile = {} }) => {
+        if (jobAutofillProfile.autoFillOnPageChange !== true) return { skipped: "disabled" };
+        if (activeAutoAdvanceSessions.has(tabId)) return { skipped: "auto-advance-running" };
+        const signature = String(message.signature || "");
+        if (signature && lastAutomaticPageSignatures.get(tabId) === signature) return { skipped: "duplicate" };
+        if (signature) lastAutomaticPageSignatures.set(tabId, signature);
+        return fillApplicationTab(tabId, {
+          source: "page-change",
+          context: { jobDescription: message.jobDescription, metadata: message.metadata },
+        });
+      })
+      .then((result) => sendResponse({ ok: true, ...(result || {}) }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || "Automatic filling failed." }));
+    return true;
+  }
+
   if (message?.type === "start-auto-advance") {
     runAutoAdvanceSession(message);
     sendResponse({ ok: true, started: true });

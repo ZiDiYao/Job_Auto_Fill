@@ -164,11 +164,13 @@ test("writes an Excel-compatible application list through the saved directory", 
 });
 
 test("popup and settings expose the notes workflow through module scripts", async () => {
-  const [popupHtml, popupSource, optionsHtml, optionsSource] = await Promise.all([
+  const [popupHtml, popupSource, optionsHtml, optionsSource, manifestSource, watcherSource] = await Promise.all([
     readFile(new URL("../popup.html", import.meta.url), "utf8"),
     readFile(new URL("../popup.js", import.meta.url), "utf8"),
     readFile(new URL("../options.html", import.meta.url), "utf8"),
     readFile(new URL("../options.js", import.meta.url), "utf8"),
+    readFile(new URL("../manifest.json", import.meta.url), "utf8"),
+    readFile(new URL("../auto-fill-watcher.js", import.meta.url), "utf8"),
   ]);
   assert.match(popupHtml, /id="saveNote"/);
   assert.match(popupHtml, /id="autoNext"/);
@@ -207,6 +209,13 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsSource, /form\.addEventListener\("input", queueChangedSetting\)/);
   assert.match(optionsSource, /form\.addEventListener\("change", queueChangedSetting\)/);
   assert.match(optionsSource, /notionToken\.value\.trim\(\) \|\| current\.notion\.token/);
+  assert.match(optionsHtml, /name="autoFillOnPageChange"/);
+  assert.match(optionsSource, /chrome\.permissions\.request/);
+  assert.match(manifestSource, /"fill-current-page"/);
+  assert.match(manifestSource, /"Command\+Shift\+Y"/);
+  assert.match(manifestSource, /"optional_host_permissions"/);
+  assert.match(watcherSource, /MutationObserver/);
+  assert.match(watcherSource, /auto-fill-page-ready/);
   assert.match(optionsSource, /showSettingsPage/);
   assert.match(optionsSource, /renderSkillPreview/);
   assert.match(optionsSource, /launchWebAuthFlow/);
