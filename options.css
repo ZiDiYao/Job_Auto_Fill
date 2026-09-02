@@ -213,9 +213,12 @@ code { border-radius: 3px; padding: 2px 4px; color: #344054; background: #eef1f4
 :root[data-theme="dark"] input,
 :root[data-theme="dark"] select,
 :root[data-theme="dark"] textarea,
-:root[data-theme="dark"] .folder-path { border-color: #46505e; color: var(--text); background: #111419; }
+:root[data-theme="dark"] .folder-path { border-color: #46505e; color: var(--text); background-color: #111419; }
 :root[data-theme="dark"] select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.25 6 6.25 11 1.25' fill='none' stroke='%23d9dee7' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: right 16px center;
+  background-repeat: no-repeat;
+  background-size: 12px 8px;
 }
 :root[data-theme="dark"] input:focus,
 :root[data-theme="dark"] select:focus,

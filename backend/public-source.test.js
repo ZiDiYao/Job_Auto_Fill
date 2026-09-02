@@ -123,7 +123,8 @@ test("saved-state copy is rendered as quiet secondary text", async () => {
 test("settings dropdown arrows are consistently inset from the right edge", async () => {
   const css = await readFile(path.join(repositoryRoot, "options.css"), "utf8");
   assert.match(css, /select \{[\s\S]*?appearance: none;[\s\S]*?padding-right: 42px;[\s\S]*?background-position: right 16px center;/);
-  assert.match(css, /:root\[data-theme="dark"\] select \{[\s\S]*?background-image:/);
+  assert.match(css, /:root\[data-theme="dark"\] select \{[\s\S]*?background-image:[\s\S]*?background-position: right 16px center;[\s\S]*?background-repeat: no-repeat;[\s\S]*?background-size: 12px 8px;/);
+  assert.doesNotMatch(css, /:root\[data-theme="dark"\][^{]*select,[\s\S]*?background:\s*#111419;/);
 });
 
 test("destructive icon controls use subtle round buttons instead of square boxes", async () => {
