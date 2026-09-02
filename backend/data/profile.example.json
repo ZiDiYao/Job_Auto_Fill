@@ -85,6 +85,7 @@
   "includeJdSkills": false,
   "maxSkills": 15,
   "maxNonTechnicalSkills": 2,
+  "skillBlacklist": "",
   "aiAnalyzeDom": true,
   "aiResolveDropdowns": false,
   "aiUseSensitiveProfile": false,

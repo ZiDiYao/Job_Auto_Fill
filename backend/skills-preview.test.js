@@ -41,3 +41,16 @@ test("skill preview bounds invalid user limits", () => {
   assert.equal(buildSkillPreview({ jdSkills: "Java", maxSkills: "bad" }).maxSkills, 15);
   assert.equal(buildSkillPreview({ jdSkills: "Communication", maxNonTechnicalSkills: 99 }).maxNonTechnicalSkills, 5);
 });
+
+test("skill preview permanently excludes blacklisted skills before applying limits", () => {
+  const result = buildSkillPreview({
+    jdSkills: "C#, Angular, Negotiation",
+    resumeSkills: "C#, SQL, Negotiation",
+    blacklistedSkills: "c#\nNEGOTIATION",
+    maxSkills: 10,
+    maxNonTechnicalSkills: 2,
+  });
+  assert.deepEqual(result.selected.map((skill) => skill.name), ["Angular", "SQL"]);
+  assert.deepEqual(result.blacklist, ["c#", "NEGOTIATION"]);
+  assert.equal(result.excluded.filter((skill) => skill.reason === "permanent blacklist").length, 2);
+});

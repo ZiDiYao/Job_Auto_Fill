@@ -292,6 +292,7 @@ const defaultProfile = {
   includeJdSkills: false,
   maxSkills: 15,
   maxNonTechnicalSkills: 2,
+  skillBlacklist: "",
   aiAnalyzeDom: true,
   aiResolveDropdowns: false,
   aiUseSensitiveProfile: false,
@@ -455,6 +456,7 @@ function renderSkillPreview() {
   const result = buildSkillPreview({
     jdSkills: document.querySelector("#previewJdSkills").value,
     resumeSkills: document.querySelector("#previewResumeSkills").value,
+    blacklistedSkills: document.querySelector("#previewSkillBlacklist").value,
     maxSkills: previewMax.value,
     maxNonTechnicalSkills: previewSoftMax.value,
   });
@@ -462,16 +464,18 @@ function renderSkillPreview() {
   selectedBox.replaceChildren();
   for (const skill of result.selected) {
     const token = document.createElement("span");
-    token.className = `skill-token ${!skill.technical ? "source-soft" : `source-${skill.source}`}`;
+    token.className = "skill-token";
     token.textContent = skill.name;
     selectedBox.append(token);
   }
   document.querySelector("#previewCount").textContent = `${result.selected.length} of ${result.maxSkills} slots used · ${result.selected.filter((skill) => !skill.technical).length} of ${result.maxNonTechnicalSkills} soft-skill slots`;
   renderPreviewRows(document.querySelector("#previewPriorityList"), result.selected, skillPriorityLabel);
-  renderPreviewRows(document.querySelector("#previewExcludedList"), result.excluded, (skill) => skill.reason);
+  document.querySelector("#previewBlacklistStatus").textContent = result.blacklist.length
+    ? `${result.blacklist.length} skill${result.blacklist.length === 1 ? "" : "s"} will always be skipped during preview and ATS autofill.`
+    : "No skills are currently blacklisted.";
 }
 
-for (const id of ["previewMaxSkills", "previewMaxNonTechnicalSkills", "previewJdSkills", "previewResumeSkills"]) {
+for (const id of ["previewMaxSkills", "previewMaxNonTechnicalSkills", "previewJdSkills", "previewResumeSkills", "previewSkillBlacklist"]) {
   document.querySelector(`#${id}`).addEventListener("input", () => {
     renderSkillPreview();
     if (id === "previewMaxSkills" || id === "previewMaxNonTechnicalSkills") profileAutosave.schedule();
@@ -561,6 +565,8 @@ async function syncFromBackend(showStatus = true) {
   const result = await chrome.runtime.sendMessage({ type: "sync-backend-context" });
   if (!result?.ok) throw new Error(result?.error || "Could not reach the Docker backend.");
   renderProfile(result.profile);
+  syncSkillPreviewLimits();
+  renderSkillPreview();
   await refreshResumeStatus();
   if (showStatus) saveStatus.textContent = "Loaded profile and resume from Docker backend";
   return result;

@@ -351,30 +351,24 @@
               <label>Total skill slots<input id="previewMaxSkills" type="number" min="1" max="50" /></label>
               <label>Soft-skill slots inside that total<input id="previewMaxNonTechnicalSkills" type="number" min="0" max="5" /></label>
             </div>
-            <div class="preview-explainers">
-              <div><strong>Total skill slots</strong><span>The maximum number of confirmed skill tags the extension will add to Workday or a similar ATS.</span></div>
-              <div><strong>Soft-skill slots</strong><span>How many of those tags may be generic skills such as Communication or Teamwork. It is not an additional amount.</span></div>
-            </div>
             <div class="grid preview-inputs">
               <label>Mock job description skills<textarea id="previewJdSkills" spellcheck="false">C#, Angular, Azure, Kafka, Docker, REST APIs, Communication, Agile</textarea></label>
               <label>Mock resume/profile skills<textarea id="previewResumeSkills" spellcheck="false">C#, Angular, SQL, Azure, Git, Unit Testing, CI/CD, Teamwork</textarea></label>
             </div>
             <button id="runSkillPreview" class="primary" type="button">Run skills preview</button>
             <div class="ats-mock" aria-live="polite">
-              <div class="ats-mock-header"><span>Mock Workday application</span><small id="previewCount"></small></div>
-              <label class="ats-label">Skills</label>
+              <div class="ats-mock-heading"><label class="ats-label">Skills</label><small id="previewCount"></small></div>
               <div id="previewSelectedSkills" class="skill-token-box"></div>
               <p class="ats-help">These are the confirmed skill tags that would remain after ranking and limits.</p>
             </div>
             <div class="preview-results">
               <div><h3>Why these were selected</h3><div id="previewPriorityList"></div></div>
-              <div><h3>Excluded by your limits</h3><div id="previewExcludedList"></div></div>
-            </div>
-            <div class="preview-legend">
-              <span><i class="legend-both"></i> JD + Resume</span>
-              <span><i class="legend-jd"></i> JD technical</span>
-              <span><i class="legend-resume"></i> Resume technical</span>
-              <span><i class="legend-soft"></i> Non-technical</span>
+              <div>
+                <h3>Never add these skills</h3>
+                <p class="blacklist-help">Enter one skill per line or separate them with commas. Matching is case-insensitive.</p>
+                <textarea id="previewSkillBlacklist" name="skillBlacklist" spellcheck="false" placeholder="For example: Negotiation, Investment Banking"></textarea>
+                <p id="previewBlacklistStatus" class="empty-preview"></p>
+              </div>
             </div>
           </div>
         </section>

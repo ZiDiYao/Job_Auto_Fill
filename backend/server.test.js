@@ -7,6 +7,7 @@ import {
   boundedInteger,
   confidenceScore,
   isLikelyTechnicalSkill,
+  parseSkillBlacklist,
   rankSkillCandidates,
   validateAnswers,
   validateFieldPlans,
@@ -130,6 +131,18 @@ test("skill limits are bounded and invalid limits fall back safely", () => {
   assert.equal(rankSkillCandidates(candidates, { maxSkills: 500 }).length, 50);
   assert.equal(rankSkillCandidates(candidates, { maxSkills: 0 }).length, 1);
   assert.equal(rankSkillCandidates(candidates, { maxSkills: "invalid" }).length, 15);
+});
+
+test("skill ranking permanently rejects case-insensitive blacklist matches", () => {
+  assert.deepEqual(parseSkillBlacklist("C#; negotiation\nC#"), ["c#", "negotiation"]);
+  assert.deepEqual(
+    rankSkillCandidates([
+      { name: "C#", source: "both", technical: true },
+      { name: "Negotiation", source: "jd", technical: false },
+      { name: "TypeScript", source: "jd", technical: true },
+    ], { maxSkills: 10, maxNonTechnicalSkills: 2, blacklistedSkills: "c#, NEGOTIATION" }),
+    [{ name: "TypeScript", source: "jd", technical: true }],
+  );
 });
 
 test("boundedInteger truncates, clamps, and falls back for non-finite input", () => {

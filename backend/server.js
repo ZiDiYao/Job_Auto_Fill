@@ -462,17 +462,27 @@ export function isLikelyTechnicalSkill(value) {
   return !likelyNonTechnicalSkill.test(String(value || ""));
 }
 
-export function rankSkillCandidates(rawSkills, { maxSkills = 15, maxNonTechnicalSkills = 2 } = {}) {
+export function normalizeSkillKey(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9+#.]+/g, " ").trim();
+}
+
+export function parseSkillBlacklist(value) {
+  const entries = Array.isArray(value) ? value : String(value || "").split(/[,;\n|]+/);
+  return [...new Set(entries.map(normalizeSkillKey).filter(Boolean))];
+}
+
+export function rankSkillCandidates(rawSkills, { maxSkills = 15, maxNonTechnicalSkills = 2, blacklistedSkills = [] } = {}) {
   const totalLimit = boundedInteger(maxSkills, 15, 1, 50);
   const nonTechnicalLimit = boundedInteger(maxNonTechnicalSkills, 2, 0, Math.min(5, totalLimit));
+  const blacklist = new Set(parseSkillBlacklist(blacklistedSkills));
   const seen = new Set();
   const candidates = [];
 
   for (const [index, candidate] of (Array.isArray(rawSkills) ? rawSkills : []).entries()) {
     const rawName = typeof candidate === "string" ? candidate : candidate?.name;
     const name = String(rawName || "").replace(/^[\s•*-]+|[\s.;,]+$/g, "").trim();
-    const key = normalize(name);
-    if (!name || name.length > 80 || !key || seen.has(key)) continue;
+    const key = normalizeSkillKey(name);
+    if (!name || name.length > 80 || !key || seen.has(key) || blacklist.has(key)) continue;
     seen.add(key);
 
     const sourceText = normalize(typeof candidate === "object" ? candidate?.source : "jd");
@@ -514,11 +524,12 @@ async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNon
     Math.min(5, totalLimit),
   );
   const profileSkills = Array.isArray(profile.skills) ? profile.skills.map(String).filter(Boolean) : [];
+  const blacklistedSkills = parseSkillBlacklist(profile.skillBlacklist);
   const resume = String(profile.resumeText || await getResumeText().catch(() => "")).trim();
   if (!description && !context) {
     const rankedSkills = rankSkillCandidates(
       profileSkills.map((name) => ({ name, source: "resume", technical: isLikelyTechnicalSkill(name) })),
-      { maxSkills: totalLimit, maxNonTechnicalSkills: nonTechnicalLimit },
+      { maxSkills: totalLimit, maxNonTechnicalSkills: nonTechnicalLimit, blacklistedSkills },
     );
     return { skills: rankedSkills.map(({ name }) => name), rankedSkills, maxSkills: totalLimit, maxNonTechnicalSkills: nonTechnicalLimit, model: aiStrategy.model, provider: aiStrategy.name.toLowerCase() };
   }
@@ -530,6 +541,7 @@ async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNon
     "Order candidates by: (1) skills supported by both JD and resume/profile, (2) job-relevant technical or hard/domain skills, (3) resume/profile-only skills, and finally a very small number of genuinely useful non-technical skills.",
     "Technical/hard skills include languages, frameworks, platforms, tools, databases, cloud services, engineering practices, certifications, and concrete domain methods. Mark communication, teamwork, negotiation, leadership, adaptability, generic developer/software terms, and similar traits as technical=false.",
     "Use concise canonical recruiting-system names such as C#, ASP.NET Core, SQL, Azure, CI/CD, Apache Kafka, or Unit Testing. Never output complete sentences, responsibilities, years, degrees, locations, or vague labels such as Developer or Software.",
+    "Never return a skill listed in neverIncludeSkills, even when the JD requests it.",
     `Return at most ${Math.min(50, Math.max(totalLimit * 2, totalLimit + 8))} ranked candidates so the server can enforce a final limit of ${totalLimit} skills and ${nonTechnicalLimit} non-technical skills.`,
   ].join(" ");
 
@@ -539,6 +551,7 @@ async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNon
       jobDescription: description.slice(0, 20000),
       visiblePageContext: context.slice(0, 8000),
       savedProfileSkills: profileSkills.slice(0, 80),
+      neverIncludeSkills: blacklistedSkills,
       resume: resume.slice(0, 30000),
     },
     maxTokens: 3000,
@@ -547,6 +560,7 @@ async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNon
   const rankedSkills = rankSkillCandidates(completion.data.skills, {
     maxSkills: totalLimit,
     maxNonTechnicalSkills: nonTechnicalLimit,
+    blacklistedSkills,
   });
   return {
     skills: rankedSkills.map(({ name }) => name),

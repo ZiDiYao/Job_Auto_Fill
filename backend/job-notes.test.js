@@ -191,6 +191,9 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /data-settings-target="ai"/);
   assert.match(optionsHtml, /data-ai-target="skills-preview"/);
   assert.match(optionsHtml, /id="previewSelectedSkills"/);
+  assert.match(optionsHtml, /name="skillBlacklist"/);
+  assert.match(optionsHtml, /Why these were selected/);
+  assert.doesNotMatch(optionsHtml, /Excluded by your limits|preview-explainers|preview-legend|ats-mock-header/);
   assert.match(optionsHtml, /data-settings-target="history"/);
   assert.match(optionsHtml, /id="exportMarkdown"/);
   assert.match(optionsHtml, /id="notionConnectionAction"/);

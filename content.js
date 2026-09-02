@@ -541,6 +541,11 @@
   };
 
   const profileSkills = Array.isArray(profile.skills) ? profile.skills : [];
+  const skillKey = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9+#.]+/g, " ").trim();
+  const blacklistValues = Array.isArray(profile.skillBlacklist)
+    ? profile.skillBlacklist
+    : String(profile.skillBlacklist || "").split(/[,;\n|]+/);
+  const blacklistedSkillKeys = new Set(blacklistValues.map(skillKey).filter(Boolean));
   const maxSkills = Math.min(50, Math.max(1, Number(profile.maxSkills || 15)));
   const maxNonTechnicalSkills = Math.min(5, Math.max(0, Number(profile.maxNonTechnicalSkills ?? 2)));
   const likelyNonTechnicalSkill = /\b(communication|teamwork|collaboration|leadership|negotiation|presentation|adaptability|interpersonal|time management|problem solving|critical thinking|mentoring|creativity)\b/i;
@@ -550,8 +555,8 @@
     let nonTechnicalCount = 0;
     for (const value of skills) {
       const skill = String(value || "").trim();
-      const key = normalize(skill);
-      if (!skill || !key || seen.has(key)) continue;
+      const key = skillKey(skill);
+      if (!skill || !key || seen.has(key) || blacklistedSkillKeys.has(key)) continue;
       const nonTechnical = likelyNonTechnicalSkill.test(skill);
       if (nonTechnical && nonTechnicalCount >= maxNonTechnicalSkills) continue;
       if (nonTechnical) nonTechnicalCount += 1;
@@ -580,13 +585,13 @@
     }
   }
 
-  const knownSkillKeys = new Set(profileSkills.map((skill) => normalize(skill)));
+  const knownSkillKeys = new Set(profileSkills.map(skillKey));
   const combinedSkills = [];
   const combinedSkillKeys = new Set();
   const rankedSkills = jdSkills.length ? jdSkills : capLocalSkills(profileSkills);
   for (const skill of rankedSkills.slice(0, maxSkills)) {
-    const key = normalize(skill);
-    if (!key || combinedSkillKeys.has(key)) continue;
+    const key = skillKey(skill);
+    if (!key || combinedSkillKeys.has(key) || blacklistedSkillKeys.has(key)) continue;
     combinedSkillKeys.add(key);
     combinedSkills.push(String(skill));
   }
@@ -1617,7 +1622,7 @@
       for (const skill of skills.slice(0, maxSkills)) {
         if (workdaySelectedSkillContext(skillInput).items.length >= maxSkills) break;
         const added = await chooseWorkdayPrompt(skillInput, skill, { multi: true });
-        if (added && !knownSkillKeys.has(normalize(skill))) result.jdSkillsAdded += 1;
+        if (added && !knownSkillKeys.has(skillKey(skill))) result.jdSkillsAdded += 1;
       }
     }
   }
