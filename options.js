@@ -107,20 +107,17 @@ async function saveProfile(event) {
   try {
     const profile = collectProfile();
     await chrome.storage.local.set({ [PROFILE_KEY]: profile });
-    if (profile.aiProvider === "backend") {
-      try {
-        const response = await fetch("http://127.0.0.1:17840/api/profile", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(profile),
-        });
-        if (!response.ok) throw new Error(`backend returned ${response.status}`);
-        saveStatus.textContent = "Saved locally and to backend";
-      } catch (error) {
-        saveStatus.textContent = `Saved locally; backend sync failed (${error.message})`;
-      }
-    } else {
-      saveStatus.textContent = "Saved locally";
+    try {
+      const response = await fetch("http://127.0.0.1:17840/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `backend returned ${response.status}`);
+      saveStatus.textContent = "Saved to Docker backend · browser cache updated";
+    } catch (error) {
+      saveStatus.textContent = `Backend unavailable · saved to browser cache only (${error.message})`;
     }
     setTimeout(() => { saveStatus.textContent = ""; }, 2200);
   } catch (error) {
@@ -130,6 +127,24 @@ async function saveProfile(event) {
 
 document.querySelector("#saveTop").addEventListener("click", saveProfile);
 form.addEventListener("submit", saveProfile);
+
+async function syncFromBackend(showStatus = true) {
+  if (showStatus) saveStatus.textContent = "Loading profile and resume from Docker backend…";
+  const result = await chrome.runtime.sendMessage({ type: "sync-backend-context" });
+  if (!result?.ok) throw new Error(result?.error || "Could not reach the Docker backend.");
+  renderProfile(result.profile);
+  await refreshResumeStatus();
+  if (showStatus) saveStatus.textContent = "Loaded profile and resume from Docker backend";
+  return result;
+}
+
+document.querySelector("#syncBackend").addEventListener("click", async () => {
+  try {
+    await syncFromBackend(true);
+  } catch (error) {
+    saveStatus.textContent = `Backend sync failed: ${error.message}`;
+  }
+});
 
 document.querySelector("#exportProfile").addEventListener("click", async () => {
   try {
@@ -152,16 +167,14 @@ document.querySelector("#importProfile").addEventListener("change", async (event
   try {
     const profile = mergeProfile(JSON.parse(await file.text()));
     renderProfile(profile);
-    await chrome.storage.local.set({ [PROFILE_KEY]: profile });
-    saveStatus.textContent = "Imported and saved locally";
+    await saveProfile();
+    saveStatus.textContent = "Imported and saved to Docker backend";
   } catch (error) {
     saveStatus.textContent = `Import failed: ${error.message}`;
   } finally {
     event.target.value = "";
   }
 });
-
-chrome.storage.local.get(PROFILE_KEY).then((result) => renderProfile(result[PROFILE_KEY]));
 
 const resumeFile = document.querySelector("#resumeFile");
 const resumeStatus = document.querySelector("#resumeStatus");
@@ -231,4 +244,15 @@ document.querySelector("#removeResume").addEventListener("click", async () => {
   await refreshResumeStatus();
 });
 
-refreshResumeStatus();
+async function initialize() {
+  const cached = await chrome.storage.local.get(PROFILE_KEY);
+  renderProfile(cached[PROFILE_KEY]);
+  await refreshResumeStatus();
+  try {
+    await syncFromBackend(true);
+  } catch (error) {
+    saveStatus.textContent = `Docker backend unavailable · showing browser cache (${error.message})`;
+  }
+}
+
+initialize();

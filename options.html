@@ -12,9 +12,15 @@
         <div>
           <div class="eyebrow">LOCAL JOB APPLICATION AUTOFILL</div>
           <h1>Your profile and answer bank</h1>
-          <p>Saved in <code>chrome.storage.local</code>. This extension does not send your information anywhere.</p>
+          <p>
+            Stored by your Docker backend on <code>127.0.0.1</code> and cached in
+            <code>chrome.storage.local</code> for offline use.
+          </p>
         </div>
-        <button id="saveTop" class="primary" type="button">Save profile</button>
+        <div class="header-actions">
+          <button id="syncBackend" class="secondary" type="button">Reload backend</button>
+          <button id="saveTop" class="primary" type="button">Save profile</button>
+        </div>
       </header>
 
       <div class="notice">
@@ -75,8 +81,9 @@
         <section>
           <h2>Resume upload</h2>
           <p class="help">
-            Import one resume once. The file is stored inside this local Chrome extension and attached when a page contains
-            a Resume/CV file input. It is never uploaded anywhere except the application page you opened.
+            Your Docker backend supplies the saved resume and the extension keeps a browser-local cache for attachment to
+            application pages. It is never uploaded anywhere except the application page you opened and the configured AI
+            provider when its text is required as evidence.
           </p>
           <div class="resume-row">
             <label class="secondary file-button">

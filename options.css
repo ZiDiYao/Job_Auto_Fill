@@ -23,6 +23,12 @@ header {
   margin-bottom: 24px;
 }
 
+.header-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 .eyebrow {
   color: #34785c;
   font-size: 12px;
@@ -165,6 +171,6 @@ code {
 
 @media (max-width: 680px) {
   header { display: block; }
-  header button { margin-top: 16px; }
+  .header-actions { margin-top: 16px; }
   .grid { grid-template-columns: 1fr; }
 }
