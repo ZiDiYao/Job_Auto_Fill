@@ -17,6 +17,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("vendor/pdf.worke
 const PROFILE_KEY = "jobAutofillProfile";
 const RESUME_KEY = "jobAutofillResume";
 const LAST_SKILL_SELECTION_KEY = "jobAutofillLastSkillSelection";
+const ONBOARDING_VISITED_KEY = "jobAutofillOnboardingVisited";
 const form = document.querySelector("#profileForm");
 const saveStatus = document.querySelector("#saveStatus");
 const markdownFolderStatus = document.querySelector("#markdownFolderStatus");
@@ -875,6 +876,7 @@ document.querySelector("#setupNotion").addEventListener("click", async () => {
 });
 
 async function initialize() {
+  await chrome.storage.local.set({ [ONBOARDING_VISITED_KEY]: true });
   document.querySelector("#notionRedirectUrl").textContent = chrome.identity.getRedirectURL("notion");
   const cached = await chrome.storage.local.get([PROFILE_KEY, NOTE_SETTINGS_KEY, LAST_SKILL_SELECTION_KEY]);
   renderProfile(cached[PROFILE_KEY]);

@@ -12,8 +12,12 @@
         <div>
           <h1>Job Autofill</h1>
         </div>
-        <button id="settings" class="header-settings" type="button">Settings</button>
+        <button id="settings" class="header-settings setup-required" type="button">
+          <span id="settingsLabel">Complete profile &amp; settings</span>
+          <small id="settingsRequired">Required</small>
+        </button>
       </header>
+      <div id="setupPrompt" class="setup-prompt">Complete the one-time profile setup before your first autofill.</div>
       <p>The job description is captured automatically. Review it, then fill the current application.</p>
       <div class="resume-label">Saved CV</div>
       <label id="resumeDrop" class="resume-drop" for="resumeFile">
@@ -40,7 +44,7 @@
         <input id="autoNext" type="checkbox" />
         <span><strong>Auto-advance through completed pages</strong><small>Clicks only Next / Continue. Stops before Submit or whenever manual review is needed.</small></span>
       </label>
-      <button id="fill" class="primary" type="button">Fill application</button>
+      <button id="fill" class="primary" type="button" disabled>Fill application</button>
       <button id="stopAutoNext" class="danger stop-auto-next" type="button" hidden>Stop auto-advance</button>
       <div id="status" role="status" aria-live="polite"></div>
     </main>

@@ -180,7 +180,12 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   }
   assert.doesNotMatch(optionsHtml, /name="aiModel"|qwen3:4b/);
   assert.match(popupHtml, /type="module" src="popup\.js"/);
+  assert.match(popupHtml, /Complete profile &amp; settings/);
+  assert.match(popupHtml, /id="settingsRequired">Required/);
+  assert.match(popupHtml, /id="fill"[^>]*disabled/);
   assert.match(popupSource, /saveCurrentJobNote/);
+  assert.match(popupSource, /jobAutofillOnboardingVisited/);
+  assert.match(popupSource, /renderSetupState/);
   assert.match(popupSource, /autoSaveOnFill/);
   assert.match(optionsHtml, /id="chooseMarkdownFolder"/);
   assert.match(optionsHtml, /id="chooseExcelFolder"/);

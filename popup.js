@@ -18,7 +18,20 @@ const notesFolderStatus = document.querySelector("#notesFolderStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 const AUTO_ADVANCE_STATUS_KEY = "jobAutofillAutoAdvanceStatus";
 const LAST_DETECTED_JOB_KEY = "jobAutofillDetectedJobContext";
+const ONBOARDING_VISITED_KEY = "jobAutofillOnboardingVisited";
+const settingsLabel = document.querySelector("#settingsLabel");
+const settingsRequired = document.querySelector("#settingsRequired");
+const setupPrompt = document.querySelector("#setupPrompt");
 let activeTabId = 0;
+
+function renderSetupState(visited) {
+  const setupComplete = visited === true;
+  settingsButton.classList.toggle("setup-required", !setupComplete);
+  settingsLabel.textContent = setupComplete ? "Profile & settings" : "Complete profile & settings";
+  settingsRequired.hidden = setupComplete;
+  setupPrompt.hidden = setupComplete;
+  fillButton.disabled = !setupComplete;
+}
 
 function normalizeExportSettings(value = {}) {
   return {
@@ -45,7 +58,8 @@ function normalizeExportSettings(value = {}) {
   };
 }
 
-chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY, LAST_DETECTED_JOB_KEY]).then(async ({ jobAutofillProfile, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus, [LAST_DETECTED_JOB_KEY]: detectedJob }) => {
+chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY, LAST_DETECTED_JOB_KEY, ONBOARDING_VISITED_KEY]).then(async ({ jobAutofillProfile, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus, [LAST_DETECTED_JOB_KEY]: detectedJob, [ONBOARDING_VISITED_KEY]: onboardingVisited }) => {
+  renderSetupState(onboardingVisited);
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTabId = Number(activeTab?.id || 0);
   overwriteCheckbox.checked = true;
@@ -510,7 +524,11 @@ stopAutoNextButton.addEventListener("click", async () => {
   status.textContent = "Stopping auto-advance…";
 });
 
-settingsButton.addEventListener("click", () => chrome.runtime.openOptionsPage());
+settingsButton.addEventListener("click", async () => {
+  await chrome.storage.local.set({ [ONBOARDING_VISITED_KEY]: true });
+  renderSetupState(true);
+  chrome.runtime.openOptionsPage();
+});
 
 fillButton.addEventListener("click", async () => {
   status.className = "";

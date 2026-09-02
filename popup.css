@@ -20,10 +20,15 @@ p { margin: 0 0 15px; color: var(--muted); font-size: 12px; line-height: 1.45; }
 button { width: 100%; border: 1px solid transparent; border-radius: 5px; padding: 10px 13px; font-size: 12px; font-weight: 700; cursor: pointer; }
 button:focus-visible,
 input:focus-visible { outline: 2px solid rgba(23, 105, 194, 0.2); outline-offset: 2px; }
-button:disabled { cursor: wait; opacity: 0.65; }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
 input[type="checkbox"] { accent-color: var(--blue); }
-button.header-settings { width: auto; margin: 0; border-color: #c7ced9; padding: 6px 9px; flex: 0 0 auto; color: #344054; background: #fff; font-size: 11px; white-space: nowrap; }
-button.header-settings:hover { border-color: #98a2b3; background: #f9fafb; }
+button.header-settings { display: grid; width: auto; margin: 0; border-color: var(--blue); padding: 7px 10px; flex: 0 0 auto; gap: 1px; color: var(--blue); background: #f4f8fd; font-size: 10px; line-height: 1.2; text-align: left; white-space: nowrap; }
+button.header-settings:hover { background: #eaf2fb; }
+button.header-settings small { font-size: 8px; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; }
+button.header-settings:not(.setup-required) small { display: none; }
+button.header-settings.setup-required { color: #fff; background: var(--blue); box-shadow: 0 0 0 3px rgba(23, 105, 194, 0.16); }
+button.header-settings.setup-required:hover { background: var(--blue-dark); }
+.setup-prompt { margin: 10px 0 13px; border: 1px solid #bfd4ec; border-radius: 5px; padding: 8px 10px; color: #174f8c; background: #f5f9fe; font-size: 10px; font-weight: 650; line-height: 1.4; }
 
 .jd-label,
 .resume-label { display: block; margin-bottom: 6px; color: #344054; font-size: 11px; font-weight: 700; }
