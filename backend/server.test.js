@@ -18,6 +18,11 @@ test("ships blank candidate and credential templates", async () => {
   const candidateFields = [
     "firstName", "lastName", "email", "phone", "address", "city", "province", "postalCode",
     "country", "school", "gpa", "graduationYear", "workAuthorized", "sponsorship",
+    "criminalRecord", "pendingCriminalCharges", "holdsSecurityClearance",
+    "eligibleForSecurityClearance", "bondable", "validDriversLicense", "reliableTransportation",
+    "conflictOfInterest", "previouslyAppliedToEmployer", "previouslyInterviewedByEmployer",
+    "governmentEmployee", "publicOfficial", "restrictiveCovenant", "terminatedForCause",
+    "eligibleForRehire",
   ];
 
   assert.ok(candidateFields.every((key) => profile[key] === ""));

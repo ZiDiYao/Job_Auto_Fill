@@ -50,7 +50,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Works on ordinary HTML forms and dispatches the events commonly required by React-based forms.
 - Highlights required fields that still need manual review.
 - Never clicks Submit; the local backend sends only the configured profile evidence, CV, JD, page context, and semantic field schema to the configured AI provider.
-- Leaves self-identification and background-check questions untouched unless the user explicitly configures an answer, and never automates salary, contractual consent, certification, or signature fields.
+- Provides user-managed dropdowns for self-identification, work eligibility, criminal-history and screening questions, security clearance, employment history, and conflict disclosures. Unset facts remain untouched, and salary, contractual consent, certification, and signature fields are never automated.
 
 ## Install in Chrome
 

@@ -124,7 +124,7 @@ async function getProfile() {
   ]));
 }
 
-const sensitiveQuestion = /\b(salary|compensation|criminal|background|security clearance|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security|authori[sz]ed to work|work authori[sz]ation|sponsor|sponsorship|visa|gender|sex|sexual orientation|race|racial|ethnic|disability|disabled|veteran|indigenous|aboriginal|first nations?|m[eé]tis|inuit|pronouns?)\b/i;
+const sensitiveQuestion = /\b(salary|compensation|criminal|conviction|pending charges?|background|security clearance|bondable|driver'?s? licen[cs]e|transportation|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security|authori[sz]ed to work|work authori[sz]ation|sponsor|sponsorship|visa|government employee|public official|conflict of interest|non[ -]?compete|restrictive covenant|terminated|dismissed|rehire|gender|sex|sexual orientation|race|racial|ethnic|disability|disabled|veteran|indigenous|aboriginal|first nations?|m[eé]tis|inuit|pronouns?)\b/i;
 const neverAutomateQuestion = /\b(submit|send application|sign(?:ed|ing)?|signature|e[ -]?signature|certif(?:y|ication)|attest|declaration|consent to|agree to|terms(?: of use)?|privacy policy|salary|compensation|expected pay|date of birth|birth date|social insurance number|\bsin\b|ssn|social security number)\b/i;
 
 function safeProfileForModel(profile) {
@@ -251,8 +251,12 @@ function decisionProfileForModel(profile) {
     "graduationDate", "startDate", "workTerm", "workAuthorized", "sponsorship",
     "willingToCommute", "willingToRelocate", "willingToTravel", "willingToWorkOnsite",
     "willingFlexibleSchedule", "backgroundCheckConsent", "drugScreeningConsent", "criminalRecord",
-    "validSin", "age18OrOlder", "outsideActivitiesConflict", "previouslyWorkedForAuditor",
-    "previouslyWorkedForEmployer", "employeeReferral", "relativesAtEmployer", "genderIdentity",
+    "pendingCriminalCharges", "validSin", "age18OrOlder", "holdsSecurityClearance",
+    "eligibleForSecurityClearance", "bondable", "validDriversLicense", "reliableTransportation",
+    "outsideActivitiesConflict", "conflictOfInterest", "previouslyWorkedForAuditor",
+    "previouslyWorkedForEmployer", "previouslyAppliedToEmployer", "previouslyInterviewedByEmployer",
+    "employeeReferral", "relativesAtEmployer", "governmentEmployee", "publicOfficial",
+    "restrictiveCovenant", "terminatedForCause", "eligibleForRehire", "genderIdentity",
     "pronouns", "sexualOrientation", "visibleMinority", "indigenousIdentity", "raceEthnicity",
     "disabilityStatus", "veteranStatus",
   ];

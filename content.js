@@ -89,7 +89,7 @@
     return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
   }
 
-  const blockedQuestion = /\b(salary|compensation|criminal|background check|security clearance|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security)\b/i;
+  const blockedQuestion = /\b(salary|compensation|criminal|conviction|pending charges?|background check|security clearance|bondable|driver'?s? licen[cs]e|transportation|government employee|public official|conflict of interest|non[ -]?compete|restrictive covenant|terminated|dismissed|rehire|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security)\b/i;
   const neverAutomateDomQuestion = /\b(submit|send application|save and continue|sign(?:ed|ing)?|signature|e[ -]?signature|certif(?:y|ication)|attest|declaration|consent to|agree to|terms(?: of use)?|privacy policy|salary|compensation|expected pay|date of birth|birth date|social insurance number|\bsin\b|ssn|social security number)\b/i;
 
   const sensitiveRules = [
@@ -161,6 +161,10 @@
 
   const employerPreferenceRules = [
     {
+      key: "pendingCriminalCharges",
+      pattern: /\b(pending|outstanding|current).{0,50}\b(criminal charges?|charges? for (?:a )?criminal|prosecution)\b|\bcurrently (?:charged|facing criminal charges?)\b/,
+    },
+    {
       key: "validSin",
       pattern: /\b(valid|hold|have).{0,60}\b(social insurance number|sin)\b/,
     },
@@ -190,7 +194,27 @@
     },
     {
       key: "criminalRecord",
-      pattern: /\bdo you have (?:a|any) criminal record\b|\bhave you (?:ever )?been convicted\b|\b(criminal convictions?|felony convictions?|indictable offences?|pending criminal charges?)\b/,
+      pattern: /\bdo you have (?:a|any) criminal record\b|\bhave you (?:ever )?been convicted\b|\b(criminal convictions?|felony convictions?|indictable offences?)\b/,
+    },
+    {
+      key: "holdsSecurityClearance",
+      pattern: /\b(do you|currently|already).{0,50}\b(hold|have|possess).{0,40}\b(valid |active |current )?security clearance\b|\bsecurity clearance (?:status|level)\b/,
+    },
+    {
+      key: "eligibleForSecurityClearance",
+      pattern: /\b(eligible|able|willing|qualify).{0,60}\b(obtain|receive|undergo|for).{0,40}\bsecurity clearance\b|\bsecurity clearance.{0,60}\b(eligible|able to obtain)\b/,
+    },
+    {
+      key: "bondable",
+      pattern: /\b(are you|applicant).{0,40}\bbondable\b|\beligible.{0,30}\b(?:for )?bonding\b/,
+    },
+    {
+      key: "validDriversLicense",
+      pattern: /\b(valid|current|hold|have|possess).{0,50}\bdriver'?s? licen[cs]e\b|\bdriver'?s? licen[cs]e.{0,30}\b(required|valid|current)\b/,
+    },
+    {
+      key: "reliableTransportation",
+      pattern: /\b(have|access to|possess).{0,40}\b(reliable |own )?(transportation|vehicle|car)\b|\breliable transportation\b/,
     },
     {
       key: "willingToCommute",
@@ -217,12 +241,44 @@
       pattern: /\b(have you|did you|were you|are you).{0,100}\b(worked|employed|employee)\b.{0,100}\b(with|for|by|at)\b.{0,120}\b(before|previously|formerly|erstwhile|ever)\b|\bpreviously employed (?:with|by|at)\b/,
     },
     {
+      key: "previouslyAppliedToEmployer",
+      pattern: /\b(have you|did you).{0,80}\b(previously|ever|before).{0,40}\b(applied|application)\b|\b(have you|did you).{0,80}\b(applied|submitted an application)\b.{0,100}\b(before|previously|in the past)\b|\bprevious application (?:to|with) (?:this|our)\b/,
+    },
+    {
+      key: "previouslyInterviewedByEmployer",
+      pattern: /\b(have you|did you).{0,80}\b(previously|ever|before).{0,40}\b(interviewed|interview)\b|\b(have you|did you).{0,80}\b(interviewed|had an interview)\b.{0,100}\b(before|previously|in the past)\b/,
+    },
+    {
       key: "relativesAtEmployer",
       pattern: /\b(relative|close kin|kinship|family member|acquaintance|close friend).{0,120}\b(work|working|employ|company|organization|organisation|group companies)\b/,
     },
     {
       key: "employeeReferral",
       pattern: /\b(were you|have you|did you).{0,80}\b(referred|referral)\b|\b(employee referral|referred by (?:an?|a current) employee|internal referral)\b/,
+    },
+    {
+      key: "governmentEmployee",
+      pattern: /\b(current|former|previously|ever).{0,60}\b(government|public sector|crown).{0,30}\b(employee|official|service)\b|\bworked for (?:a|the) government\b/,
+    },
+    {
+      key: "publicOfficial",
+      pattern: /\b(public official|elected position|elected official|political office|board of directors?)\b/,
+    },
+    {
+      key: "restrictiveCovenant",
+      pattern: /\b(non[ -]?compete|restrictive covenant|non[ -]?solicitation|employment restriction)\b/,
+    },
+    {
+      key: "terminatedForCause",
+      pattern: /\b(terminated|dismissed|discharged|fired).{0,50}\b(for cause|misconduct|from employment)\b|\bhave you ever been (?:terminated|dismissed|fired)\b/,
+    },
+    {
+      key: "eligibleForRehire",
+      pattern: /\b(eligible|ineligible).{0,30}\bfor rehire\b|\bwould.{0,30}\bformer employer.{0,30}\brehire\b/,
+    },
+    {
+      key: "conflictOfInterest",
+      pattern: /\b(any|potential|actual|perceived).{0,40}\bconflict of interest\b|\bconflict of interest.{0,50}\b(employment|role|position|company)\b/,
     },
   ];
 

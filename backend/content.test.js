@@ -337,6 +337,58 @@ test("a saved No preference clears a prechecked checkbox", async () => {
   assert.equal(result.filled, 1);
 });
 
+test("saved legal and employment facts map to equivalent portal questions", async () => {
+  const fields = [
+    new FakeSelect({
+      ariaLabel: "Have you ever been convicted of a criminal offence?",
+      options: [{ value: "", text: "Select one" }, { value: "Y", text: "Yes" }, { value: "N", text: "No" }],
+    }),
+    new FakeSelect({
+      ariaLabel: "Are you currently facing any pending criminal charges?",
+      options: [{ value: "", text: "Select one" }, { value: "Y", text: "Yes" }, { value: "N", text: "No" }],
+    }),
+    new FakeSelect({
+      ariaLabel: "Do you hold a valid driver's licence?",
+      options: [{ value: "", text: "Select one" }, { value: "Y", text: "Yes" }, { value: "N", text: "No" }],
+    }),
+    new FakeSelect({
+      ariaLabel: "Have you applied to our company before?",
+      options: [{ value: "", text: "Select one" }, { value: "Y", text: "Yes" }, { value: "N", text: "No" }],
+    }),
+    new FakeSelect({
+      ariaLabel: "Are you bound by a non-compete or restrictive covenant?",
+      options: [{ value: "", text: "Select one" }, { value: "Y", text: "Yes" }, { value: "N", text: "No" }],
+    }),
+  ];
+  const result = await runContent({
+    profile: {
+      criminalRecord: "No",
+      pendingCriminalCharges: "No",
+      validDriversLicense: "Yes",
+      previouslyAppliedToEmployer: "No",
+      restrictiveCovenant: "No",
+      aiEnabled: false,
+    },
+    fields,
+  });
+  assert.deepEqual(fields.map((field) => field.value), ["N", "N", "Y", "N", "N"]);
+  assert.equal(result.filled, 5);
+  assert.equal(result.review, 0);
+});
+
+test("unset criminal-history facts remain untouched for manual review", async () => {
+  const conviction = new FakeSelect({
+    ariaLabel: "Have you ever been convicted of a criminal offence?",
+    required: true,
+    options: [{ value: "", text: "Select one" }, { value: "Y", text: "Yes" }, { value: "N", text: "No" }],
+  });
+  const result = await runContent({ profile: { criminalRecord: "", aiEnabled: true }, fields: [conviction] });
+  assert.equal(conviction.value, "");
+  assert.equal(conviction.dataset.localJobAutofill, "review");
+  assert.equal(result.filled, 0);
+  assert.equal(result.review, 1);
+});
+
 test("mapped selects without a matching portal option are marked for review", async () => {
   const country = new FakeSelect({
     ariaLabel: "Country",
