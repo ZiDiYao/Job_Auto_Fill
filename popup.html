@@ -26,7 +26,10 @@
       </button>
 
       <section class="popup-card resume-section">
-        <div class="resume-label">Upload resume</div>
+        <div class="card-heading">
+          <div class="resume-label">Upload resume</div>
+          <button id="resumeSettings" class="link-button" type="button">Resume settings</button>
+        </div>
         <label id="resumeDrop" class="resume-drop" for="resumeFile">
           <input id="resumeFile" type="file" accept="application/pdf,.pdf" />
           <strong>Choose or drop a resume PDF</strong>
@@ -55,6 +58,10 @@
       </section>
 
       <section class="popup-card behaviour-section">
+        <div class="card-heading">
+          <strong>Autofill behaviour</strong>
+          <button id="behaviourSettings" class="link-button" type="button">Behaviour settings</button>
+        </div>
         <label class="toggle">
           <input id="overwrite" type="checkbox" checked />
           Overwrite fields that already contain text

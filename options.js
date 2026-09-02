@@ -76,6 +76,18 @@ function pageFromHash(hash = location.hash) {
   return "general";
 }
 
+function settingsAnchorFromHash(hash = location.hash) {
+  if (hash.startsWith("#profile/default-resume")) return "defaultResumeSettings";
+  if (hash.startsWith("#general/behaviour")) return "behaviourSettings";
+  return "";
+}
+
+function scrollToSettingsAnchor() {
+  const anchor = settingsAnchorFromHash();
+  if (!anchor) return;
+  requestAnimationFrame(() => document.querySelector(`#${anchor}`)?.scrollIntoView({ block: "start" }));
+}
+
 function showSettingsPage(page, { updateHash = false } = {}) {
   const selected = SETTINGS_PAGES[page] ? page : "general";
   for (const section of document.querySelectorAll("[data-settings-page]")) {
@@ -100,8 +112,10 @@ for (const tab of document.querySelectorAll("[data-settings-target]")) {
 }
 window.addEventListener("hashchange", () => {
   showSettingsPage(pageFromHash());
+  scrollToSettingsAnchor();
 });
 showSettingsPage(pageFromHash());
+scrollToSettingsAnchor();
 
 function normalizeExportSettings(value = {}) {
   const legacyTrigger = Object.hasOwn(value, "autoSaveOnFill")

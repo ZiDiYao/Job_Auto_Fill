@@ -187,6 +187,13 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(popupHtml, /class="settings-action"[^>]*>Open</);
   assert.match(popupHtml, /id="settingsRequired">Required before your first autofill/);
   assert.match(popupHtml, /class="popup-card resume-section"/);
+  assert.match(popupHtml, /id="resumeSettings"[^>]*>Resume settings</);
+  assert.match(popupHtml, /class="popup-card behaviour-section">[\s\S]*?Autofill behaviour[\s\S]*?id="behaviourSettings"[^>]*>Behaviour settings</);
+  assert.match(popupSource, /options\.html#profile\/default-resume/);
+  assert.match(popupSource, /options\.html#general\/behaviour/);
+  assert.match(optionsHtml, /id="defaultResumeSettings"[^>]*data-settings-page="profile"/);
+  assert.match(optionsHtml, /id="behaviourSettings"[^>]*data-settings-page="general"/);
+  assert.match(optionsSource, /settingsAnchorFromHash/);
   assert.match(popupHtml, /class="popup-card job-section"/);
   assert.match(popupHtml, /id="jobDescriptionFile"[^>]*\.pdf[^>]*\.txt[^>]*\.md/);
   assert.match(popupHtml, />\s*Upload JD\s*</);

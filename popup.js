@@ -15,8 +15,10 @@ const status = document.querySelector("#status");
 const resumeDrop = document.querySelector("#resumeDrop");
 const resumeFile = document.querySelector("#resumeFile");
 const resumeStatus = document.querySelector("#resumeStatus");
+const resumeSettingsButton = document.querySelector("#resumeSettings");
 const saveNoteButton = document.querySelector("#saveNote");
 const notesSettingsButton = document.querySelector("#notesSettings");
+const behaviourSettingsButton = document.querySelector("#behaviourSettings");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 const AUTO_ADVANCE_STATUS_KEY = "jobAutofillAutoAdvanceStatus";
 const AUTOMATION_PAUSED_KEY = "jobAutofillAutomationPaused";
@@ -530,6 +532,14 @@ saveNoteButton.addEventListener("click", async () => {
 
 notesSettingsButton.addEventListener("click", () => {
   chrome.tabs.create({ url: chrome.runtime.getURL("options.html#application-history") });
+});
+
+resumeSettingsButton.addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("options.html#profile/default-resume") });
+});
+
+behaviourSettingsButton.addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("options.html#general/behaviour") });
 });
 
 async function detectJobDescription(showFailure = true) {

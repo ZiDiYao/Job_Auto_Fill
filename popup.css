@@ -36,6 +36,9 @@ button.header-settings.setup-required { box-shadow: 0 0 0 3px rgba(23, 105, 194,
 button.header-settings.setup-required:hover { background: var(--blue-dark); }
 
 .popup-card { margin: 0; border: 1px solid var(--border); border-radius: 7px; padding: 12px; background: #fff; }
+.card-heading { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+.card-heading > strong { color: #344054; font-size: 11px; line-height: 1.2; }
+.card-heading .resume-label { margin-bottom: 0; }
 
 .jd-label,
 .resume-label { display: block; margin-bottom: 6px; color: #344054; font-size: 11px; font-weight: 700; }
@@ -67,7 +70,8 @@ button.link-button:hover { text-decoration: underline; }
 .toggle span { display: grid; gap: 2px; }
 .toggle strong { color: #344054; font-size: 11px; }
 .toggle small { color: var(--muted); font-size: 10px; line-height: 1.35; }
-.behaviour-section { display: grid; gap: 11px; }
+.behaviour-section { display: grid; gap: 11px; padding: 14px; }
+.behaviour-section .card-heading { margin-bottom: 0; }
 .auto-next-toggle { border-top: 1px solid #eaecf0; padding-top: 11px; }
 .automation-toggle { display: flex; width: 100%; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; }
 .automation-toggle.paused { border-color: var(--blue); color: var(--blue); background: #fff; }
@@ -116,6 +120,7 @@ button.link-button:hover { text-decoration: underline; }
 :root[data-theme="dark"] button.header-settings.setup-required:hover { background: var(--blue-dark); }
 :root[data-theme="dark"] .jd-label,
 :root[data-theme="dark"] .resume-label,
+:root[data-theme="dark"] .card-heading > strong,
 :root[data-theme="dark"] .notes-panel strong,
 :root[data-theme="dark"] .toggle,
 :root[data-theme="dark"] .toggle strong { color: #d9dee7; }
