@@ -461,11 +461,20 @@
     if (multi) {
       const desired = normalize(value);
       let match = null;
-      for (let attempt = 0; attempt < 15 && !match; attempt += 1) {
-        await wait(200);
+      let previousSignature = "";
+      let stablePasses = 0;
+
+      await wait(1600);
+      for (let attempt = 0; attempt < 14 && !match; attempt += 1) {
+        await wait(250);
         const options = visiblePromptOptions()
           .filter((option) => normalize(option.textContent) !== "no items");
+        const signature = options.map((option) => normalize(option.textContent)).join("|");
+        stablePasses = signature && signature === previousSignature ? stablePasses + 1 : 0;
+        previousSignature = signature;
+        if (stablePasses < 2) continue;
         match = options.find((option) => normalize(option.textContent) === desired)
+          || options.find((option) => normalize(option.textContent).startsWith(`${desired} `))
           || options.find((option) => normalize(option.textContent).includes(desired));
       }
 
@@ -483,18 +492,25 @@
         return false;
       }
 
-      match.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-      match.click();
+      const checkbox = match.matches('input[type="checkbox"], [role="checkbox"]')
+        ? match
+        : match.querySelector('input[type="checkbox"], [role="checkbox"]');
+      const clickTarget = checkbox || match;
+      clickTarget.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      clickTarget.click();
 
       let confirmed = false;
+      await wait(1400);
       for (let attempt = 0; attempt < 12 && !confirmed; attempt += 1) {
-        await wait(180);
+        await wait(250);
         const selectedList = [...container?.querySelectorAll('[role="listbox"]') || []]
           .find((listbox) => normalize(listbox.getAttribute("aria-label")) === "items selected")
           || container?.querySelector('[role="listbox"]');
         confirmed = normalize(selectedList?.textContent || "").includes(desired);
       }
       if (confirmed) {
+        input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+        await wait(700);
         mark(input, "filled");
         result.filled += 1;
         return true;
