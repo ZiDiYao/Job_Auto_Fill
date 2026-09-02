@@ -93,6 +93,12 @@ test("saved-state copy is rendered as quiet secondary text", async () => {
   assert.match(css, /#saveStatus \{[^}]*color: #98a2b3;[^}]*font-size: 10px;/);
 });
 
+test("settings dropdown arrows are consistently inset from the right edge", async () => {
+  const css = await readFile(path.join(repositoryRoot, "options.css"), "utf8");
+  assert.match(css, /select \{[\s\S]*?appearance: none;[\s\S]*?padding-right: 42px;[\s\S]*?background-position: right 16px center;/);
+  assert.match(css, /:root\[data-theme="dark"\] select \{[\s\S]*?background-image:/);
+});
+
 test("popup and settings pages ship green, blue-default, and dark themes", async () => {
   const [html, optionsCss, popupCss, optionsSource, popupSource] = await Promise.all([
     readFile(path.join(repositoryRoot, "options.html"), "utf8"),
