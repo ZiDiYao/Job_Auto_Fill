@@ -97,6 +97,7 @@ async function getProfile() {
 }
 
 const sensitiveQuestion = /\b(salary|compensation|criminal|background|security clearance|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security|authori[sz]ed to work|work authori[sz]ation|sponsor|sponsorship|visa|gender|sex|sexual orientation|race|racial|ethnic|disability|disabled|veteran|indigenous|aboriginal|first nations?|m[eé]tis|inuit|pronouns?)\b/i;
+const neverAutomateQuestion = /\b(submit|send application|signature|e[ -]?signature|certif(?:y|ication)|attest|declaration|consent to|agree to|terms(?: of use)?|privacy policy|salary|compensation|expected pay|date of birth|birth date|social insurance number|\bsin\b|ssn|social security number)\b/i;
 
 function safeProfileForModel(profile) {
   const allowedKeys = [
@@ -130,6 +131,43 @@ function validateAnswers(rawAnswers, questions, { allowSensitive = false } = {})
     validated.push({ id: question.id, value, confidence });
   }
   return validated;
+}
+
+export function validateFieldPlans(rawPlans, fields, { allowSensitive = false } = {}) {
+  const byId = new Map(fields.map((field) => [field.id, field]));
+  const plans = [];
+  for (const rawPlan of Array.isArray(rawPlans) ? rawPlans : []) {
+    const field = byId.get(rawPlan?.id);
+    if (!field || neverAutomateQuestion.test(field.label || "")) continue;
+    if (!allowSensitive && sensitiveQuestion.test(field.label || "")) continue;
+    const confidence = Math.min(1, Math.max(0, Number(rawPlan.confidence || 0)));
+    if (confidence < 0.7) continue;
+
+    const options = Array.isArray(field.options) ? field.options.map(String) : [];
+    const exactOption = (candidate) => options.find((option) => normalize(option) === normalize(candidate));
+    if (field.multiple && options.length) {
+      const values = [...new Set((Array.isArray(rawPlan.values) ? rawPlan.values : [rawPlan.value])
+        .map(exactOption)
+        .filter(Boolean))];
+      if (!values.length) continue;
+      plans.push({ id: field.id, operation: "select_many", values, confidence });
+      continue;
+    }
+
+    let value = String(rawPlan.value || rawPlan.values?.[0] || "").trim();
+    if (!value) continue;
+    if (options.length) {
+      value = exactOption(value) || "";
+      if (!value) continue;
+      plans.push({ id: field.id, operation: "select", value, confidence });
+      continue;
+    }
+
+    if (!["text", "textarea"].includes(field.type)) continue;
+    if (Number(field.maxLength) > 0) value = value.slice(0, Number(field.maxLength));
+    plans.push({ id: field.id, operation: "fill", value, confidence });
+  }
+  return plans;
 }
 
 async function callDeepSeek({ jobDescription, pageContext, questions }) {
@@ -207,7 +245,8 @@ async function callDeepSeek({ jobDescription, pageContext, questions }) {
 
 function decisionProfileForModel(profile) {
   const keys = [
-    "firstName", "lastName", "preferredName", "city", "province", "country", "school", "degree",
+    "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
+    "postalCode", "country", "linkedin", "github", "portfolio", "school", "degree",
     "fieldOfStudy", "gpa", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
     "graduationDate", "startDate", "workTerm", "workAuthorized", "sponsorship",
     "willingToCommute", "willingToRelocate", "willingToTravel", "willingToWorkOnsite",
@@ -293,6 +332,90 @@ async function resolveStructuredFields({ jobDescription, pageContext, questions,
   const parsed = JSON.parse(payload?.choices?.[0]?.message?.content || "{}");
   return {
     answers: validateAnswers(parsed.answers, eligibleQuestions, { allowSensitive: useSensitiveProfile }),
+    model: payload.model || configuredDeepSeekModel(),
+    usage: payload.usage || null,
+  };
+}
+
+async function planDomFields({ jobDescription, pageContext, fields, useSensitiveProfile }) {
+  const apiKey = configuredDeepSeekKey();
+  if (!apiKey || apiKey === "replace_with_a_new_key") {
+    throw Object.assign(new Error("A DeepSeek API key is not configured."), { statusCode: 503 });
+  }
+  const profile = await getProfile();
+  const resume = await getResumeText();
+  const eligibleFields = (Array.isArray(fields) ? fields : [])
+    .filter((field) => field && Number.isInteger(field.id) && String(field.label || "").trim())
+    .filter((field) => ["text", "textarea", "select", "radio", "checkbox", "combobox"].includes(field.type))
+    .filter((field) => !neverAutomateQuestion.test(field.label || ""))
+    .filter((field) => useSensitiveProfile || !sensitiveQuestion.test(field.label || ""))
+    .slice(0, 45)
+    .map((field) => ({
+      id: field.id,
+      label: String(field.label).slice(0, 600),
+      section: String(field.section || "").slice(0, 300),
+      type: field.type,
+      required: Boolean(field.required),
+      multiple: Boolean(field.multiple),
+      placeholder: String(field.placeholder || "").slice(0, 180),
+      currentValue: String(field.currentValue || "").slice(0, 300),
+      maxLength: Math.max(0, Math.min(5000, Number(field.maxLength || 0))),
+      options: [...new Set((Array.isArray(field.options) ? field.options : [])
+        .map((option) => String(option || "").trim())
+        .filter(Boolean))].slice(0, 60),
+    }));
+  if (!eligibleFields.length) return { plans: [], model: configuredDeepSeekModel() };
+
+  const system = [
+    "You plan values for visible fields in a job application. Return JSON only in this exact shape:",
+    '{"plans":[{"id":0,"value":"answer","values":["option"],"confidence":0.95}]}',
+    "The supplied fields are a semantic summary of the current page DOM. Treat each numeric id as opaque.",
+    "For fields with options, value (or each item in values for a multiple field) must exactly equal a supplied option.",
+    "Use only facts explicitly present in the candidate profile or resume. Use the job description only to tailor truthful written answers.",
+    "Use saved candidate facts and preferences to map equivalent portal wording. Never infer a referral, credential, employer, date, technology, authorization, demographic trait, medical fact, criminal-history fact, or conflict-of-interest fact.",
+    "For subjective willingness and preference questions, choose the most employer-positive option that is consistent with the saved profile.",
+    "For recruitment source, prefer an employer/company careers website when offered, otherwise an internet job board or internet search; never claim a referral or personal contact without evidence.",
+    "Omit any field when evidence is missing. Never plan a submit, continue, signature, certification, attestation, consent, privacy, terms, compensation, government identifier, or birth-date action.",
+    "Keep factual text short. Use 60-140 first-person words only for genuine essay or motivation fields.",
+  ].join(" ");
+
+  const request = {
+    candidateProfile: useSensitiveProfile ? decisionProfileForModel(profile) : safeProfileForModel(profile),
+    resume,
+    jobDescription: String(jobDescription || "").slice(0, 16000),
+    visiblePageContext: String(pageContext || "").slice(0, 6000),
+    visibleDomFields: eligibleFields,
+  };
+  const baseUrl = String(
+    process.env.DEEPSEEK_BASE_URL || runtimeConfig.deepSeek?.baseUrl || "https://api.deepseek.com",
+  ).replace(/\/$/, "");
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: configuredDeepSeekModel(),
+      thinking: { type: "disabled" },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: JSON.stringify(request) },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 5000,
+      temperature: 0,
+      stream: false,
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw Object.assign(new Error(`DeepSeek returned ${response.status}: ${detail.slice(0, 300)}`), { statusCode: 502 });
+  }
+  const payload = await response.json();
+  const parsed = JSON.parse(payload?.choices?.[0]?.message?.content || "{}");
+  return {
+    plans: validateFieldPlans(parsed.plans, eligibleFields, { allowSensitive: useSensitiveProfile }),
     model: payload.model || configuredDeepSeekModel(),
     usage: payload.usage || null,
   };
@@ -496,6 +619,17 @@ export function createServer() {
           jobDescription: body.jobDescription,
           pageContext: body.pageContext,
           questions: body.questions,
+          useSensitiveProfile: body.useSensitiveProfile === true,
+        });
+        return sendJson(response, 200, result);
+      }
+
+      if (request.method === "POST" && request.url === "/api/plan-fields") {
+        const body = await readJson(request, 3_000_000);
+        const result = await planDomFields({
+          jobDescription: body.jobDescription,
+          pageContext: body.pageContext,
+          fields: body.fields,
           useSensitiveProfile: body.useSensitiveProfile === true,
         });
         return sendJson(response, 200, result);

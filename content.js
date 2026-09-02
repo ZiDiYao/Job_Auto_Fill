@@ -90,6 +90,7 @@
   }
 
   const blockedQuestion = /\b(salary|compensation|criminal|background check|security clearance|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security)\b/i;
+  const neverAutomateDomQuestion = /\b(submit|send application|save and continue|signature|e[ -]?signature|certif(?:y|ication)|attest|declaration|consent to|agree to|terms(?: of use)?|privacy policy|salary|compensation|expected pay|date of birth|birth date|social insurance number|\bsin\b|ssn|social security number)\b/i;
 
   const sensitiveRules = [
     { key: "sexualOrientation", pattern: /\bsexual orientation\b/ },
@@ -660,6 +661,25 @@
     return uniqueOptions;
   }
 
+  async function readComboboxInputOptions(input) {
+    if (!input || !isVisible(input)) return [];
+    input.focus();
+    input.click();
+    let options = [];
+    for (let attempt = 0; attempt < 10 && !options.length; attempt += 1) {
+      await wait(160);
+      options = visiblePromptOptions()
+        .filter((option) => option.getAttribute("aria-disabled") !== "true")
+        .map((option) => String(option.textContent || "").trim())
+        .filter((value) => value && normalize(value) !== "no items");
+    }
+    const uniqueOptions = [...new Map(options.map((value) => [normalize(value), value])).values()];
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent("keyup", { key: "Escape", code: "Escape", bubbles: true }));
+    await wait(100);
+    return uniqueOptions;
+  }
+
   function findWorkdayQuestionButton(target) {
     if (target.buttonId) return document.getElementById(target.buttonId);
     return [...document.querySelectorAll('button[aria-haspopup="listbox"]')]
@@ -730,6 +750,300 @@
       }
       if (!changedCount) break;
       await wait(180);
+    }
+  }
+
+  let semanticFieldSequence = 0;
+
+  function semanticSection(element) {
+    const sections = [];
+    let ancestor = element?.parentElement;
+    for (let depth = 0; ancestor && depth < 10 && sections.length < 3; depth += 1, ancestor = ancestor.parentElement) {
+      const heading = ancestor.querySelector(":scope > legend, :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5");
+      const text = String(heading?.textContent || "").replace(/\s+/g, " ").trim();
+      if (text && !sections.some((value) => normalize(value) === normalize(text))) sections.unshift(text.slice(0, 140));
+    }
+    return sections.join(" > ");
+  }
+
+  function assignSemanticRef(element) {
+    if (!element.dataset.localJobAutofillAiRef) {
+      semanticFieldSequence += 1;
+      element.dataset.localJobAutofillAiRef = `field-${Date.now()}-${semanticFieldSequence}`;
+    }
+    return element.dataset.localJobAutofillAiRef;
+  }
+
+  function choiceOptionText(control) {
+    const labels = [];
+    if (control.id) {
+      try {
+        const explicit = document.querySelector(`label[for="${CSS.escape(control.id)}"]`);
+        if (explicit?.textContent) labels.push(explicit.textContent);
+      } catch { /* Ignore invalid third-party IDs. */ }
+    }
+    const wrappingLabel = control.closest("label");
+    if (wrappingLabel?.textContent) labels.push(wrappingLabel.textContent);
+    if (control.getAttribute("aria-label")) labels.push(control.getAttribute("aria-label"));
+    labels.push(control.value || "");
+    return String(labels.find((value) => String(value || "").trim()) || "").replace(/\s+/g, " ").trim();
+  }
+
+  function choiceControls(field, type) {
+    const selector = `input[type="${type}"]`;
+    const fieldset = field.closest("fieldset");
+    if (fieldset) return [...fieldset.querySelectorAll(selector)].filter(isVisible);
+    const semanticGroup = field.closest('[role="radiogroup"], [role="group"]');
+    if (semanticGroup) return [...semanticGroup.querySelectorAll(selector)].filter(isVisible);
+    if (field.name) {
+      try {
+        return [...document.querySelectorAll(`${selector}[name="${CSS.escape(field.name)}"]`)].filter(isVisible);
+      } catch { /* Ignore third-party names that cannot be escaped. */ }
+    }
+    return [field];
+  }
+
+  async function scanSemanticDomFields() {
+    const descriptors = [];
+    const targets = new Map();
+    const completedGroups = new Set();
+    const controls = [...document.querySelectorAll(
+      'input, select, textarea, [contenteditable="true"], button[aria-haspopup="listbox"]',
+    )];
+
+    for (const control of controls) {
+      if (descriptors.length >= 45 || !isVisible(control) || control.disabled || control.readOnly) continue;
+      const isListboxButton = control instanceof HTMLButtonElement && control.getAttribute("aria-haspopup") === "listbox";
+      if (control instanceof HTMLButtonElement && !isListboxButton) continue;
+      if (!isListboxButton && ["hidden", "file", "password", "submit", "button", "reset", "image"].includes(control.type)) continue;
+
+      if (isListboxButton) {
+        const label = workdayQuestionLabel(control) || fieldLabel(control);
+        const currentValue = String(control.textContent || "").replace(/\s+/g, " ").trim();
+        if (!label || neverAutomateDomQuestion.test(label) || (currentValue && normalize(currentValue) !== "select one")) continue;
+        const options = await readWorkdayButtonOptions(control);
+        if (!options.length) continue;
+        const id = descriptors.length;
+        descriptors.push({
+          id,
+          ref: assignSemanticRef(control),
+          label,
+          section: semanticSection(control),
+          type: "select",
+          required: /\brequired\b/i.test(control.getAttribute("aria-label") || ""),
+          multiple: false,
+          placeholder: "Select One",
+          currentValue,
+          maxLength: 0,
+          options,
+        });
+        targets.set(id, { kind: "workday-button", control, label, options, markElement: control });
+        continue;
+      }
+
+      const isComboboxInput = control instanceof HTMLInputElement && (
+        control.getAttribute("role") === "combobox"
+        || control.getAttribute("aria-haspopup") === "listbox"
+        || control.dataset.uxiWidgetType === "selectinput"
+      );
+      if (isComboboxInput) {
+        const selectedItems = control.closest('[data-automation-id="multiSelectContainer"], [data-automation-id="multiselectInputContainer"]')
+          ?.parentElement?.querySelector('[role="listbox"][aria-label="items selected"]');
+        if (hasValue(control) || String(selectedItems?.textContent || "").trim() || /(^|--)skills$/i.test(control.id || "")) continue;
+        const label = String(fieldLabel(control)).replace(/\s+/g, " ").trim();
+        if (!label || neverAutomateDomQuestion.test(label)) continue;
+        const options = await readComboboxInputOptions(control);
+        if (!options.length) continue;
+        const id = descriptors.length;
+        descriptors.push({
+          id,
+          ref: assignSemanticRef(control),
+          label,
+          section: semanticSection(control),
+          type: "combobox",
+          required: control.required,
+          multiple: false,
+          placeholder: String(control.placeholder || "").slice(0, 180),
+          currentValue: "",
+          maxLength: 0,
+          options,
+        });
+        targets.set(id, { kind: "combobox", control, label, options, markElement: control });
+        continue;
+      }
+
+      if (control.type === "radio" || control.type === "checkbox") {
+        const controlsInGroup = choiceControls(control, control.type);
+        const group = control.closest("fieldset") || control.closest('[role="radiogroup"], [role="group"]') || control.parentElement;
+        const groupKey = `${control.type}:${group?.id || control.name || assignSemanticRef(group || control)}`;
+        if (completedGroups.has(groupKey)) continue;
+        completedGroups.add(groupKey);
+        if (control.type === "checkbox" && controlsInGroup.length < 2) continue;
+        if (controlsInGroup.some((candidate) => candidate.checked)) continue;
+        const label = String(choiceGroupLabel(control) || fieldLabel(control)).replace(/\s+/g, " ").trim();
+        if (!label || neverAutomateDomQuestion.test(label)) continue;
+        const choices = controlsInGroup
+          .map((candidate) => ({ control: candidate, label: choiceOptionText(candidate) }))
+          .filter((candidate) => candidate.label);
+        if (choices.length < 2) continue;
+        const id = descriptors.length;
+        descriptors.push({
+          id,
+          ref: assignSemanticRef(group || control),
+          label,
+          section: semanticSection(group || control),
+          type: control.type,
+          required: controlsInGroup.some((candidate) => candidate.required),
+          multiple: control.type === "checkbox",
+          placeholder: "",
+          currentValue: "",
+          maxLength: 0,
+          options: choices.map((candidate) => candidate.label),
+        });
+        targets.set(id, { kind: control.type, control: group || control, choices, label, markElement: group || control });
+        continue;
+      }
+
+      const label = String(fieldLabel(control)).replace(/\s+/g, " ").trim();
+      const selectedNativeValue = control instanceof HTMLSelectElement
+        ? String(control.selectedOptions?.[0]?.textContent || control.value || "").trim()
+        : "";
+      const nativeSelectIsEmpty = control instanceof HTMLSelectElement
+        && (!selectedNativeValue || /^(select|choose)( one| an option)?$/i.test(selectedNativeValue));
+      if (!label || neverAutomateDomQuestion.test(label) || (!nativeSelectIsEmpty && hasValue(control))) continue;
+      if (control instanceof HTMLSelectElement) {
+        const options = [...control.options]
+          .map((option) => String(option.textContent || "").trim())
+          .filter((value) => value && !/^(select|choose)( one| an option)?$/i.test(value));
+        if (!options.length) continue;
+        const id = descriptors.length;
+        descriptors.push({
+          id,
+          ref: assignSemanticRef(control),
+          label,
+          section: semanticSection(control),
+          type: "select",
+          required: control.required,
+          multiple: control.multiple,
+          placeholder: "",
+          currentValue: "",
+          maxLength: 0,
+          options,
+        });
+        targets.set(id, { kind: "select", control, label, options, markElement: control });
+        continue;
+      }
+
+      const id = descriptors.length;
+      descriptors.push({
+        id,
+        ref: assignSemanticRef(control),
+        label,
+        section: semanticSection(control),
+        type: control instanceof HTMLTextAreaElement || control.isContentEditable ? "textarea" : "text",
+        required: Boolean(control.required),
+        multiple: false,
+        placeholder: String(control.placeholder || "").slice(0, 180),
+        currentValue: "",
+        maxLength: Number(control.maxLength > 0 ? control.maxLength : 0),
+        options: [],
+      });
+      targets.set(id, { kind: "text", control, label, markElement: control });
+    }
+    return { descriptors, targets };
+  }
+
+  function exactChoice(choices, value) {
+    const desired = normalize(value);
+    return choices.find((choice) => normalize(choice.label) === desired);
+  }
+
+  async function executeSemanticPlan(plan, target) {
+    if (
+      !target
+      || !target.control?.isConnected
+      || Number(plan.confidence || 0) < 0.7
+      || neverAutomateDomQuestion.test(target.label || "")
+    ) return false;
+    let accepted = false;
+    if (plan.operation === "fill" && target.kind === "text") {
+      accepted = setNativeValue(target.control, String(plan.value || ""));
+      await wait(160);
+      accepted = accepted && normalize(target.control.value || target.control.textContent).includes(normalize(plan.value));
+    } else if (plan.operation === "select" && target.kind === "select") {
+      accepted = setNativeValue(target.control, plan.value);
+      await wait(160);
+      const selected = target.control.selectedOptions?.[0]?.textContent || target.control.value;
+      accepted = accepted && normalize(selected) === normalize(plan.value);
+    } else if (plan.operation === "select" && target.kind === "workday-button") {
+      accepted = await chooseWorkdayButton(target.control, plan.value);
+      await wait(180);
+      accepted = accepted || normalize(target.control.textContent).includes(normalize(plan.value));
+    } else if (plan.operation === "select" && target.kind === "combobox") {
+      accepted = await chooseWorkdayPrompt(target.control, plan.value);
+      await wait(180);
+      const container = target.control.closest('[data-automation-id="multiSelectContainer"], [data-automation-id="multiselectInputContainer"]')
+        ?.parentElement;
+      const selected = String(container?.querySelector('[role="listbox"]')?.textContent || target.control.value || "");
+      accepted = accepted || normalize(selected).includes(normalize(plan.value));
+    } else if (plan.operation === "select" && target.kind === "radio") {
+      const choice = exactChoice(target.choices, plan.value);
+      if (choice) {
+        choice.control.click();
+        await wait(160);
+        accepted = choice.control.checked;
+      }
+    } else if (plan.operation === "select_many" && target.kind === "checkbox") {
+      const requested = Array.isArray(plan.values) ? plan.values : [];
+      const choices = requested.map((value) => exactChoice(target.choices, value)).filter(Boolean);
+      for (const choice of choices) {
+        if (!choice.control.checked) choice.control.click();
+        await wait(90);
+      }
+      accepted = choices.length > 0 && choices.every((choice) => choice.control.checked);
+    }
+    if (!accepted) return false;
+    const wasReview = target.markElement.dataset.localJobAutofill === "review";
+    mark(target.markElement, "ai");
+    target.markElement.title = "Filled from semantic DOM analysis by the local backend AI — review before submitting.";
+    result.aiFilled += 1;
+    if (wasReview && result.review > 0) result.review -= 1;
+    return true;
+  }
+
+  async function planSemanticDomWithAi() {
+    if (
+      window.top !== window
+      || !profile.aiEnabled
+      || profile.aiAnalyzeDom === false
+      || String(profile.aiProvider || "backend") !== "backend"
+    ) return;
+
+    for (let round = 0; round < 3; round += 1) {
+      const { descriptors, targets } = await scanSemanticDomFields();
+      if (!descriptors.length) break;
+      let response;
+      try {
+        response = await chrome.runtime.sendMessage({
+          type: "plan-dom-fields",
+          jobDescription,
+          pageContext: `${document.title}\nPage URL: ${location.href}\n${String(document.body?.innerText || "").slice(0, 6000)}`,
+          fields: descriptors,
+          useSensitiveProfile: profile.aiUseSensitiveProfile === true,
+        });
+        if (!response?.ok) throw new Error(response?.error || "AI DOM planning failed.");
+      } catch (error) {
+        const message = `DOM AI: ${error.message || "planning failed"}`;
+        result.aiError = [result.aiError, message].filter(Boolean).join(" | ");
+        break;
+      }
+
+      let changedCount = 0;
+      for (const plan of Array.isArray(response.plans) ? response.plans : []) {
+        if (await executeSemanticPlan(plan, targets.get(plan.id))) changedCount += 1;
+      }
+      if (!changedCount) break;
+      await wait(450);
     }
   }
 
@@ -996,6 +1310,9 @@
       result.review += 1;
     }
   }
+
+  await planSemanticDomWithAi();
+  fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
 
   const adaptiveQuestion = /\b(why|describe|tell us|tell me|additional information|motivation|interested|interest in|relevant experience|skills|experience with|years of|how many years|cover letter|comments|anything else|proud of|challenge|project)\b/i;
 

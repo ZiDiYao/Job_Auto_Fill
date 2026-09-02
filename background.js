@@ -136,6 +136,22 @@ async function resolveWorkdayDropdowns(message) {
   return { answers: Array.isArray(payload.answers) ? payload.answers : [] };
 }
 
+async function planDomFields(message) {
+  const response = await fetch(`${BACKEND_ENDPOINT}/api/plan-fields`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jobDescription: message.jobDescription || "",
+      pageContext: message.pageContext || "",
+      fields: message.fields || [],
+      useSensitiveProfile: message.useSensitiveProfile === true,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `Local backend returned ${response.status}.`);
+  return { plans: Array.isArray(payload.plans) ? payload.plans : [] };
+}
+
 async function saveBackendResume(message) {
   const resume = message.resume || {};
   const response = await fetch(`${BACKEND_ENDPOINT}/api/resume`, {
@@ -202,6 +218,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     resolveWorkdayDropdowns(message)
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => sendResponse({ ok: false, error: error.message || "AI dropdown resolution failed." }));
+    return true;
+  }
+
+  if (message?.type === "plan-dom-fields") {
+    planDomFields(message)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || "AI DOM planning failed." }));
     return true;
   }
 

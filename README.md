@@ -14,6 +14,8 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Provides a popup window for pasting a job description or detecting it from the current page.
 - Syncs the saved profile and resume from a backend bound to `127.0.0.1`.
 - Uses structured Workday mappings for repeated experience, education, language, and skill controls instead of asking AI to guess field boundaries.
+- Scans unresolved visible controls into a compact semantic DOM schema containing labels, sections, control types, requirements, and exact available options.
+- Sends that schema to the backend AI for a field plan, then uses a guarded browser executor to fill, select, validate, wait for dynamic controls, and re-scan up to three rounds.
 - Adds Workday skills one at a time through the site's suggestion list so each value becomes a confirmed token.
 - Applies saved Indeed preferences to commute/relocation, prior-employment, employee-referral, and relatives-at-employer questions by reading the complete radio-group question.
 - Supports explicit employer-friendly defaults for travel, onsite work, flexible schedules, screenings, and criminal-record questions while keeping unsupported factual claims out of AI-generated answers.
@@ -32,7 +34,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Uses DeepSeek JSON output to draft answers from CV evidence plus the job description.
 - Works on ordinary HTML forms and dispatches the events commonly required by React-based forms.
 - Highlights required fields that still need manual review.
-- Never clicks Submit and never sends profile data to an external service.
+- Never clicks Submit; the local backend sends only the configured profile evidence, CV, JD, page context, and semantic field schema to the configured AI provider.
 - Leaves self-identification questions untouched unless the user explicitly configures an answer, and always ignores salary, consent, signature, and background-check fields unless a custom rule is added.
 
 ## Install in Chrome
@@ -108,7 +110,7 @@ DeepSeek through the local backend is the default. An entirely local Ollama fall
 3. In extension settings, enable **Use local AI**, enter the same model name, paste the resume text, and save.
 4. Click **Fill with CV + JD**. Deterministic answers are green, AI drafts are purple, and unresolved required fields are yellow.
 
-Both AI providers are instructed to leave unsupported answers blank and are never asked to answer demographic, authorization, sponsorship, compensation, consent, or legal questions. Those fields use only explicitly saved deterministic answers. Review every purple field before submitting. Ollama structured JSON responses are documented at [docs.ollama.com](https://docs.ollama.com/capabilities/structured-outputs).
+Both AI providers are instructed to leave unsupported answers blank. Demographic, authorization, sponsorship, and other sensitive facts are available to the semantic planner only when **Allow backend AI to use saved demographic and legal answers** is enabled, and then only from explicitly saved profile values. Submit, signature, certification, attestation, consent, privacy, terms, compensation, government-identifier, and birth-date actions are always excluded. Review every purple field before submitting. Ollama structured JSON responses are documented at [docs.ollama.com](https://docs.ollama.com/capabilities/structured-outputs).
 
 PDF text extraction uses the open-source Mozilla PDF.js distribution; its license is included in `vendor/PDFJS-LICENSE.txt`.
 

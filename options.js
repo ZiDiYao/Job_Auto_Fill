@@ -60,6 +60,7 @@ const defaultProfile = {
   veteranStatus: "",
   aiEnabled: false,
   includeJdSkills: false,
+  aiAnalyzeDom: true,
   aiResolveDropdowns: false,
   aiUseSensitiveProfile: false,
   aiProvider: "backend",

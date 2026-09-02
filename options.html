@@ -142,8 +142,12 @@
             Add all technical skills requested or preferred in the JD to recruiting-system skill fields
           </label>
           <label class="check">
+            <input name="aiAnalyzeDom" type="checkbox" />
+            Analyze unresolved visible form controls as a semantic DOM schema, then safely execute and verify the AI field plan
+          </label>
+          <label class="check">
             <input name="aiResolveDropdowns" type="checkbox" />
-            Let backend AI analyze unmatched Workday dropdown questions and choose an exact available option
+            Also run the specialized Workday dropdown resolver before the general DOM planner
           </label>
           <label class="check">
             <input name="aiUseSensitiveProfile" type="checkbox" />

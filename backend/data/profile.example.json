@@ -116,6 +116,7 @@
   },
   "aiEnabled": true,
   "includeJdSkills": false,
+  "aiAnalyzeDom": true,
   "aiResolveDropdowns": false,
   "aiUseSensitiveProfile": false,
   "aiProvider": "backend",
