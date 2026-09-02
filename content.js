@@ -406,6 +406,7 @@
   function setStructuredValue(field, value) {
     if (!field || value === undefined || value === null) return false;
     const desired = String(value);
+    if (!desired.trim()) return false;
     field.dataset.localJobAutofillStructured = "true";
     if (String(field.value ?? field.textContent ?? "") === desired) return false;
     if (!setNativeValue(field, desired)) return false;
@@ -420,6 +421,17 @@
 
   function workdayField(prefix, suffix) {
     return document.getElementById(`${prefix}--${suffix}`);
+  }
+
+  function workdayMonthValue(value) {
+    const text = String(value ?? "").trim();
+    if (!text) return "";
+    const monthNames = [
+      "january", "february", "march", "april", "may", "june",
+      "july", "august", "september", "october", "november", "december",
+    ];
+    const monthIndex = monthNames.findIndex((month) => normalize(text).startsWith(month.slice(0, 3)));
+    return monthIndex >= 0 ? String(monthIndex + 1) : text;
   }
 
   function visiblePromptOptions() {
@@ -775,18 +787,29 @@
       }
     }
 
-    const education = Array.isArray(profile.educationEntries) ? profile.educationEntries[0] : null;
+    const storedEducation = Array.isArray(profile.educationEntries) ? (profile.educationEntries[0] || {}) : {};
+    const education = {
+      ...storedEducation,
+      school: profile.school || storedEducation.school || "",
+      degree: profile.degree || storedEducation.degree || "",
+      fieldOfStudy: profile.fieldOfStudy || storedEducation.fieldOfStudy || "",
+      gpa: profile.gpa || storedEducation.gpa || "",
+      startYear: profile.educationStartYear || storedEducation.startYear || "",
+      endMonth: profile.graduationMonth || storedEducation.endMonth || "",
+      endDay: profile.graduationDay || storedEducation.endDay || "",
+      endYear: profile.graduationYear || storedEducation.endYear || "",
+    };
     const schoolField = document.querySelector('input[id^="education-"][id$="--school"]');
-    if (education && schoolField) {
+    if (education.school && schoolField) {
       const prefix = workdayPrefix(schoolField);
       await chooseWorkdayPrompt(schoolField, education.school);
       await chooseWorkdayButton(workdayField(prefix, "degree"), education.degree);
       await chooseWorkdayPrompt(workdayField(prefix, "fieldOfStudy"), education.fieldOfStudy);
       setStructuredValue(workdayField(prefix, "gradeAverage"), education.gpa);
-      setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionMonth-input"), education.startMonth);
+      setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionMonth-input"), workdayMonthValue(education.startMonth));
       setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionDay-input"), education.startDay);
       setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionYear-input"), education.startYear);
-      setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionMonth-input"), education.endMonth);
+      setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionMonth-input"), workdayMonthValue(education.endMonth));
       setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionDay-input"), education.endDay);
       setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionYear-input"), education.endYear);
     }
