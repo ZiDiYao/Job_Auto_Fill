@@ -231,6 +231,28 @@
     descriptor?.set?.call(input, String(value));
     input.dispatchEvent(new Event("input", { bubbles: true }));
 
+    if (multi) {
+      await wait(140);
+      for (const type of ["keydown", "keypress", "keyup"]) {
+        input.dispatchEvent(new KeyboardEvent(type, {
+          key: "Enter",
+          code: "Enter",
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+        }));
+      }
+      await wait(180);
+      const updatedText = normalize(container?.querySelector('[role="listbox"]')?.textContent || "");
+      if (updatedText.includes(normalize(value))) {
+        mark(input, "filled");
+        result.filled += 1;
+        return true;
+      }
+      mark(input, "review");
+      return false;
+    }
+
     let match = null;
     for (let attempt = 0; attempt < 10 && !match; attempt += 1) {
       await wait(180);
@@ -241,10 +263,24 @@
     }
 
     if (!match) {
-      descriptor?.set?.call(input, "");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      mark(input, "review");
-      return false;
+      input.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter",
+        code: "Enter",
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+      }));
+      await wait(180);
+      const updatedText = normalize(container?.querySelector('[role="listbox"]')?.textContent || "");
+      if (!updatedText.includes(normalize(value))) {
+        descriptor?.set?.call(input, "");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        mark(input, "review");
+        return false;
+      }
+      mark(input, "filled");
+      result.filled += 1;
+      return true;
     }
 
     match.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
