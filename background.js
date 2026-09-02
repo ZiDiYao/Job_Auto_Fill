@@ -17,6 +17,9 @@ const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 const LAST_SUBMISSION_SAVE_KEY = "jobAutofillLastSubmissionSave";
 const TARGET_APPLICATION_TAB_KEY = "jobAutofillTargetApplicationTabId";
 const POPUP_PAGE_URL = chrome.runtime.getURL?.("popup.html") || "popup.html";
+const POPUP_DEFAULT_WIDTH = 460;
+const POPUP_DEFAULT_HEIGHT = 720;
+const POPUP_WINDOW_MARGIN = 16;
 const DEFAULT_AUTO_ADVANCE_DELAY_MS = 900;
 const MIN_AUTO_ADVANCE_DELAY_MS = 500;
 const activeAutoAdvanceSessions = new Map();
@@ -48,31 +51,57 @@ async function getTargetApplicationTab() {
   return null;
 }
 
+function popupBoundsForSourceWindow(sourceWindow) {
+  const sourceWidth = Number(sourceWindow?.width || 0);
+  const sourceHeight = Number(sourceWindow?.height || 0);
+  const width = sourceWidth
+    ? Math.max(360, Math.min(POPUP_DEFAULT_WIDTH, sourceWidth - (POPUP_WINDOW_MARGIN * 2)))
+    : POPUP_DEFAULT_WIDTH;
+  const height = sourceHeight
+    ? Math.max(480, Math.min(POPUP_DEFAULT_HEIGHT, sourceHeight - (POPUP_WINDOW_MARGIN * 2)))
+    : POPUP_DEFAULT_HEIGHT;
+  const bounds = { width: Math.round(width), height: Math.round(height) };
+  if (Number.isFinite(sourceWindow?.left) && Number.isFinite(sourceWindow?.top) && sourceWidth && sourceHeight) {
+    bounds.left = Math.round(sourceWindow.left + sourceWidth - width - POPUP_WINDOW_MARGIN);
+    bounds.top = Math.round(sourceWindow.top + POPUP_WINDOW_MARGIN);
+  }
+  return bounds;
+}
+
+async function popupBoundsForTab(sourceTab) {
+  if (!sourceTab?.windowId || !chrome.windows?.get) return popupBoundsForSourceWindow(null);
+  const sourceWindow = await chrome.windows.get(sourceTab.windowId).catch(() => null);
+  return popupBoundsForSourceWindow(sourceWindow);
+}
+
 async function openAutofillPopupWindow(sourceTab) {
   await rememberTargetApplicationTab(sourceTab);
+  const bounds = await popupBoundsForTab(sourceTab);
 
   if (autofillPopupWindowId && chrome.windows?.get) {
     const existing = await chrome.windows.get(autofillPopupWindowId).catch(() => null);
     if (existing) {
-      await chrome.windows.update(autofillPopupWindowId, { focused: true });
+      await chrome.windows.update(autofillPopupWindowId, { ...bounds, focused: true });
       return existing;
     }
   }
 
   if (chrome.tabs?.query) {
-    const [existingTab] = await chrome.tabs.query({ url: POPUP_PAGE_URL });
-    if (existingTab?.windowId && chrome.windows?.update) {
+    const existingTabs = await chrome.tabs.query({ url: POPUP_PAGE_URL });
+    for (const existingTab of existingTabs) {
+      if (!existingTab?.windowId || !chrome.windows?.update || !chrome.windows?.get) continue;
+      const existingWindow = await chrome.windows.get(existingTab.windowId).catch(() => null);
+      if (existingWindow?.type !== "popup") continue;
       autofillPopupWindowId = existingTab.windowId;
-      await chrome.windows.update(existingTab.windowId, { focused: true });
-      return { id: existingTab.windowId };
+      await chrome.windows.update(existingTab.windowId, { ...bounds, focused: true });
+      return existingWindow;
     }
   }
 
   const created = await chrome.windows.create({
     url: POPUP_PAGE_URL,
     type: "popup",
-    width: 440,
-    height: 780,
+    ...bounds,
     focused: true,
   });
   autofillPopupWindowId = Number(created?.id || 0);

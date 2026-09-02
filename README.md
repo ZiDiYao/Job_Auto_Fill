@@ -11,7 +11,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Stores a user-selected resume locally and attaches it to recognizable Resume/CV upload fields.
 - Uses the configured backend AI after a resume upload to prefill only blank, evidence-backed contact and education fields, creating separate editable records for every recognized school or credential (including high school, college, bachelor's, master's, and doctoral education); validated legal, demographic, medical, and criminal-history fields are never inferred from a resume.
 - Optionally uses a free local Ollama model to draft unmatched open-ended questions from resume text and visible job context.
-- Opens a movable, resizable extension window for reviewing the detected job description and controlling autofill while the application remains visible behind it.
+- Opens a compact, movable, resizable extension window inside the current Chrome window's visible area, repositioning it beside the active application whenever the toolbar icon is clicked.
 - Fills the current application without opening the popup through `Command+Shift+Y` on macOS or `Ctrl+Shift+Y` on Windows/Linux.
 - Optionally watches full navigations and single-page application step changes, recognizes application forms, and fills each new page automatically after one-time website access is approved.
 - Automatically saves Profile, AI, and Application History settings after editing stops; slow writes are serialized so older data cannot overwrite newer changes.

@@ -98,6 +98,7 @@ function loadBackground({ fetchImpl, initialStorage = {}, scripting, tabs, permi
 
 test("toolbar action opens a movable popup window and remembers the application tab", async () => {
   const createdWindows = [];
+  const updatedWindows = [];
   const webTab = { id: 73, windowId: 4, url: "https://jobs.example/apply", title: "Apply" };
   const background = loadBackground({
     tabs: {
@@ -106,8 +107,11 @@ test("toolbar action opens a movable popup window and remembers the application 
     },
     windows: {
       async create(options) { createdWindows.push(options); return { id: 91 }; },
-      async get() { return { id: 91 }; },
-      async update() {},
+      async get(windowId) {
+        if (windowId === 4) return { id: 4, type: "normal", left: 100, top: 50, width: 1200, height: 900 };
+        return { id: 91, type: "popup" };
+      },
+      async update(windowId, options) { updatedWindows.push([windowId, options]); },
     },
   });
 
@@ -118,8 +122,10 @@ test("toolbar action opens a movable popup window and remembers the application 
   assert.deepEqual(JSON.parse(JSON.stringify(createdWindows[0])), {
     url: "chrome-extension://test/popup.html",
     type: "popup",
-    width: 440,
-    height: 780,
+    width: 460,
+    height: 720,
+    left: 824,
+    top: 66,
     focused: true,
   });
 
@@ -127,6 +133,43 @@ test("toolbar action opens a movable popup window and remembers the application 
   assert.equal(target.ok, true);
   assert.equal(target.tab.id, 73);
   assert.equal(target.tab.url, webTab.url);
+
+  background.clickAction({ ...webTab, windowId: 4 });
+  for (let index = 0; index < 10 && updatedWindows.length === 0; index += 1) await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(JSON.parse(JSON.stringify(updatedWindows[0])), [91, {
+    width: 460,
+    height: 720,
+    left: 824,
+    top: 66,
+    focused: true,
+  }]);
+});
+
+test("toolbar action ignores a popup page opened in a normal full-size browser window", async () => {
+  const createdWindows = [];
+  const webTab = { id: 80, windowId: 8, url: "https://jobs.example/apply", title: "Apply" };
+  const background = loadBackground({
+    tabs: {
+      async query(query) { return query.url ? [{ id: 81, windowId: 9, url: "chrome-extension://test/popup.html" }] : [webTab]; },
+      async get(tabId) { return tabId === webTab.id ? webTab : null; },
+    },
+    windows: {
+      async create(options) { createdWindows.push(options); return { id: 92 }; },
+      async get(windowId) {
+        if (windowId === 8) return { id: 8, type: "normal", left: 0, top: 0, width: 1000, height: 800 };
+        if (windowId === 9) return { id: 9, type: "normal", left: 0, top: 0, width: 1000, height: 800 };
+        return null;
+      },
+      async update() { throw new Error("A normal browser window must not be reused as the autofill popup"); },
+    },
+  });
+
+  background.clickAction(webTab);
+  for (let index = 0; index < 10 && createdWindows.length === 0; index += 1) await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(createdWindows.length, 1);
+  assert.equal(createdWindows[0].type, "popup");
+  assert.equal(createdWindows[0].width, 460);
+  assert.equal(createdWindows[0].height, 720);
 });
 
 test("auto-advance button policy permits navigation but blocks final and consent actions", () => {
