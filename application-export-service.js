@@ -1,8 +1,8 @@
 import { ApplicationExporterFactory } from "./exporters/exporter-factory.js";
 
-const DESTINATION_LABELS = { markdown: "Markdown", spreadsheet: "Excel", notion: "Notion" };
+const DESTINATION_LABELS = { markdown: "Markdown", spreadsheet: "Excel" };
 
-export async function exportApplication({ settings, job, directories = {}, persistNotionSettings }) {
+export async function exportApplication({ settings, job, directories = {} }) {
   const enabled = Object.entries(settings?.destinations || {})
     .filter(([, selected]) => selected === true)
     .map(([type]) => type);
@@ -10,29 +10,19 @@ export async function exportApplication({ settings, job, directories = {}, persi
 
   const saved = [];
   const failures = [];
-  let latestSettings = settings;
   for (const type of enabled) {
     const label = DESTINATION_LABELS[type] || type;
     try {
       const exporter = ApplicationExporterFactory.create(type, {
         directory: directories[type],
         filename: settings.spreadsheetFilename,
-        settings: latestSettings.notion,
-        onProgress: async (notion) => {
-          latestSettings = { ...latestSettings, notion };
-          await persistNotionSettings?.(latestSettings);
-        },
       });
-      const result = await exporter.save(job);
-      if (type === "notion") {
-        latestSettings = { ...latestSettings, notion: result.workspace };
-        await persistNotionSettings?.(latestSettings);
-      }
+      await exporter.save(job);
       saved.push(label);
     } catch (error) {
       failures.push(`${label}: ${error.message}`);
     }
   }
   if (!saved.length) throw new Error(failures.join(" · ") || "No application record was saved.");
-  return { saved, failures, settings: latestSettings };
+  return { saved, failures, settings };
 }

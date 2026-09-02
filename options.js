@@ -5,10 +5,6 @@ import {
   getSavedExportDirectory,
   hasDirectoryPermission,
 } from "./local-directory.js";
-import {
-  createNotionWorkspace,
-  verifyNotionWorkspace,
-} from "./notion-export.js";
 import { normalizeSkillKey, parseSkillList } from "./skills-preview.js";
 import { createDebouncedAutosave } from "./settings-autosave.mjs";
 import {
@@ -35,23 +31,15 @@ const excelFolderStatus = document.querySelector("#excelFolderStatus");
 const historySaveTrigger = document.querySelector("#historySaveTrigger");
 const exportMarkdown = document.querySelector("#exportMarkdown");
 const exportSpreadsheet = document.querySelector("#exportSpreadsheet");
-const exportNotion = document.querySelector("#exportNotion");
 const spreadsheetFilename = document.querySelector("#spreadsheetFilename");
 const applicationStatus = document.querySelector("#applicationStatus");
-const notionToken = document.querySelector("#notionToken");
-const notionParentPageId = document.querySelector("#notionParentPageId");
-const notionRootPageTitle = document.querySelector("#notionRootPageTitle");
-const notionStatus = document.querySelector("#notionStatus");
-const notionConnectionAction = document.querySelector("#notionConnectionAction");
 const privacyLocalProcessing = document.querySelector("#privacyLocalProcessing");
 const privacyAutomaticPageAccess = document.querySelector("#privacyAutomaticPageAccess");
 const privacyCloudAi = document.querySelector("#privacyCloudAi");
 const privacySensitiveAi = document.querySelector("#privacySensitiveAi");
-const privacyNotion = document.querySelector("#privacyNotion");
 const privacyStatus = document.querySelector("#privacyStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 const AUTO_FILL_ORIGINS = ["https://*/*"];
-const NOTION_ORIGIN = "https://api.notion.com/*";
 
 const SETTINGS_PAGES = {
   profile: {
@@ -77,7 +65,7 @@ const SETTINGS_PAGES = {
   privacy: {
     hash: "#privacy",
     title: "Privacy & data",
-    description: "Control page access, AI sharing, sensitive-answer use, Notion access, and locally stored data.",
+    description: "Control page access, AI sharing, sensitive-answer use, and locally stored data.",
   },
 };
 
@@ -149,29 +137,15 @@ function normalizeExportSettings(value = {}) {
     destinations: {
       markdown: value.destinations?.markdown !== false,
       spreadsheet: value.destinations?.spreadsheet === true,
-      notion: value.destinations?.notion === true,
     },
     spreadsheetFilename: String(value.spreadsheetFilename || "Job Applications.csv"),
     applicationStatus: String(value.applicationStatus || "Saved"),
-    notion: {
-      token: String(value.notion?.token || ""),
-      connectionMode: String(value.notion?.connectionMode || ""),
-      workspaceLevel: value.notion?.workspaceLevel === true,
-      workspaceId: String(value.notion?.workspaceId || ""),
-      workspaceName: String(value.notion?.workspaceName || ""),
-      parentPageId: String(value.notion?.parentPageId || ""),
-      rootPageTitle: String(value.notion?.rootPageTitle || "Job Application"),
-      rootPageId: String(value.notion?.rootPageId || ""),
-      databaseId: String(value.notion?.databaseId || ""),
-      dataSourceId: String(value.notion?.dataSourceId || ""),
-    },
   };
 }
 
 const exportDestinationControls = [
   ["markdown", exportMarkdown],
   ["spreadsheet", exportSpreadsheet],
-  ["notion", exportNotion],
 ];
 
 function updateExportOptionVisibility() {
@@ -180,17 +154,6 @@ function updateExportOptionVisibility() {
     if (options) options.hidden = !control.checked;
     options?.closest(".export-destination")?.classList.toggle("enabled", control.checked);
   }
-}
-
-function notionIsConnected(notion = {}) {
-  return Boolean(notion.token && notion.dataSourceId);
-}
-
-function renderNotionConnectionAction(notion = {}) {
-  const connected = notionIsConnected(notion);
-  notionConnectionAction.textContent = connected ? "Disconnect Notion" : "Connect Notion";
-  notionConnectionAction.classList.toggle("primary", !connected);
-  notionConnectionAction.classList.toggle("danger", connected);
 }
 
 for (const [, control] of exportDestinationControls) {
@@ -202,16 +165,8 @@ function renderExportSettings(value) {
   historySaveTrigger.value = settings.historySaveTrigger;
   exportMarkdown.checked = settings.destinations.markdown;
   exportSpreadsheet.checked = settings.destinations.spreadsheet;
-  exportNotion.checked = settings.destinations.notion;
   spreadsheetFilename.value = settings.spreadsheetFilename;
   applicationStatus.value = settings.applicationStatus;
-  notionToken.value = settings.notion.token;
-  notionParentPageId.value = settings.notion.parentPageId;
-  notionRootPageTitle.value = settings.notion.rootPageTitle;
-  notionStatus.textContent = settings.notion.dataSourceId
-    ? `Connected${settings.notion.workspaceName ? ` to ${settings.notion.workspaceName}` : ""} · Application List is ready`
-    : "Notion is not connected";
-  renderNotionConnectionAction(settings.notion);
   updateExportOptionVisibility();
   return settings;
 }
@@ -225,16 +180,9 @@ async function collectExportSettings() {
     destinations: {
       markdown: exportMarkdown.checked,
       spreadsheet: exportSpreadsheet.checked,
-      notion: exportNotion.checked,
     },
     spreadsheetFilename: String(spreadsheetFilename.value || "Job Applications.csv").trim(),
     applicationStatus: applicationStatus.value || "Saved",
-    notion: {
-      ...current.notion,
-      token: notionToken.value.trim() || current.notion.token,
-      parentPageId: notionParentPageId.value.trim() || current.notion.parentPageId,
-      rootPageTitle: notionRootPageTitle.value.trim() || "Job Application",
-    },
   };
 }
 
@@ -1188,11 +1136,6 @@ for (const [destination, label, statusElement] of [
   });
 }
 
-function randomOAuthState() {
-  const bytes = crypto.getRandomValues(new Uint8Array(24));
-  return [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
-}
-
 async function backendJson(path, options = {}) {
   const response = await fetch(`http://127.0.0.1:17840${path}`, options);
   const payload = await response.json().catch(() => ({}));
@@ -1207,12 +1150,6 @@ function renderPrivacyChoices(value) {
   privacyCloudAi.checked = consent.cloudAi;
   privacySensitiveAi.checked = consent.cloudAi && consent.sensitiveAi;
   privacySensitiveAi.disabled = !consent.cloudAi;
-  privacyNotion.checked = consent.notion;
-}
-
-async function currentPrivacyConsent() {
-  const cached = await chrome.storage.local.get(PRIVACY_CONSENT_KEY);
-  return normalizePrivacyConsent(cached[PRIVACY_CONSENT_KEY]);
 }
 
 async function savePrivacyChoices() {
@@ -1224,13 +1161,6 @@ async function savePrivacyChoices() {
     await chrome.permissions.remove({ origins: AUTO_FILL_ORIGINS }).catch(() => false);
   }
 
-  let notion = privacyLocalProcessing.checked && privacyNotion.checked;
-  if (notion) notion = await chrome.permissions.request({ origins: [NOTION_ORIGIN] });
-  else {
-    await chrome.permissions.remove({ origins: [NOTION_ORIGIN] }).catch(() => false);
-    await chrome.permissions.remove({ permissions: ["identity"] }).catch(() => false);
-  }
-
   const consent = {
     version: PRIVACY_CONSENT_VERSION,
     acceptedAt: privacyLocalProcessing.checked ? new Date().toISOString() : "",
@@ -1238,7 +1168,6 @@ async function savePrivacyChoices() {
     automaticPageAccess,
     cloudAi: privacyLocalProcessing.checked && privacyCloudAi.checked,
     sensitiveAi: privacyLocalProcessing.checked && privacyCloudAi.checked && privacySensitiveAi.checked,
-    notion,
   };
   await chrome.storage.local.set({ [PRIVACY_CONSENT_KEY]: consent });
   await chrome.runtime.sendMessage({ type: "privacy-consent-updated" }).catch(() => null);
@@ -1262,161 +1191,19 @@ document.querySelector("#savePrivacyChoices").addEventListener("click", async ()
 });
 
 document.querySelector("#deleteLocalData").addEventListener("click", async () => {
-  if (!confirm("Delete the saved profile, resume, settings, history cache, and connected-service tokens from this browser and local backend? Exported files and existing Notion pages are not deleted.")) return;
+  if (!confirm("Delete the saved profile, resume, settings, and history cache from this browser and local backend? Exported files are not deleted.")) return;
   privacyStatus.textContent = "Deleting local data…";
   try {
     await backendJson("/api/data", { method: "DELETE" });
   } catch {
     // Browser-local deletion remains available if the optional local backend is stopped.
   }
-  await chrome.permissions.remove({ origins: [...AUTO_FILL_ORIGINS, NOTION_ORIGIN] }).catch(() => false);
-  await chrome.permissions.remove({ permissions: ["identity"] }).catch(() => false);
+  await chrome.permissions.remove({ origins: AUTO_FILL_ORIGINS }).catch(() => false);
   await chrome.storage.local.clear();
   location.replace(chrome.runtime.getURL("onboarding.html"));
 });
 
-notionConnectionAction.addEventListener("click", async () => {
-  const cached = await chrome.storage.local.get(NOTE_SETTINGS_KEY);
-  const current = normalizeExportSettings(cached[NOTE_SETTINGS_KEY]);
-  if (notionIsConnected(current.notion)) {
-    current.destinations.notion = false;
-    current.notion = {
-      rootPageTitle: current.notion.rootPageTitle,
-      token: "",
-      parentPageId: "",
-      connectionMode: "",
-      workspaceLevel: false,
-      workspaceId: "",
-      workspaceName: "",
-      rootPageId: "",
-      databaseId: "",
-      dataSourceId: "",
-    };
-    exportNotion.checked = false;
-    notionToken.value = "";
-    notionParentPageId.value = "";
-    await persistExportSettings(current);
-    await chrome.permissions.remove({ permissions: ["identity"] }).catch(() => false);
-    renderNotionConnectionAction(current.notion);
-    updateExportOptionVisibility();
-    notionStatus.textContent = "Notion disconnected; existing Notion pages were not deleted";
-    return;
-  }
-
-  const privacy = await currentPrivacyConsent();
-  if (!privacy.notion) {
-    notionStatus.textContent = "Enable Notion export in Privacy & Data before connecting.";
-    showSettingsPage("privacy", { updateHash: true });
-    return;
-  }
-  const notionPermission = await chrome.permissions.request({
-    permissions: ["identity"],
-    origins: [NOTION_ORIGIN],
-  });
-  if (!notionPermission) {
-    notionStatus.textContent = "Notion access was not granted.";
-    return;
-  }
-
-  const button = notionConnectionAction;
-  button.disabled = true;
-  notionStatus.textContent = "Opening Notion sign-in…";
-  try {
-    const oauth = await backendJson("/api/notion/oauth-config");
-    if (!oauth.configured || !oauth.clientId) {
-      throw new Error("Add the Notion OAuth client ID and secret to local-data/local-config.json, then restart Docker.");
-    }
-    const redirectUri = chrome.identity.getRedirectURL("notion");
-    const state = randomOAuthState();
-    const authorizationUrl = new URL("https://api.notion.com/v1/oauth/authorize");
-    authorizationUrl.searchParams.set("client_id", oauth.clientId);
-    authorizationUrl.searchParams.set("response_type", "code");
-    authorizationUrl.searchParams.set("owner", "user");
-    authorizationUrl.searchParams.set("redirect_uri", redirectUri);
-    authorizationUrl.searchParams.set("state", state);
-
-    const redirect = await chrome.identity.launchWebAuthFlow({ url: authorizationUrl.toString(), interactive: true });
-    if (!redirect) throw new Error("Notion sign-in was cancelled.");
-    const resultUrl = new URL(redirect);
-    if (resultUrl.searchParams.get("state") !== state) throw new Error("Notion OAuth state validation failed.");
-    if (resultUrl.searchParams.get("error")) throw new Error(resultUrl.searchParams.get("error_description") || resultUrl.searchParams.get("error"));
-    const code = resultUrl.searchParams.get("code");
-    if (!code) throw new Error("Notion did not return an authorization code.");
-
-    const token = await backendJson("/api/notion/oauth/exchange", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, redirectUri }),
-    });
-    let settings = await collectExportSettings();
-    settings.destinations.notion = true;
-    settings.notion = {
-      ...settings.notion,
-      token: token.accessToken,
-      parentPageId: "",
-      connectionMode: "oauth",
-      workspaceLevel: true,
-      workspaceId: token.workspaceId || "",
-      workspaceName: token.workspaceName || "",
-      rootPageId: "",
-      databaseId: "",
-      dataSourceId: "",
-    };
-    settings.notion = await createNotionWorkspace(settings.notion, {
-      onProgress: async (notion) => {
-        settings = { ...settings, notion };
-        await persistExportSettings(settings);
-      },
-    });
-    await verifyNotionWorkspace(settings.notion);
-    exportNotion.checked = true;
-    updateExportOptionVisibility();
-    await persistExportSettings(settings);
-    renderNotionConnectionAction(settings.notion);
-    notionStatus.textContent = `Connected${settings.notion.workspaceName ? ` to ${settings.notion.workspaceName}` : ""} · Application List is ready`;
-  } catch (error) {
-    notionStatus.textContent = error.message || "Could not sign in with Notion.";
-  } finally {
-    button.disabled = false;
-  }
-});
-
-document.querySelector("#setupNotion").addEventListener("click", async () => {
-  const privacy = await currentPrivacyConsent();
-  if (!privacy.notion) {
-    notionStatus.textContent = "Enable Notion export in Privacy & Data before connecting.";
-    showSettingsPage("privacy", { updateHash: true });
-    return;
-  }
-  const notionPermission = await chrome.permissions.request({ origins: [NOTION_ORIGIN] });
-  if (!notionPermission) {
-    notionStatus.textContent = "Notion access was not granted.";
-    return;
-  }
-  notionStatus.textContent = "Connecting to Notion and preparing Application List…";
-  try {
-    let settings = await collectExportSettings();
-    settings.destinations.notion = true;
-    settings.notion = { ...settings.notion, connectionMode: "internal", workspaceLevel: false };
-    settings.notion = await createNotionWorkspace(settings.notion, {
-      onProgress: async (notion) => {
-        settings = { ...settings, notion };
-        await persistExportSettings(settings);
-      },
-    });
-    await verifyNotionWorkspace(settings.notion);
-    exportNotion.checked = true;
-    updateExportOptionVisibility();
-    await persistExportSettings(settings);
-    renderNotionConnectionAction(settings.notion);
-    notionStatus.textContent = "Connected · Job Application / Application List is ready";
-  } catch (error) {
-    notionStatus.textContent = error.message || "Could not connect to Notion.";
-  }
-});
-
 async function initialize() {
-  document.querySelector("#notionRedirectUrl").textContent = `https://${chrome.runtime.id}.chromiumapp.org/notion`;
   const cached = await chrome.storage.local.get([PROFILE_KEY, NOTE_SETTINGS_KEY, LAST_SKILL_SELECTION_KEY, PRIVACY_CONSENT_KEY]);
   if (!hasRequiredPrivacyConsent(cached[PRIVACY_CONSENT_KEY])) {
     renderPrivacyChoices(cached[PRIVACY_CONSENT_KEY]);

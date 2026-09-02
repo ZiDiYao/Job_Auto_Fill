@@ -46,12 +46,9 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Normalizes expected-graduation dates from the saved month/day/year and commits masked Workday date widgets through sequential input events so values such as `05/01/2028` are accepted by React validation.
 - Supports Workday tenants that identify the school control as either `schoolName` or `school`, detects Education From/To years both by stable field IDs and row order, and verifies the React-controlled values after filling.
 - Lets users drop a PDF into the autofill window and persists it in the local Docker-mounted resume file until another PDF replaces it.
-- Gives Markdown, Excel, and Notion separate collapsible Application History sections that reveal their settings only when enabled.
+- Gives Markdown and Excel separate collapsible Application History sections that reveal their settings only when enabled.
 - Lets users save application history manually, when autofill runs, or automatically after their own final Submit action; the extension records the status as `Submitted` without clicking Submit itself.
 - Lets Markdown and Excel use independent remembered folders instead of coupling both formats to one destination.
-- Supports Notion OAuth sign-in in a Chrome authorization window, while retaining internal-integration tokens as an optional local developer mode.
-- Creates a user-named Notion root page with an inline **Application List** whose rows open into job-detail pages containing a
-  summary, the complete JD, source URL, resume name, application date, status, and interview-preparation template.
 - Upserts the same posting instead of duplicating it and includes date/month/status columns suitable for Excel pivot tables and
   application-trend charts.
 - Uses a Strategy + Factory provider layer to switch between DeepSeek and OpenAI without coupling application logic to either API.
@@ -133,49 +130,16 @@ Build the Chrome Web Store ZIP from an explicit allowlist of extension files:
 
 The archive is written under `dist/`. It deliberately excludes the Docker backend, `local-data/`, credentials, saved profiles, resumes, tests, and development documentation.
 
-## Application history: Markdown, Excel, and Notion
+## Application history: Markdown and Excel
 
 The extension settings are separated into **General**, **Profile**, **AI**, and **Application History** tabs. Application History
-has independent **Markdown**, **Excel**, and **Notion** sections. Each destination is implemented as its own exporter strategy,
+has independent **Markdown** and **Excel** sections. Each destination is implemented as its own exporter strategy,
 selected by a small factory when a record is saved. Markdown and Excel remember independent folders through the browser's
 directory picker. The `.csv` file is UTF-8 Excel-compatible and stores one row per
 posting with application date, month, company, role, location, status, URL, resume, summary, complete JD, and last-saved time.
 Saving the same posting again updates its row. The save trigger is configurable: manual only, when autofill runs, or after the
 user clicks the final Submit control. Submit-triggered records use the `Submitted` status; the extension only observes that user
 action and never performs the submission.
-
-For Notion OAuth:
-
-1. Create a Notion **public integration** and enable read, insert, and update-content capabilities.
-2. Open **Application History → Notion** and copy the OAuth redirect URL shown by the extension into the integration's redirect URI settings.
-3. Add the public integration's client ID and client secret to `local-data/local-config.json` under `notion.oauth`, then run `docker compose restart`.
-4. Click **Connect Notion**. Chrome opens Notion's authorization screen; after approval, the backend exchanges the temporary code without exposing the client secret to the extension.
-
-```json
-{
-  "notion": {
-    "oauth": {
-      "clientId": "your-public-integration-client-id",
-      "clientSecret": "your-public-integration-client-secret"
-    }
-  }
-}
-```
-
-OAuth creates the root page at workspace level, so the user does not need to paste a parent-page ID. The generated workspace
-access token stays in that Chrome profile. For an eventual Chrome Web Store release, use the stable published extension ID's
-redirect URL and move the same code-exchange endpoint to a hosted HTTPS backend.
-
-Internal-token developer mode remains available under the collapsed section on the Notion page:
-
-1. Create a Notion internal integration with read, insert, and update-content capabilities.
-2. Create or choose a parent Notion page and share it with that integration.
-3. Paste the integration token and the parent page URL or ID into extension settings.
-4. Optionally rename the default root page, then click **Connect with token**.
-
-The extension creates the **Job Application** root page (or your chosen name) and an inline **Application List** database. Every database row is a clickable application
-page containing the summary, full JD, and interview sections. Notion credentials and generated IDs are stored only in that
-Chrome profile; they are not included in Git, Docker images, profile exports, or application webpages.
 
 ## Resume upload and AI profile setup
 
@@ -194,7 +158,7 @@ All AI strategies are instructed to leave unsupported answers blank. Demographic
 
 ## Privacy and Chrome Web Store review
 
-The first-run page requires consent for local processing and separately offers opt-in choices for automatic page access, cloud AI, sensitive-answer sharing with that AI, and Notion export. Broad website access is optional and requested only after the user enables automatic page access. Notion access is requested only when its integration is enabled. Users can revoke either permission from **Privacy & Data**, remove their saved resume, or use **Delete all local data** to clear browser storage and the companion backend's saved profile, resume, and extraction cache.
+The first-run page requires consent for local processing and separately offers opt-in choices for automatic page access, cloud AI, and sensitive-answer sharing with that AI. Broad website access is optional and requested only after the user enables automatic page access. Users can revoke optional permissions from **Privacy & Data**, remove their saved resume, or use **Delete all local data** to clear browser storage and the companion backend's saved profile, resume, and extraction cache.
 
 - [`PRIVACY.md`](PRIVACY.md) is the privacy-policy source that must also be published at a stable public HTTPS URL for the Chrome Web Store listing.
 - [`STORE_PRIVACY_DISCLOSURE.md`](STORE_PRIVACY_DISCLOSURE.md) maps the extension's data use to the Web Store privacy questionnaire.

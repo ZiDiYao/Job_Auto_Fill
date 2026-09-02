@@ -103,7 +103,6 @@ before(async () => {
   await writeFile(configPath, `${JSON.stringify({
     deepSeek: { apiKey: "integration-test-key", baseUrl: mockAiUrl, model: "mock-model" },
     openAI: { apiKey: "", model: "" },
-    notion: { oauth: { clientId: "notion-client", clientSecret: "notion-secret" } },
   })}\n`, "utf8");
 
   process.env.JOB_AUTOFILL_CONFIG_PATH = configPath;
@@ -111,8 +110,6 @@ before(async () => {
   process.env.JOB_AUTOFILL_RESUME_PATH = resumePath;
   delete process.env.DEEPSEEK_API_KEY;
   process.env.OPENAI_API_KEY = "";
-  delete process.env.NOTION_OAUTH_CLIENT_ID;
-  delete process.env.NOTION_OAUTH_CLIENT_SECRET;
 
   const { createServer } = await import("./server.js");
   server = createServer();
@@ -137,13 +134,6 @@ test("health endpoint exposes provider status without credentials", async () => 
   assert.equal(payload.providers.openai.configured, false);
   assert.equal(payload.resumeAvailable, false);
   assert.equal(JSON.stringify(payload).includes("integration-test-key"), false);
-});
-
-test("Notion OAuth configuration endpoint exposes only connection readiness and public client ID", async () => {
-  const { response, payload } = await request("/api/notion/oauth-config");
-  assert.equal(response.status, 200);
-  assert.deepEqual(payload, { configured: true, clientId: "notion-client" });
-  assert.equal(JSON.stringify(payload).includes("notion-secret"), false);
 });
 
 test("context endpoint initializes a blank profile and tolerates a missing resume", async () => {

@@ -9,7 +9,6 @@ export function normalizePrivacyConsent(value = {}) {
     automaticPageAccess: value.automaticPageAccess === true,
     cloudAi: value.cloudAi === true,
     sensitiveAi: value.sensitiveAi === true,
-    notion: value.notion === true,
   };
 }
 

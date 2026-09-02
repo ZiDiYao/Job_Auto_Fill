@@ -213,7 +213,6 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /After I submit an application/);
   assert.match(optionsHtml, /Only when I click Save application/);
   assert.ok(optionsHtml.indexOf('id="historySaveTrigger"') < optionsHtml.indexOf('id="exportMarkdown"'));
-  assert.match(optionsHtml, /id="exportNotion"/);
   assert.match(optionsHtml, /id="exportSpreadsheet"/);
   assert.match(optionsHtml, /data-settings-target="profile"/);
   assert.match(optionsHtml, /data-settings-target="general">General<\/button>/);
@@ -236,8 +235,6 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.doesNotMatch(optionsHtml, /Excluded by your limits|preview-explainers|preview-legend|ats-mock-header/);
   assert.match(optionsHtml, /data-settings-target="history"/);
   assert.match(optionsHtml, /id="exportMarkdown"/);
-  assert.match(optionsHtml, /id="notionConnectionAction"/);
-  assert.doesNotMatch(optionsHtml, /id="resetNotion"|Reset Notion link/);
   assert.match(optionsHtml, /id="saveStatus"[^>]*>All changes saved</);
   assert.doesNotMatch(optionsHtml, /id="syncBackend"|Reload backend/);
   assert.match(optionsHtml, /<h2>Languages<\/h2>/);
@@ -246,7 +243,6 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.doesNotMatch(optionsHtml, /id="saveTop"|id="saveBottom"|id="saveExportSettings"/);
   assert.match(optionsHtml, /data-export-options="markdown"/);
   assert.match(optionsHtml, /data-export-options="spreadsheet"/);
-  assert.match(optionsHtml, /data-export-options="notion"/);
   assert.doesNotMatch(optionsHtml, /Forget folder|forgetMarkdownFolder|forgetExcelFolder/);
   assert.match(optionsSource, /chooseExportDirectory/);
   assert.match(optionsSource, /forgetExportDirectory/);
@@ -254,12 +250,13 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsSource, /button\.dataset\.folderSelected === "true"/);
   assert.match(optionsSource, /refreshExportFolderStatus/);
   assert.match(optionsSource, /updateExportOptionVisibility/);
-  assert.match(optionsSource, /renderNotionConnectionAction/);
   assert.match(optionsSource, /createDebouncedAutosave/);
   assert.match(optionsSource, /form\.addEventListener\("input", queueChangedSetting\)/);
   assert.match(optionsSource, /form\.addEventListener\("change", queueChangedSetting\)/);
   assert.match(optionsSource, /updateIncompleteProfileFields/);
-  assert.match(optionsSource, /notionToken\.value\.trim\(\) \|\| current\.notion\.token/);
+  assert.doesNotMatch(optionsHtml, /Notion|exportNotion|notionConnectionAction|data-export-options="notion"/i);
+  assert.doesNotMatch(optionsSource, /Notion|launchWebAuthFlow|chrome\.identity/i);
+  assert.doesNotMatch(manifestSource, /api\.notion\.com|"identity"/i);
   assert.match(optionsHtml, /name="autoFillOnPageChange"/);
   assert.match(optionsHtml, /name="autoCaptureJobDescriptions"/);
   assert.match(manifestSource, /"fill-current-page"/);
@@ -288,5 +285,5 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.doesNotMatch(popupHtml, /Stop auto-advance/);
   assert.match(optionsSource, /showSettingsPage/);
   assert.match(optionsSource, /renderSkillPreview/);
-  assert.match(optionsSource, /launchWebAuthFlow/);
+  assert.doesNotMatch(optionsSource, /launchWebAuthFlow/);
 });

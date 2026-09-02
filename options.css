@@ -120,7 +120,6 @@ input[type="checkbox"] { accent-color: var(--blue); }
 #notesFolderStatus,
 #markdownFolderStatus,
 #excelFolderStatus,
-#notionStatus { color: var(--muted); font-size: 12px; }
 
 .export-nav { display: flex; gap: 22px; margin: 16px 0; border-bottom: 1px solid var(--border); }
 .export-tab { margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 9px 1px; color: #667085; background: transparent; }
@@ -141,13 +140,6 @@ input[type="checkbox"] { accent-color: var(--blue); }
 .folder-picker button { white-space: nowrap; }
 .folder-picker .folder-cancel { border-color: #d6d0c5; color: #5f574d; background: #fbf8f1; }
 .folder-picker .folder-cancel:hover { border-color: #c4bcaf; background: #f4efe5; }
-.oauth-card { border: 1px solid var(--border); border-radius: 4px; padding: 16px; background: #fff; }
-.oauth-card > p { margin: 4px 0 13px; font-size: 12px; }
-.notion-actions { margin-top: 13px; }
-.oauth-hint { margin-top: 10px !important; overflow-wrap: anywhere; }
-.manual-notion { border-top: 1px solid var(--border); padding-top: 13px; }
-.manual-notion .help { margin: 9px 0; }
-.manual-notion #setupNotion { margin-top: 11px; }
 .history-save-policy { margin: 16px 0 18px; border: 1px solid var(--border); border-radius: 5px; padding: 15px 16px; background: #fafbfc; }
 .history-trigger-label { display: grid; width: 100%; max-width: 560px; gap: 7px; }
 .history-trigger-label small { color: var(--muted); font-size: 11px; font-weight: 450; line-height: 1.45; }
@@ -256,7 +248,6 @@ code { border-radius: 3px; padding: 2px 4px; color: #344054; background: #eef1f4
 :root[data-theme="dark"] .resume-text,
 :root[data-theme="dark"] .skill-token { border-color: #514c45; color: #eee7dc; background: #24231f; }
 :root[data-theme="dark"] .export-destination,
-:root[data-theme="dark"] .oauth-card,
 :root[data-theme="dark"] .ats-mock,
 :root[data-theme="dark"] .skill-token-box { background: #151613; }
 :root[data-theme="dark"] .export-destination.enabled { border-color: #71695e; }

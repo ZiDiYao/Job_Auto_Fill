@@ -7,7 +7,7 @@
     "start": "node server.js",
     "check": "node --check server.js",
     "test": "node --test",
-    "test:coverage": "node --experimental-test-coverage --test --test-coverage-include='server.js' --test-coverage-include='notion-oauth.js' --test-coverage-include='ai/*.js' --test-coverage-lines=85 --test-coverage-functions=85 --test-coverage-branches=65"
+    "test:coverage": "node --experimental-test-coverage --test --test-coverage-include='server.js' --test-coverage-include='ai/*.js' --test-coverage-lines=85 --test-coverage-functions=85 --test-coverage-branches=65"
   },
   "engines": {
     "node": ">=20"

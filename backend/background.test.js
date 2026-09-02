@@ -20,7 +20,6 @@ function loadBackground({ fetchImpl, initialStorage = {}, scripting, tabs, permi
       automaticPageAccess: true,
       cloudAi: true,
       sensitiveAi: true,
-      notion: true,
     },
     ...initialStorage,
   });
@@ -323,7 +322,7 @@ test("a user-triggered autofill saves application history when the fill trigger 
       jobAutofillNoteSettings: {
         historySaveTrigger: "fill",
         applicationStatus: "Saved",
-        destinations: { markdown: true, spreadsheet: false, notion: false },
+        destinations: { markdown: true, spreadsheet: false },
       },
     },
     scripting: {
@@ -371,7 +370,7 @@ test("automatic page messages fill, save history, and deduplicate page signature
       jobAutofillProfile: { autoFillOnPageChange: true },
       jobAutofillNoteSettings: {
         historySaveTrigger: "fill",
-        destinations: { markdown: true, spreadsheet: false, notion: false },
+        destinations: { markdown: true, spreadsheet: false },
       },
     },
     scripting,
@@ -429,7 +428,7 @@ test("a user submission saves enabled application history with Submitted status"
     initialStorage: {
       jobAutofillNoteSettings: {
         historySaveTrigger: "submit",
-        destinations: { markdown: true, spreadsheet: false, notion: false },
+        destinations: { markdown: true, spreadsheet: false },
       },
       jobAutofillResume: { name: "resume.pdf" },
       jobAutofillDetectedJobContext: {
@@ -473,7 +472,7 @@ test("fill-triggered history is updated to Submitted after the user submits", as
     initialStorage: {
       jobAutofillNoteSettings: {
         historySaveTrigger: "fill",
-        destinations: { markdown: true, spreadsheet: false, notion: false },
+        destinations: { markdown: true, spreadsheet: false },
       },
       jobAutofillDetectedJobContext: {
         tabId: 33,

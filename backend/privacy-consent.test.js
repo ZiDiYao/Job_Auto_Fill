@@ -17,7 +17,6 @@ test("privacy choices default to denied and require the current disclosure versi
     automaticPageAccess: false,
     cloudAi: false,
     sensitiveAi: false,
-    notion: false,
   });
   assert.equal(hasRequiredPrivacyConsent({ localProcessing: true }), false);
   assert.equal(hasRequiredPrivacyConsent({ version: PRIVACY_CONSENT_VERSION, localProcessing: true }), true);
@@ -28,20 +27,19 @@ test("optional capabilities remain independently denied until explicitly enabled
   assert.equal(consentAllows(base, "automaticPageAccess"), false);
   assert.equal(consentAllows(base, "cloudAi"), false);
   assert.equal(consentAllows(base, "sensitiveAi"), false);
-  assert.equal(consentAllows(base, "notion"), false);
   assert.equal(consentAllows({ ...base, cloudAi: true }, "cloudAi"), true);
 });
 
 test("first-run disclosure names sensitive data, external destinations, and separate choices", async () => {
   const html = await readFile(new URL("../onboarding.html", import.meta.url), "utf8");
-  for (const id of ["localProcessing", "automaticPageAccess", "cloudAi", "sensitiveAi", "notion"]) {
+  for (const id of ["localProcessing", "automaticPageAccess", "cloudAi", "sensitiveAi"]) {
     assert.match(html, new RegExp(`id="${id}" type="checkbox"`));
   }
   assert.match(html, /resume and profile may contain your name, address, phone, email/i);
   assert.match(html, /gender, sexual orientation, disability, race or ethnicity/i);
   assert.match(html, /criminal-history answers/i);
   assert.match(html, /configured DeepSeek or OpenAI account/i);
-  assert.match(html, /Notion access token/i);
+  assert.doesNotMatch(html, /Notion/i);
   assert.doesNotMatch(html, /type="checkbox"[^>]*checked/);
 });
 
@@ -54,20 +52,9 @@ test("privacy settings support revocation and complete local deletion", async ()
   assert.match(html, /data-settings-target="privacy"/);
   assert.match(html, /id="deleteLocalData"/);
   assert.match(source, /chrome\.permissions\.remove\(\{ origins: AUTO_FILL_ORIGINS \}/);
-  assert.match(source, /chrome\.permissions\.remove\(\{ origins: \[NOTION_ORIGIN\] \}/);
-  assert.match(source, /chrome\.permissions\.remove\(\{ permissions: \["identity"\] \}/);
   assert.match(source, /backendJson\("\/api\/data", \{ method: "DELETE" \}\)/);
   assert.match(source, /chrome\.storage\.local\.clear\(\)/);
   assert.match(background, /requirePrivacyConsent\("automaticPageAccess"\)/);
   assert.match(background, /requirePrivacyConsent\("cloudAi"\)/);
   assert.match(background, /requirePrivacyConsent\("sensitiveAi"\)/);
-});
-
-test("manual and OAuth Notion connection paths both require consent and optional host permission", async () => {
-  const source = await readFile(new URL("../options.js", import.meta.url), "utf8");
-  const consentChecks = source.match(/if \(!privacy\.notion\)/g) || [];
-  const permissionRequests = source.match(/chrome\.permissions\.request\(\{ origins: \[NOTION_ORIGIN\] \}\)/g) || [];
-  assert.ok(consentChecks.length >= 2);
-  assert.ok(permissionRequests.length >= 2);
-  assert.match(source, /permissions: \["identity"\]/);
 });

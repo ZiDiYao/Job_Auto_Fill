@@ -28,7 +28,10 @@ test("tracked source contains no API-key-shaped secret", async () => {
   const files = (await trackedFiles()).filter((file) => !file.startsWith("vendor/") && !file.startsWith("icons/"));
   const offending = [];
   for (const file of files) {
-    const text = await readFile(path.join(repositoryRoot, file), "utf8");
+    const text = await readFile(path.join(repositoryRoot, file), "utf8").catch((error) => {
+      if (error.code === "ENOENT") return "";
+      throw error;
+    });
     if (/\bsk-[A-Za-z0-9_-]{16,}\b/.test(text)) offending.push(file);
   }
   assert.deepEqual(offending, []);
@@ -124,7 +127,7 @@ test("public extension bundles local platform adapters for common ATS providers"
   for (const platform of ["workday", "dayforce", "indeed", "linkedin", "greenhouse", "lever", "smartrecruiters", "icims", "taleo", "successfactors", "ashby"]) {
     assert.match(adapters, new RegExp(`id: "${platform}"`));
   }
-  assert.deepEqual(manifest.version, "2.42.0");
+  assert.deepEqual(manifest.version, "2.43.0");
   assert.match(packager, /platform-adapters\.js/);
   assert.doesNotMatch(adapters, /eval\s*\(|new Function\s*\(/);
 });
@@ -211,7 +214,7 @@ test("MV3 AI protocol is semantic-only and cannot return executable browser inst
     "http://localhost:11434/*",
   ]);
   assert.ok(manifest.optional_host_permissions.includes("https://*/*"));
-  assert.deepEqual(manifest.optional_permissions, ["identity"]);
+  assert.equal(Object.hasOwn(manifest, "optional_permissions"), false);
   assert.equal(manifest.permissions.includes("identity"), false);
   assert.equal(manifest.content_security_policy.extension_pages, "script-src 'self'; object-src 'self'");
 

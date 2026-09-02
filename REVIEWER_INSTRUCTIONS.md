@@ -8,18 +8,16 @@ Job Autofill assists with job-application forms but never clicks final Submit. A
 
 1. Load the unpacked extension.
 2. The extension opens `onboarding.html` before the popup or automation can run.
-3. Local-processing consent is required. Automatic site access, cloud AI, sensitive-answer matching, and Notion are separate unchecked options.
+3. Local-processing consent is required. Automatic site access, cloud AI, and sensitive-answer matching are separate unchecked options.
 4. Choices can be withdrawn and local data can be deleted in **Profile & settings → Privacy & Data**.
 
 ## Permissions
 
 - `activeTab`: manual operation on the user-selected current tab.
 - `scripting`: inject the packaged content script when the user invokes autofill.
-- `storage`: retain the user's profile, settings, resume cache, consent, and connection state.
-- Optional `identity`: requested at runtime only when the user clicks **Connect Notion** for OAuth, and revoked on disconnect/deletion.
+- `storage`: retain the user's profile, settings, resume cache, consent, and application history.
 - Localhost host permissions: communicate with the user-run Docker backend and optional Ollama service.
 - Optional HTTP/HTTPS host access: requested only when the user enables automatic page detection/filling.
-- Optional Notion host access: requested only when the user enables Notion export.
 
 ## Test mode
 

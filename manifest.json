@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local Job Application Autofill",
-  "version": "2.42.0",
+  "version": "2.43.0",
   "description": "Locally controlled job-application autofill with optional AI answer suggestions.",
   "icons": {
     "16": "icons/icon-16.png",
@@ -10,7 +10,6 @@
     "128": "icons/icon-128.png"
   },
   "permissions": ["activeTab", "scripting", "storage"],
-  "optional_permissions": ["identity"],
   "host_permissions": [
     "http://127.0.0.1:17840/*",
     "http://localhost:17840/*",
@@ -18,8 +17,7 @@
     "http://localhost:11434/*"
   ],
   "optional_host_permissions": [
-    "https://*/*",
-    "https://api.notion.com/*"
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js",

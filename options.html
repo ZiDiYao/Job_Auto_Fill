@@ -243,36 +243,6 @@
             </div>
           </div>
 
-          <div class="export-destination">
-            <label class="destination-toggle">
-              <input id="exportNotion" type="checkbox" />
-              <span><strong>Notion</strong><small>A searchable Application List with a detail page for every role.</small></span>
-            </label>
-            <div class="destination-options" data-export-options="notion" hidden>
-              <div class="oauth-card">
-                <strong>Connect with Notion</strong>
-                <p>Sign in and approve access in a Chrome window. No token or parent-page ID needs to be pasted.</p>
-                <div class="resume-row notion-actions">
-                  <button id="notionConnectionAction" class="primary" type="button">Connect Notion</button>
-                  <span id="notionStatus">Notion is not connected</span>
-                </div>
-                <p class="oauth-hint">OAuth redirect URL: <code id="notionRedirectUrl"></code></p>
-              </div>
-              <div class="grid export-grid">
-                <label>Root page name<input id="notionRootPageTitle" value="Job Application" /></label>
-              </div>
-              <details class="manual-notion">
-                <summary>Developer mode: connect with an internal integration token</summary>
-                <p class="help">For local development, paste an internal token and a page shared with that integration.</p>
-                <div class="grid export-grid">
-                  <label>Integration token<input id="notionToken" type="password" autocomplete="off" placeholder="Paste your Notion token" /></label>
-                  <label>Parent page URL or ID<input id="notionParentPageId" autocomplete="off" placeholder="Notion page URL or 32-character ID" /></label>
-                </div>
-                <button id="setupNotion" class="secondary" type="button">Connect with token</button>
-              </details>
-            </div>
-          </div>
-
         </section>
 
         <section data-settings-page="ai" hidden>
@@ -440,7 +410,6 @@
           <label class="check"><input id="privacyAutomaticPageAccess" type="checkbox" /><span><strong>Automatic job-site access</strong><small>Continuously detect job descriptions and application steps on sites you visit.</small></span></label>
           <label class="check"><input id="privacyCloudAi" type="checkbox" /><span><strong>Cloud AI processing</strong><small>Send the minimum necessary CV evidence, JD, page context, questions, and options to the configured AI provider.</small></span></label>
           <label class="check"><input id="privacySensitiveAi" type="checkbox" /><span><strong>Sensitive answers in AI requests</strong><small>Allow relevant demographic, disability, legal, criminal-history, and work-authorization answers to be sent for semantic matching.</small></span></label>
-          <label class="check"><input id="privacyNotion" type="checkbox" /><span><strong>Notion export</strong><small>Store a Notion token locally and export application records to the connected workspace.</small></span></label>
           <div class="privacy-actions">
             <button id="savePrivacyChoices" class="primary" type="button">Save privacy choices</button>
             <button id="deleteLocalData" class="danger" type="button">Delete all local data</button>

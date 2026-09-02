@@ -38,7 +38,6 @@ function normalizePrivacyConsent(value = {}) {
     automaticPageAccess: value.automaticPageAccess === true,
     cloudAi: value.cloudAi === true,
     sensitiveAi: value.sensitiveAi === true,
-    notion: value.notion === true,
   };
 }
 
@@ -159,17 +158,9 @@ function normalizeHistoryExportSettings(value = {}) {
     destinations: {
       markdown: value.destinations?.markdown !== false,
       spreadsheet: value.destinations?.spreadsheet === true,
-      notion: value.destinations?.notion === true,
     },
     spreadsheetFilename: String(value.spreadsheetFilename || "Job Applications.csv"),
     applicationStatus: String(value.applicationStatus || "Saved"),
-    notion: {
-      ...(value.notion || {}),
-      token: String(value.notion?.token || ""),
-      parentPageId: String(value.notion?.parentPageId || ""),
-      rootPageTitle: String(value.notion?.rootPageTitle || "Job Application"),
-      dataSourceId: String(value.notion?.dataSourceId || ""),
-    },
   };
 }
 
@@ -186,7 +177,7 @@ function hostnameFromUrl(value) {
 }
 
 async function saveApplicationHistory(message, sender = {}, trigger = "fill") {
-  const consent = await requirePrivacyConsent();
+  await requirePrivacyConsent();
   const cached = await chrome.storage.local.get([
     NOTE_SETTINGS_KEY,
     "jobAutofillResume",
@@ -195,9 +186,6 @@ async function saveApplicationHistory(message, sender = {}, trigger = "fill") {
     LAST_DETECTED_JOB_KEY,
   ]);
   const settings = normalizeHistoryExportSettings(cached[NOTE_SETTINGS_KEY]);
-  if (settings.destinations.notion && !consent.notion) {
-    settings.destinations.notion = false;
-  }
   const shouldSave = settings.historySaveTrigger === trigger
     || (trigger === "submit" && settings.historySaveTrigger === "fill");
   if (!shouldSave) return { skipped: "history-save-trigger" };
@@ -240,7 +228,6 @@ async function saveApplicationHistory(message, sender = {}, trigger = "fill") {
       settings: { ...settings, applicationStatus: recordStatus },
       job,
       directories,
-      persistNotionSettings: (next) => chrome.storage.local.set({ [NOTE_SETTINGS_KEY]: next }),
     });
     const savedAt = new Date().toISOString();
     const record = {

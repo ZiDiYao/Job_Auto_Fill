@@ -5,10 +5,9 @@ import {
 } from "./privacy-consent.js";
 
 const AUTO_FILL_ORIGINS = ["https://*/*"];
-const NOTION_ORIGIN = "https://api.notion.com/*";
 const form = document.querySelector("#consentForm");
 const status = document.querySelector("#status");
-const fields = ["localProcessing", "automaticPageAccess", "cloudAi", "sensitiveAi", "notion"];
+const fields = ["localProcessing", "automaticPageAccess", "cloudAi", "sensitiveAi"];
 
 async function loadConsent() {
   const stored = await chrome.storage.local.get(PRIVACY_CONSENT_KEY);
@@ -29,11 +28,6 @@ form.addEventListener("submit", async (event) => {
     automaticPageAccess = await chrome.permissions.request({ origins: AUTO_FILL_ORIGINS });
     document.querySelector("#automaticPageAccess").checked = automaticPageAccess;
   }
-  let notion = document.querySelector("#notion").checked;
-  if (notion) {
-    notion = await chrome.permissions.request({ origins: [NOTION_ORIGIN] });
-    document.querySelector("#notion").checked = notion;
-  }
   const consent = {
     version: PRIVACY_CONSENT_VERSION,
     acceptedAt: new Date().toISOString(),
@@ -41,7 +35,6 @@ form.addEventListener("submit", async (event) => {
     automaticPageAccess,
     cloudAi: document.querySelector("#cloudAi").checked,
     sensitiveAi: document.querySelector("#cloudAi").checked && document.querySelector("#sensitiveAi").checked,
-    notion,
   };
   await chrome.storage.local.set({ [PRIVACY_CONSENT_KEY]: consent, jobAutofillOnboardingVisited: true });
   const configured = await chrome.runtime.sendMessage({ type: "privacy-consent-updated" });

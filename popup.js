@@ -81,22 +81,9 @@ function normalizeExportSettings(value = {}) {
     destinations: {
       markdown: value.destinations?.markdown !== false,
       spreadsheet: value.destinations?.spreadsheet === true,
-      notion: value.destinations?.notion === true,
     },
     spreadsheetFilename: String(value.spreadsheetFilename || "Job Applications.csv"),
     applicationStatus: String(value.applicationStatus || "Saved"),
-    notion: {
-      token: String(value.notion?.token || ""),
-      connectionMode: String(value.notion?.connectionMode || ""),
-      workspaceLevel: value.notion?.workspaceLevel === true,
-      workspaceId: String(value.notion?.workspaceId || ""),
-      workspaceName: String(value.notion?.workspaceName || ""),
-      parentPageId: String(value.notion?.parentPageId || ""),
-      rootPageTitle: String(value.notion?.rootPageTitle || "Job Application"),
-      rootPageId: String(value.notion?.rootPageId || ""),
-      databaseId: String(value.notion?.databaseId || ""),
-      dataSourceId: String(value.notion?.dataSourceId || ""),
-    },
   };
 }
 
@@ -526,7 +513,6 @@ async function saveCurrentJobNote({ showSuccess = true } = {}) {
     settings,
     job,
     directories,
-    persistNotionSettings: (next) => chrome.storage.local.set({ [NOTE_SETTINGS_KEY]: next }),
   });
 
   await chrome.storage.local.set({

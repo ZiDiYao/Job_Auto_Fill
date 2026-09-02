@@ -11,7 +11,7 @@
 
 - Single purpose: Help users complete and organize their own job applications using a locally saved profile and resume, with optional AI answer suggestions and optional application-history exports.
 - State prominently that the extension reads visible job descriptions and application form content only to provide autofill.
-- State prominently that cloud AI, automatic all-site access, sensitive-answer matching, and Notion export are separately optional.
+- State prominently that cloud AI, automatic all-site access, and sensitive-answer matching are separately optional.
 - Do not claim that the extension submits applications. It always stops before final Submit.
 - Provide accurate screenshots of the first-run disclosure, popup, Profile, AI, Privacy & Data, and Application History pages.
 
@@ -21,24 +21,23 @@ Use `STORE_PRIVACY_DISCLOSURE.md` as the build-specific worksheet. The dashboard
 
 - Publish `privacy.html` and its stylesheet at a stable public HTTPS URL.
 - Enter that public URL in the dashboard; an extension-only `chrome-extension://` URL is not sufficient.
-- Declare personally identifiable information, authentication information, website content, form data, user activity, health information, and the listed sensitive personal information.
+- Declare personally identifiable information, website content, form data, user activity, health information, and the listed sensitive personal information.
 - Certify that data is used only for the disclosed single purpose and is not sold, used for ads, or used for creditworthiness.
-- Name the configured AI provider, Notion, and the selected application website as conditional external destinations.
+- Name the configured AI provider and the selected application website as conditional external destinations.
 
 ## Permission justifications
 
 - `activeTab`: inspect and fill the tab the user explicitly invokes.
 - `scripting`: inject only extension-packaged form inspection and filling logic into that active tab.
-- `storage`: retain consent, profile, resume cache, settings, application history, and optional connection state.
+- `storage`: retain consent, profile, resume cache, settings, and application history.
 - Localhost origins: communicate with the user-run Docker backend and optional local Ollama process.
 - Optional HTTP/HTTPS origins: enable automatic job-page detection and filling only after a separate user gesture and Chrome permission prompt.
-- Optional `identity` and Notion origin: perform user-initiated Notion OAuth/export; revoke when disconnected or consent is withdrawn.
 
 ## Reviewer access
 
 - Paste `REVIEWER_INSTRUCTIONS.md` into the reviewer-notes field or provide it through the dashboard's test-instructions area.
 - Explain that deterministic autofill works with cloud AI disabled.
-- If cloud AI or Notion must be tested, provide non-production reviewer credentials through the private reviewer-instructions channel, never in the ZIP or public listing.
+- If cloud AI must be tested, provide non-production reviewer credentials through the private reviewer-instructions channel, never in the ZIP or public listing.
 - Keep the local backend available exactly as documented, or clearly state that optional cloud features require the companion Docker service.
 
 ## Final policy audit
