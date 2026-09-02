@@ -1,21 +1,28 @@
 :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f6f8fb; }
 * { box-sizing: border-box; }
 body { margin: 0; }
-main { width: min(820px, calc(100% - 32px)); margin: 40px auto; }
-header { display: flex; gap: 16px; align-items: center; margin-bottom: 24px; }
-h1 { margin: 0 0 6px; font-size: 30px; }
+main { width: min(820px, calc(100% - 32px)); margin: 32px auto; }
+header { margin-bottom: 22px; }
+h1 { margin: 0 0 6px; font-size: 26px; line-height: 1.2; letter-spacing: -0.02em; }
 h2 { margin: 0 0 10px; font-size: 20px; }
 p { margin: 0; color: #59657a; line-height: 1.55; }
 .notice, form { border: 1px solid #d8dfeb; border-radius: 14px; background: #fff; padding: 24px; margin-bottom: 16px; }
 .notice p + p { margin-top: 10px; }
+.consent-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid #e7ebf2; color: #59657a; font-size: 14px; }
 .choice { display: flex; gap: 14px; padding: 18px 0; border-bottom: 1px solid #e7ebf2; align-items: flex-start; }
-.choice:first-child { padding-top: 0; }
 .choice input { width: 19px; height: 19px; margin-top: 2px; accent-color: #1769d2; }
 .choice strong, .choice small { display: block; }
 .choice small { margin-top: 5px; color: #657188; line-height: 1.45; }
 .choice.required strong::after { content: " Required"; color: #a32626; font-size: 12px; margin-left: 6px; text-transform: uppercase; }
 .actions { display: flex; align-items: center; gap: 18px; margin-top: 22px; }
 button { border: 0; border-radius: 9px; padding: 12px 18px; background: #1769d2; color: white; font-weight: 700; font-size: 15px; cursor: pointer; }
+button.secondary { flex: 0 0 auto; border: 1px solid #b8c5d8; padding: 9px 14px; background: #fff; color: #075fbd; }
+button.secondary:hover { background: #f1f6fc; }
 a { color: #075fbd; font-weight: 650; }
 #status { margin-top: 14px; min-height: 24px; }
 #status.error { color: #a32626; }
+@media (max-width: 560px) {
+  main { margin-top: 20px; }
+  .notice, form { padding: 20px; }
+  .consent-toolbar { align-items: flex-start; }
+}

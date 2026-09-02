@@ -7,6 +7,7 @@ import {
 const AUTO_FILL_ORIGINS = ["https://*/*"];
 const form = document.querySelector("#consentForm");
 const status = document.querySelector("#status");
+const selectAll = document.querySelector("#selectAll");
 const fields = ["localProcessing", "automaticPageAccess", "cloudAi", "sensitiveAi"];
 
 async function loadConsent() {
@@ -14,6 +15,12 @@ async function loadConsent() {
   const consent = normalizePrivacyConsent(stored[PRIVACY_CONSENT_KEY]);
   for (const key of fields) document.querySelector(`#${key}`).checked = consent[key];
 }
+
+selectAll.addEventListener("click", () => {
+  for (const key of fields) document.querySelector(`#${key}`).checked = true;
+  status.className = "";
+  status.textContent = "All permissions selected. Save to confirm your choices.";
+});
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();

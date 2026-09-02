@@ -40,6 +40,7 @@ test("first-run disclosure names sensitive data, external destinations, and sepa
   assert.match(html, /criminal-history answers/i);
   assert.match(html, /configured DeepSeek or OpenAI account/i);
   assert.doesNotMatch(html, /Notion/i);
+  assert.match(html, /id="selectAll"[^>]*>Select all</);
   assert.doesNotMatch(html, /type="checkbox"[^>]*checked/);
 });
 

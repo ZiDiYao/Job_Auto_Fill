@@ -9,8 +9,8 @@
   <body>
     <main>
       <header>
-        <img src="icons/icon-48.png" width="48" height="48" alt="" />
-        <div><h1>Choose what Job Autofill may use</h1><p>Nothing is filled, captured, or sent to AI until you confirm these choices.</p></div>
+        <h1>Choose what Job Autofill may use</h1>
+        <p>Nothing is filled, captured, or sent to AI until you confirm these choices.</p>
       </header>
 
       <section class="notice">
@@ -20,6 +20,10 @@
       </section>
 
       <form id="consentForm">
+        <div class="consent-toolbar">
+          <span>Choose each permission separately or enable every option at once.</span>
+          <button id="selectAll" class="secondary" type="button">Select all</button>
+        </div>
         <label class="choice required"><input id="localProcessing" type="checkbox" /><span><strong>Allow local autofill processing (required)</strong><small>Store your profile and resume in this browser and your local Docker backend; inspect the active application page only when you invoke autofill; enter answers using packaged extension code. The extension never clicks final Submit.</small></span></label>
         <label class="choice"><input id="automaticPageAccess" type="checkbox" /><span><strong>Allow automatic access to job websites</strong><small>Lets the packaged page watcher detect job descriptions and application steps as you browse. Chrome will separately ask for website access. You can use manual active-tab autofill without this.</small></span></label>
         <label class="choice"><input id="cloudAi" type="checkbox" /><span><strong>Allow cloud AI processing</strong><small>Send the minimum needed resume/profile evidence, JD, visible question text, options, and page context to the configured DeepSeek or OpenAI account. AI returns only classifications and answer suggestions.</small></span></label>
