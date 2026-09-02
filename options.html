@@ -128,14 +128,14 @@
         <section>
           <h2>Adaptive AI</h2>
           <p class="help">
-            Unanswered open-ended questions can be drafted by the local backend using DeepSeek, or by an optional local Ollama
-            model. The model receives CV evidence and job context. Saved demographic and legal answers are included for
+            Unanswered open-ended questions can be drafted by the local backend using the selected cloud provider, or by an
+            optional local Ollama model. The model receives CV evidence and job context. Saved demographic and legal answers are included for
             structured-field mapping only when the separate permission below is enabled. AI-filled fields are marked purple
             and must be reviewed before submission.
           </p>
           <label class="check">
             <input name="aiEnabled" type="checkbox" />
-            Use local AI for unmatched application questions
+            Use AI for unmatched application questions
           </label>
           <label class="check">
             <input name="includeJdSkills" type="checkbox" />
@@ -168,10 +168,17 @@
           </label>
           <div class="grid ai-grid">
             <label>
-              AI provider
+              AI execution
               <select name="aiProvider">
-                <option value="backend">Local backend + DeepSeek</option>
+                <option value="backend">Local backend</option>
                 <option value="ollama">Local Ollama</option>
+              </select>
+            </label>
+            <label>
+              Backend AI provider
+              <select name="backendAiProvider">
+                <option value="deepseek">DeepSeek</option>
+                <option value="openai">OpenAI</option>
               </select>
             </label>
             <label>Ollama model (Ollama mode only)<input name="aiModel" placeholder="qwen3:4b" /></label>

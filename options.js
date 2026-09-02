@@ -66,6 +66,7 @@ const defaultProfile = {
   aiResolveDropdowns: false,
   aiUseSensitiveProfile: false,
   aiProvider: "backend",
+  backendAiProvider: "deepseek",
   aiModel: "qwen3:4b",
   resumeFileName: "",
   resumeText: "",

@@ -29,6 +29,7 @@ async function answerApplicationQuestions(message) {
         jobDescription: message.jobDescription || "",
         pageContext: message.jobContext || "",
         questions: message.questions || [],
+        provider: message.backendProvider || "deepseek",
       }),
     });
     const payload = await response.json().catch(() => ({}));
@@ -115,6 +116,7 @@ async function extractJobSkills(message) {
       pageContext: message.pageContext || "",
       maxSkills: message.maxSkills,
       maxNonTechnicalSkills: message.maxNonTechnicalSkills,
+      provider: message.backendProvider || "deepseek",
     }),
   });
   const payload = await response.json().catch(() => ({}));
@@ -136,6 +138,7 @@ async function resolveWorkdayDropdowns(message) {
       pageContext: message.pageContext || "",
       questions: message.questions || [],
       useSensitiveProfile: message.useSensitiveProfile === true,
+      provider: message.backendProvider || "deepseek",
     }),
   });
   const payload = await response.json().catch(() => ({}));
@@ -152,6 +155,7 @@ async function planDomFields(message) {
       pageContext: message.pageContext || "",
       fields: message.fields || [],
       useSensitiveProfile: message.useSensitiveProfile === true,
+      provider: message.backendProvider || "deepseek",
     }),
   });
   const payload = await response.json().catch(() => ({}));

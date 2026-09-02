@@ -405,6 +405,7 @@
         pageContext: `${document.title}\n${String(document.body?.innerText || "").slice(0, 8000)}`,
         maxSkills,
         maxNonTechnicalSkills,
+        backendProvider: profile.backendAiProvider || "deepseek",
       });
       if (!extracted?.ok) throw new Error(extracted?.error || "JD skill extraction failed.");
       jdSkills = Array.isArray(extracted.skills) ? extracted.skills : [];
@@ -935,6 +936,7 @@
           pageContext: `${document.title}\nPage URL: ${location.href}\n${String(document.body?.innerText || "").slice(0, 8000)}`,
           questions,
           useSensitiveProfile: profile.aiUseSensitiveProfile === true,
+          backendProvider: profile.backendAiProvider || "deepseek",
         });
         if (!response?.ok) throw new Error(response?.error || "AI dropdown resolution failed.");
       } catch (error) {
@@ -1239,6 +1241,7 @@
           pageContext: `${document.title}\nPage URL: ${location.href}\n${String(document.body?.innerText || "").slice(0, 6000)}`,
           fields: descriptors,
           useSensitiveProfile: profile.aiUseSensitiveProfile === true,
+          backendProvider: profile.backendAiProvider || "deepseek",
         });
         if (!response?.ok) throw new Error(response?.error || "AI DOM planning failed.");
       } catch (error) {
@@ -1563,6 +1566,7 @@
         const response = await chrome.runtime.sendMessage({
           type: "answer-application-questions",
           provider: aiProvider,
+          backendProvider: profile.backendAiProvider || "deepseek",
           model: profile.aiModel || "qwen3:4b",
           resumeText: profile.resumeText,
           jobDescription,

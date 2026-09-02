@@ -4,6 +4,11 @@
     "baseUrl": "https://api.deepseek.com",
     "model": "deepseek-v4-flash"
   },
+  "openAI": {
+    "apiKey": "replace_with_your_key",
+    "baseUrl": "https://api.openai.com/v1",
+    "model": "set_your_openai_model"
+  },
   "server": {
     "host": "127.0.0.1",
     "port": 17840

@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { AiProviderFactory } from "./ai/ai-provider-factory.js";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.join(currentDirectory, ".env");
@@ -57,8 +58,12 @@ if (!process.env.DEEPSEEK_API_KEY && !runtimeConfig.deepSeek?.apiKey && process.
 
 const port = Number(process.env.JOB_AUTOFILL_PORT || runtimeConfig.server?.port || 17840);
 const host = process.env.JOB_AUTOFILL_HOST || runtimeConfig.server?.host || "127.0.0.1";
-const configuredDeepSeekKey = () => process.env.DEEPSEEK_API_KEY || runtimeConfig.deepSeek?.apiKey || "";
-const configuredDeepSeekModel = () => process.env.DEEPSEEK_MODEL || runtimeConfig.deepSeek?.model || "deepseek-v4-flash";
+const aiProviderFactory = new AiProviderFactory({ config: runtimeConfig, env: process.env });
+
+function selectedAiStrategy(profile, requestedProvider) {
+  const provider = requestedProvider || profile?.backendAiProvider || runtimeConfig.ai?.provider || "deepseek";
+  return aiProviderFactory.create(provider);
+}
 
 let pdfModulePromise;
 async function getPdfModule() {
@@ -170,13 +175,9 @@ export function validateFieldPlans(rawPlans, fields, { allowSensitive = false } 
   return plans;
 }
 
-async function callDeepSeek({ jobDescription, pageContext, questions }) {
-  const apiKey = configuredDeepSeekKey();
-  if (!apiKey || apiKey === "replace_with_a_new_key") {
-    throw Object.assign(new Error("A DeepSeek API key is not configured."), { statusCode: 503 });
-  }
-
+async function answerQuestions({ jobDescription, pageContext, questions, provider }) {
   const profile = await getProfile();
+  const aiStrategy = selectedAiStrategy(profile, provider);
   const resume = await getResumeText();
   const safeQuestions = questions
     .filter((question) => !sensitiveQuestion.test(question.label || ""))
@@ -205,41 +206,12 @@ async function callDeepSeek({ jobDescription, pageContext, questions }) {
     questions: safeQuestions,
   };
 
-  const baseUrl = String(
-    process.env.DEEPSEEK_BASE_URL || runtimeConfig.deepSeek?.baseUrl || "https://api.deepseek.com",
-  ).replace(/\/$/, "");
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: configuredDeepSeekModel(),
-      thinking: { type: "disabled" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: JSON.stringify(request) },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 4000,
-      temperature: 0,
-      stream: false,
-    }),
-  });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw Object.assign(new Error(`DeepSeek returned ${response.status}: ${detail.slice(0, 300)}`), { statusCode: 502 });
-  }
-  const payload = await response.json();
-  const content = payload?.choices?.[0]?.message?.content;
-  if (!content) throw Object.assign(new Error("DeepSeek returned an empty response."), { statusCode: 502 });
-  const parsed = JSON.parse(content);
+  const completion = await aiStrategy.completeJson({ system, request, maxTokens: 4000, temperature: 0 });
   return {
-    answers: validateAnswers(parsed.answers, safeQuestions),
-    usage: payload.usage || null,
-    model: payload.model || configuredDeepSeekModel(),
+    answers: validateAnswers(completion.data.answers, safeQuestions),
+    usage: completion.usage,
+    model: completion.model,
+    provider: completion.provider,
   };
 }
 
@@ -270,18 +242,15 @@ function decisionProfileForModel(profile) {
   };
 }
 
-async function resolveStructuredFields({ jobDescription, pageContext, questions, useSensitiveProfile }) {
-  const apiKey = configuredDeepSeekKey();
-  if (!apiKey || apiKey === "replace_with_a_new_key") {
-    throw Object.assign(new Error("A DeepSeek API key is not configured."), { statusCode: 503 });
-  }
+async function resolveStructuredFields({ jobDescription, pageContext, questions, useSensitiveProfile, provider }) {
   const profile = await getProfile();
+  const aiStrategy = selectedAiStrategy(profile, provider);
   const resume = await getResumeText();
   const eligibleQuestions = (Array.isArray(questions) ? questions : [])
     .filter((question) => question && Number.isInteger(question.id) && Array.isArray(question.options) && question.options.length)
     .filter((question) => useSensitiveProfile || !sensitiveQuestion.test(question.label || ""))
     .slice(0, 30);
-  if (!eligibleQuestions.length) return { answers: [], model: configuredDeepSeekModel() };
+  if (!eligibleQuestions.length) return { answers: [], model: aiStrategy.model, provider: aiStrategy.name.toLowerCase() };
 
   const system = [
     "You resolve structured job-application fields. Return JSON only in this exact shape:",
@@ -302,47 +271,18 @@ async function resolveStructuredFields({ jobDescription, pageContext, questions,
     visiblePageContext: String(pageContext || "").slice(0, 8000),
     questions: eligibleQuestions,
   };
-  const baseUrl = String(
-    process.env.DEEPSEEK_BASE_URL || runtimeConfig.deepSeek?.baseUrl || "https://api.deepseek.com",
-  ).replace(/\/$/, "");
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: configuredDeepSeekModel(),
-      thinking: { type: "disabled" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: JSON.stringify(request) },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 3000,
-      temperature: 0,
-      stream: false,
-    }),
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw Object.assign(new Error(`DeepSeek returned ${response.status}: ${detail.slice(0, 300)}`), { statusCode: 502 });
-  }
-  const payload = await response.json();
-  const parsed = JSON.parse(payload?.choices?.[0]?.message?.content || "{}");
+  const completion = await aiStrategy.completeJson({ system, request, maxTokens: 3000, temperature: 0 });
   return {
-    answers: validateAnswers(parsed.answers, eligibleQuestions, { allowSensitive: useSensitiveProfile }),
-    model: payload.model || configuredDeepSeekModel(),
-    usage: payload.usage || null,
+    answers: validateAnswers(completion.data.answers, eligibleQuestions, { allowSensitive: useSensitiveProfile }),
+    model: completion.model,
+    usage: completion.usage,
+    provider: completion.provider,
   };
 }
 
-async function planDomFields({ jobDescription, pageContext, fields, useSensitiveProfile }) {
-  const apiKey = configuredDeepSeekKey();
-  if (!apiKey || apiKey === "replace_with_a_new_key") {
-    throw Object.assign(new Error("A DeepSeek API key is not configured."), { statusCode: 503 });
-  }
+async function planDomFields({ jobDescription, pageContext, fields, useSensitiveProfile, provider }) {
   const profile = await getProfile();
+  const aiStrategy = selectedAiStrategy(profile, provider);
   const resume = await getResumeText();
   const eligibleFields = (Array.isArray(fields) ? fields : [])
     .filter((field) => field && Number.isInteger(field.id) && String(field.label || "").trim())
@@ -364,7 +304,7 @@ async function planDomFields({ jobDescription, pageContext, fields, useSensitive
         .map((option) => String(option || "").trim())
         .filter(Boolean))].slice(0, 60),
     }));
-  if (!eligibleFields.length) return { plans: [], model: configuredDeepSeekModel() };
+  if (!eligibleFields.length) return { plans: [], model: aiStrategy.model, provider: aiStrategy.name.toLowerCase() };
 
   const system = [
     "You plan values for visible fields in a job application. Return JSON only in this exact shape:",
@@ -386,38 +326,12 @@ async function planDomFields({ jobDescription, pageContext, fields, useSensitive
     visiblePageContext: String(pageContext || "").slice(0, 6000),
     visibleDomFields: eligibleFields,
   };
-  const baseUrl = String(
-    process.env.DEEPSEEK_BASE_URL || runtimeConfig.deepSeek?.baseUrl || "https://api.deepseek.com",
-  ).replace(/\/$/, "");
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: configuredDeepSeekModel(),
-      thinking: { type: "disabled" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: JSON.stringify(request) },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 5000,
-      temperature: 0,
-      stream: false,
-    }),
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw Object.assign(new Error(`DeepSeek returned ${response.status}: ${detail.slice(0, 300)}`), { statusCode: 502 });
-  }
-  const payload = await response.json();
-  const parsed = JSON.parse(payload?.choices?.[0]?.message?.content || "{}");
+  const completion = await aiStrategy.completeJson({ system, request, maxTokens: 5000, temperature: 0 });
   return {
-    plans: validateFieldPlans(parsed.plans, eligibleFields, { allowSensitive: useSensitiveProfile }),
-    model: payload.model || configuredDeepSeekModel(),
-    usage: payload.usage || null,
+    plans: validateFieldPlans(completion.data.plans, eligibleFields, { allowSensitive: useSensitiveProfile }),
+    model: completion.model,
+    usage: completion.usage,
+    provider: completion.provider,
   };
 }
 
@@ -465,15 +379,11 @@ export function rankSkillCandidates(rawSkills, { maxSkills = 15, maxNonTechnical
   return selected.map(({ tier: _tier, index: _index, ...candidate }) => candidate);
 }
 
-async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNonTechnicalSkills }) {
-  const apiKey = configuredDeepSeekKey();
-  if (!apiKey || apiKey === "replace_with_a_new_key") {
-    throw Object.assign(new Error("A DeepSeek API key is not configured."), { statusCode: 503 });
-  }
-
+async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNonTechnicalSkills, provider }) {
   const description = String(jobDescription || "").trim();
   const context = String(pageContext || "").trim();
   const profile = await getProfile();
+  const aiStrategy = selectedAiStrategy(profile, provider);
   const totalLimit = boundedInteger(maxSkills ?? profile.maxSkills, 15, 1, 50);
   const nonTechnicalLimit = boundedInteger(
     maxNonTechnicalSkills ?? profile.maxNonTechnicalSkills,
@@ -488,7 +398,7 @@ async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNon
       profileSkills.map((name) => ({ name, source: "resume", technical: true })),
       { maxSkills: totalLimit, maxNonTechnicalSkills: nonTechnicalLimit },
     );
-    return { skills: rankedSkills.map(({ name }) => name), rankedSkills, maxSkills: totalLimit, maxNonTechnicalSkills: nonTechnicalLimit, model: configuredDeepSeekModel() };
+    return { skills: rankedSkills.map(({ name }) => name), rankedSkills, maxSkills: totalLimit, maxNonTechnicalSkills: nonTechnicalLimit, model: aiStrategy.model, provider: aiStrategy.name.toLowerCase() };
   }
 
   const system = [
@@ -501,44 +411,18 @@ async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNon
     `Return at most ${Math.min(50, Math.max(totalLimit * 2, totalLimit + 8))} ranked candidates so the server can enforce a final limit of ${totalLimit} skills and ${nonTechnicalLimit} non-technical skills.`,
   ].join(" ");
 
-  const baseUrl = String(
-    process.env.DEEPSEEK_BASE_URL || runtimeConfig.deepSeek?.baseUrl || "https://api.deepseek.com",
-  ).replace(/\/$/, "");
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+  const completion = await aiStrategy.completeJson({
+    system,
+    request: {
+      jobDescription: description.slice(0, 20000),
+      visiblePageContext: context.slice(0, 8000),
+      savedProfileSkills: profileSkills.slice(0, 80),
+      resume: resume.slice(0, 30000),
     },
-    body: JSON.stringify({
-      model: configuredDeepSeekModel(),
-      thinking: { type: "disabled" },
-      messages: [
-        { role: "system", content: system },
-        {
-          role: "user",
-          content: JSON.stringify({
-            jobDescription: description.slice(0, 20000),
-            visiblePageContext: context.slice(0, 8000),
-            savedProfileSkills: profileSkills.slice(0, 80),
-            resume: resume.slice(0, 30000),
-          }),
-        },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 3000,
-      temperature: 0,
-      stream: false,
-    }),
+    maxTokens: 3000,
+    temperature: 0,
   });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw Object.assign(new Error(`DeepSeek returned ${response.status}: ${detail.slice(0, 300)}`), { statusCode: 502 });
-  }
-  const payload = await response.json();
-  const parsed = JSON.parse(payload?.choices?.[0]?.message?.content || "{}");
-  const rankedSkills = rankSkillCandidates(parsed.skills, {
+  const rankedSkills = rankSkillCandidates(completion.data.skills, {
     maxSkills: totalLimit,
     maxNonTechnicalSkills: nonTechnicalLimit,
   });
@@ -547,8 +431,9 @@ async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNon
     rankedSkills,
     maxSkills: totalLimit,
     maxNonTechnicalSkills: nonTechnicalLimit,
-    model: payload.model || configuredDeepSeekModel(),
-    usage: payload.usage || null,
+    model: completion.model,
+    usage: completion.usage,
+    provider: completion.provider,
   };
 }
 
@@ -590,9 +475,11 @@ export function createServer() {
 
     try {
       if (request.method === "GET" && request.url === "/health") {
+        const providers = aiProviderFactory.status();
         return sendJson(response, 200, {
           status: "ok",
-          deepSeekConfigured: Boolean(configuredDeepSeekKey() && configuredDeepSeekKey() !== "replace_with_a_new_key"),
+          providers,
+          deepSeekConfigured: providers.deepseek.configured,
           resumeAvailable: existsSync(resumePath),
         });
       }
@@ -660,10 +547,11 @@ export function createServer() {
 
       if (request.method === "POST" && request.url === "/api/answer") {
         const body = await readJson(request, 2_000_000);
-        const result = await callDeepSeek({
+        const result = await answerQuestions({
           jobDescription: body.jobDescription,
           pageContext: body.pageContext,
           questions: Array.isArray(body.questions) ? body.questions : [],
+          provider: body.provider,
         });
         return sendJson(response, 200, result);
       }
@@ -675,6 +563,7 @@ export function createServer() {
           pageContext: body.pageContext,
           maxSkills: body.maxSkills,
           maxNonTechnicalSkills: body.maxNonTechnicalSkills,
+          provider: body.provider,
         });
         return sendJson(response, 200, result);
       }
@@ -686,6 +575,7 @@ export function createServer() {
           pageContext: body.pageContext,
           questions: body.questions,
           useSensitiveProfile: body.useSensitiveProfile === true,
+          provider: body.provider,
         });
         return sendJson(response, 200, result);
       }
@@ -697,6 +587,7 @@ export function createServer() {
           pageContext: body.pageContext,
           fields: body.fields,
           useSensitiveProfile: body.useSensitiveProfile === true,
+          provider: body.provider,
         });
         return sendJson(response, 200, result);
       }

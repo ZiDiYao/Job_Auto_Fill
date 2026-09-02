@@ -2,7 +2,7 @@
 
 A small Chrome/Chromium Manifest V3 extension for filling repetitive job-application questions from a profile stored locally in the browser.
 
-The primary workflow uses a local Node.js backend. The backend stores the candidate profile and resume, keeps the DeepSeek key out of the browser, and sends only the CV, pasted/detected job description, page context, and unanswered questions to DeepSeek.
+The primary workflow uses a local Node.js backend. The backend stores the candidate profile and resume, keeps provider API keys out of the browser, and sends only the CV, pasted/detected job description, page context, and unanswered questions to the selected AI provider.
 
 ## What it does
 
@@ -33,7 +33,8 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Commits Workday's segmented month/year controls through real focus transitions so the portal clears stale required-field errors after autofill.
 - Supports Workday tenants that identify the school control as either `schoolName` or `school`, detects Education From/To years both by stable field IDs and row order, and verifies the React-controlled values after filling.
 - Lets users drop a PDF into the popup and persists it in the local Docker-mounted resume file until another PDF replaces it.
-- Uses DeepSeek JSON output to draft answers from CV evidence plus the job description.
+- Uses a Strategy + Factory provider layer to switch between DeepSeek and OpenAI without coupling application logic to either API.
+- Uses structured JSON output to draft answers from CV evidence plus the job description.
 - Works on ordinary HTML forms and dispatches the events commonly required by React-based forms.
 - Highlights required fields that still need manual review.
 - Never clicks Submit; the local backend sends only the configured profile evidence, CV, JD, page context, and semantic field schema to the configured AI provider.
@@ -58,9 +59,9 @@ Requirements: macOS and Node.js 20 or newer.
 1. Double-click **Start Job Autofill Backend.command** and leave that Terminal window open.
 2. Open the extension. Paste the JD or click **Detect from current page**, then click **Fill with CV + JD**.
 
-This personal build reads its API credential and connection settings from `backend/config/local-config.json`. That file is ignored by Git and Docker builds; the key is never copied into the image, extension, or application webpage. **Configure DeepSeek Key.command** remains available if you later remove the key from the local config and prefer macOS Keychain.
+This personal build reads its API credentials and connection settings from `backend/config/local-config.json`. That file is ignored by Git and Docker builds; keys are never copied into the image, extension, or application webpage. **Configure DeepSeek Key.command** remains available if you later remove the DeepSeek key from the local config and prefer macOS Keychain.
 
-The backend listens only on `http://127.0.0.1:17840`. Its `/api/context` endpoint supplies the extension with the saved profile and `backend/data/Resume_2027_ZIDI.pdf`. Its `/api/answer` endpoint calls DeepSeek and validates every returned answer before the extension inserts it.
+The backend listens only on `http://127.0.0.1:17840`. Its `/api/context` endpoint supplies the extension with the saved profile and `backend/data/Resume_2027_ZIDI.pdf`. Its `/api/answer` endpoint calls the selected provider strategy and validates every returned answer before the extension inserts it.
 
 As an alternative to macOS Keychain, copy `.env.example` to `.env` and put a newly generated key there. `.env` is ignored by Git.
 
@@ -75,7 +76,7 @@ docker compose ps
 
 The service is exposed only at `127.0.0.1:17840`. Docker Compose mounts these untracked local files at runtime:
 
-- `backend/config/local-config.json` - DeepSeek API key, base URL, model, server, and storage configuration.
+- `backend/config/local-config.json` - DeepSeek/OpenAI API keys, base URLs, models, server, and storage configuration.
 - `backend/data/profile.json` - saved autofill answers and personal profile.
 - `backend/data/Resume_2027_ZIDI.pdf` - resume used for evidence and file uploads.
 
@@ -105,14 +106,14 @@ Keep legal and sensitive answers truthful. Leave them blank when the correct res
 
 The saved PDF/DOCX is used for the application page's file-upload control. PDF and TXT content is extracted automatically into the **Resume text used as AI evidence** box. DOCX files can still be attached automatically, but their text must currently be pasted into that box manually.
 
-DeepSeek through the local backend is the default. An entirely local Ollama fallback remains available:
+DeepSeek through the local backend is the default. Select **OpenAI** under **Backend AI provider** after configuring its key and model in `backend/config/local-config.json`. An entirely local Ollama fallback remains available:
 
 1. Install [Ollama](https://ollama.com/download).
 2. In Terminal, download and start a model, for example: `ollama run qwen3:4b`.
 3. In extension settings, enable **Use local AI**, enter the same model name, paste the resume text, and save.
 4. Click **Fill with CV + JD**. Deterministic answers are green, AI drafts are purple, and unresolved required fields are yellow.
 
-Both AI providers are instructed to leave unsupported answers blank. Demographic, authorization, sponsorship, and other sensitive facts are available to the semantic planner only when **Allow backend AI to use saved demographic and legal answers** is enabled, and then only from explicitly saved profile values. Submit, signature, certification, attestation, consent, privacy, terms, compensation, government-identifier, and birth-date actions are always excluded. Review every purple field before submitting. Ollama structured JSON responses are documented at [docs.ollama.com](https://docs.ollama.com/capabilities/structured-outputs).
+All AI strategies are instructed to leave unsupported answers blank. Demographic, authorization, sponsorship, and other sensitive facts are available to the semantic planner only when **Allow backend AI to use saved demographic and legal answers** is enabled, and then only from explicitly saved profile values. Submit, signature, certification, attestation, consent, privacy, terms, compensation, government-identifier, and birth-date actions are always excluded. Review every purple field before submitting. The OpenAI strategy uses the [Responses API](https://developers.openai.com/api/reference/cli/resources/responses/methods/create); Ollama structured JSON responses are documented at [docs.ollama.com](https://docs.ollama.com/capabilities/structured-outputs).
 
 PDF text extraction uses the open-source Mozilla PDF.js distribution; its license is included in `vendor/PDFJS-LICENSE.txt`.
 

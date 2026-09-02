@@ -4,6 +4,7 @@ WORKDIR /app
 
 COPY backend/package.json ./backend/package.json
 COPY backend/server.js ./backend/server.js
+COPY backend/ai ./backend/ai
 COPY backend/config/local-config.example.json ./backend/config/local-config.example.json
 COPY backend/data/profile.example.json ./backend/data/profile.example.json
 COPY vendor ./vendor
