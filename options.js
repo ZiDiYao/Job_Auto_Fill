@@ -28,6 +28,7 @@ const notionToken = document.querySelector("#notionToken");
 const notionParentPageId = document.querySelector("#notionParentPageId");
 const notionRootPageTitle = document.querySelector("#notionRootPageTitle");
 const notionStatus = document.querySelector("#notionStatus");
+const notionConnectionAction = document.querySelector("#notionConnectionAction");
 const exportSaveStatus = document.querySelector("#exportSaveStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 
@@ -151,6 +152,17 @@ function updateExportOptionVisibility() {
   }
 }
 
+function notionIsConnected(notion = {}) {
+  return Boolean(notion.token && notion.dataSourceId);
+}
+
+function renderNotionConnectionAction(notion = {}) {
+  const connected = notionIsConnected(notion);
+  notionConnectionAction.textContent = connected ? "Disconnect Notion" : "Connect Notion";
+  notionConnectionAction.classList.toggle("primary", !connected);
+  notionConnectionAction.classList.toggle("danger", connected);
+}
+
 for (const [, control] of exportDestinationControls) {
   control.addEventListener("change", updateExportOptionVisibility);
 }
@@ -169,6 +181,7 @@ function renderExportSettings(value) {
   notionStatus.textContent = settings.notion.dataSourceId
     ? `Connected${settings.notion.workspaceName ? ` to ${settings.notion.workspaceName}` : ""} · Application List is ready`
     : "Notion is not connected";
+  renderNotionConnectionAction(settings.notion);
   updateExportOptionVisibility();
   return settings;
 }
@@ -570,8 +583,34 @@ async function backendJson(path, options = {}) {
   return payload;
 }
 
-document.querySelector("#connectNotionOAuth").addEventListener("click", async () => {
-  const button = document.querySelector("#connectNotionOAuth");
+notionConnectionAction.addEventListener("click", async () => {
+  const cached = await chrome.storage.local.get(NOTE_SETTINGS_KEY);
+  const current = normalizeExportSettings(cached[NOTE_SETTINGS_KEY]);
+  if (notionIsConnected(current.notion)) {
+    current.destinations.notion = false;
+    current.notion = {
+      rootPageTitle: current.notion.rootPageTitle,
+      token: "",
+      parentPageId: "",
+      connectionMode: "",
+      workspaceLevel: false,
+      workspaceId: "",
+      workspaceName: "",
+      rootPageId: "",
+      databaseId: "",
+      dataSourceId: "",
+    };
+    exportNotion.checked = false;
+    notionToken.value = "";
+    notionParentPageId.value = "";
+    await persistExportSettings(current);
+    renderNotionConnectionAction(current.notion);
+    updateExportOptionVisibility();
+    notionStatus.textContent = "Notion disconnected; existing Notion pages were not deleted";
+    return;
+  }
+
+  const button = notionConnectionAction;
   button.disabled = true;
   notionStatus.textContent = "Opening Notion sign-in…";
   try {
@@ -625,6 +664,7 @@ document.querySelector("#connectNotionOAuth").addEventListener("click", async ()
     exportNotion.checked = true;
     updateExportOptionVisibility();
     await persistExportSettings(settings);
+    renderNotionConnectionAction(settings.notion);
     notionStatus.textContent = `Connected${settings.notion.workspaceName ? ` to ${settings.notion.workspaceName}` : ""} · Application List is ready`;
   } catch (error) {
     notionStatus.textContent = error.message || "Could not sign in with Notion.";
@@ -649,33 +689,11 @@ document.querySelector("#setupNotion").addEventListener("click", async () => {
     exportNotion.checked = true;
     updateExportOptionVisibility();
     await persistExportSettings(settings);
+    renderNotionConnectionAction(settings.notion);
     notionStatus.textContent = "Connected · Job Application / Application List is ready";
   } catch (error) {
     notionStatus.textContent = error.message || "Could not connect to Notion.";
   }
-});
-
-document.querySelector("#resetNotion").addEventListener("click", async () => {
-  const settings = await collectExportSettings();
-  settings.destinations.notion = false;
-  settings.notion = {
-    rootPageTitle: settings.notion.rootPageTitle,
-    token: "",
-    parentPageId: "",
-    connectionMode: "",
-    workspaceLevel: false,
-    workspaceId: "",
-    workspaceName: "",
-    rootPageId: "",
-    databaseId: "",
-    dataSourceId: "",
-  };
-  exportNotion.checked = false;
-  updateExportOptionVisibility();
-  notionToken.value = "";
-  notionParentPageId.value = "";
-  await persistExportSettings(settings);
-  notionStatus.textContent = "Notion link reset; existing Notion pages were not deleted";
 });
 
 async function initialize() {

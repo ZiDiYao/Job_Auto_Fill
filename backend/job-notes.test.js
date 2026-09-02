@@ -191,7 +191,8 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /id="previewSelectedSkills"/);
   assert.match(optionsHtml, /data-settings-target="history"/);
   assert.match(optionsHtml, /id="exportMarkdown"/);
-  assert.match(optionsHtml, /id="connectNotionOAuth"/);
+  assert.match(optionsHtml, /id="notionConnectionAction"/);
+  assert.doesNotMatch(optionsHtml, /id="resetNotion"|Reset Notion link/);
   assert.match(optionsHtml, /data-export-options="markdown"/);
   assert.match(optionsHtml, /data-export-options="spreadsheet"/);
   assert.match(optionsHtml, /data-export-options="notion"/);
@@ -199,6 +200,7 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsSource, /chooseExportDirectory/);
   assert.match(optionsSource, /refreshExportFolderStatus/);
   assert.match(optionsSource, /updateExportOptionVisibility/);
+  assert.match(optionsSource, /renderNotionConnectionAction/);
   assert.match(optionsSource, /showSettingsPage/);
   assert.match(optionsSource, /renderSkillPreview/);
   assert.match(optionsSource, /launchWebAuthFlow/);

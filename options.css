@@ -233,9 +233,11 @@ input[type="checkbox"] { accent-color: #0969da; }
 .folder-picker button { white-space: nowrap; }
 .oauth-card { border: 1px solid #c5daf5; border-radius: 10px; padding: 18px; background: #f7faff; }
 .oauth-card > p { margin: 5px 0 14px; font-size: 13px; }
+.notion-actions { margin-top: 14px; }
 .oauth-hint { margin-top: 12px !important; overflow-wrap: anywhere; }
 .manual-notion { border-top: 1px solid #d6e4f7; padding-top: 14px; }
 .manual-notion .help { margin: 10px 0; }
+.manual-notion #setupNotion { margin-top: 12px; }
 .export-footer { border-top: 1px solid #d6e4f7; padding-top: 10px; }
 .export-grid { margin-top: 12px; }
 .export-save { margin-top: 18px; }
