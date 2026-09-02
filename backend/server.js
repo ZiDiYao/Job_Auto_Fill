@@ -205,6 +205,73 @@ async function callDeepSeek({ jobDescription, pageContext, questions }) {
   };
 }
 
+async function extractJobSkills({ jobDescription, pageContext }) {
+  const apiKey = configuredDeepSeekKey();
+  if (!apiKey || apiKey === "replace_with_a_new_key") {
+    throw Object.assign(new Error("A DeepSeek API key is not configured."), { statusCode: 503 });
+  }
+
+  const description = String(jobDescription || "").trim();
+  const context = String(pageContext || "").trim();
+  if (!description && !context) return { skills: [], model: configuredDeepSeekModel() };
+
+  const system = [
+    "Extract job-application skill tags from the supplied job description.",
+    "Return JSON only in this exact shape: {\"skills\":[\"Skill name\"]}.",
+    "Include technical languages, frameworks, platforms, tools, databases, cloud services, engineering practices, domain skills, and certifications that are explicitly required or preferred.",
+    "Use concise canonical names suitable for a recruiting-system skill token, such as C#, ASP.NET Core, SQL, Azure, CI/CD, or Agile Software Development.",
+    "Do not include responsibilities, personality traits, years of experience, degrees, locations, or complete sentences.",
+    "Deduplicate closely equivalent names and return at most 35 skills.",
+  ].join(" ");
+
+  const baseUrl = String(
+    process.env.DEEPSEEK_BASE_URL || runtimeConfig.deepSeek?.baseUrl || "https://api.deepseek.com",
+  ).replace(/\/$/, "");
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: configuredDeepSeekModel(),
+      thinking: { type: "disabled" },
+      messages: [
+        { role: "system", content: system },
+        {
+          role: "user",
+          content: JSON.stringify({
+            jobDescription: description.slice(0, 20000),
+            visiblePageContext: context.slice(0, 8000),
+          }),
+        },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 1800,
+      temperature: 0,
+      stream: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw Object.assign(new Error(`DeepSeek returned ${response.status}: ${detail.slice(0, 300)}`), { statusCode: 502 });
+  }
+  const payload = await response.json();
+  const parsed = JSON.parse(payload?.choices?.[0]?.message?.content || "{}");
+  const seen = new Set();
+  const skills = [];
+  for (const candidate of Array.isArray(parsed.skills) ? parsed.skills : []) {
+    const skill = String(candidate || "").replace(/^[\s•*-]+|[\s.;,]+$/g, "").trim();
+    const key = normalize(skill);
+    if (!skill || skill.length > 80 || seen.has(key)) continue;
+    seen.add(key);
+    skills.push(skill);
+    if (skills.length >= 35) break;
+  }
+  return { skills, model: payload.model || configuredDeepSeekModel() };
+}
+
 function allowedOrigin(request) {
   const origin = request.headers.origin || "";
   return !origin || origin === "null" || origin.startsWith("chrome-extension://");
@@ -283,6 +350,15 @@ export function createServer() {
           jobDescription: body.jobDescription,
           pageContext: body.pageContext,
           questions: Array.isArray(body.questions) ? body.questions : [],
+        });
+        return sendJson(response, 200, result);
+      }
+
+      if (request.method === "POST" && request.url === "/api/extract-skills") {
+        const body = await readJson(request, 2_000_000);
+        const result = await extractJobSkills({
+          jobDescription: body.jobDescription,
+          pageContext: body.pageContext,
         });
         return sendJson(response, 200, result);
       }

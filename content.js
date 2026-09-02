@@ -322,7 +322,43 @@
   }
 
   const fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
-  const result = { filled: 0, skipped: 0, review: 0, resumeUploaded: 0, aiFilled: 0, aiError: "" };
+  const result = {
+    filled: 0,
+    skipped: 0,
+    review: 0,
+    resumeUploaded: 0,
+    aiFilled: 0,
+    jdSkillsDetected: 0,
+    jdSkillsAdded: 0,
+    aiError: "",
+  };
+
+  const profileSkills = Array.isArray(profile.skills) ? profile.skills : [];
+  let jdSkills = [];
+  if (window.top === window && profile.includeJdSkills && String(jobDescription || "").trim()) {
+    try {
+      const extracted = await chrome.runtime.sendMessage({
+        type: "extract-job-skills",
+        jobDescription,
+        pageContext: `${document.title}\n${String(document.body?.innerText || "").slice(0, 8000)}`,
+      });
+      if (!extracted?.ok) throw new Error(extracted?.error || "JD skill extraction failed.");
+      jdSkills = Array.isArray(extracted.skills) ? extracted.skills : [];
+      result.jdSkillsDetected = jdSkills.length;
+    } catch (error) {
+      result.aiError = `JD skills: ${error.message || "extraction failed"}`;
+    }
+  }
+
+  const knownSkillKeys = new Set(profileSkills.map((skill) => normalize(skill)));
+  const combinedSkills = [];
+  const combinedSkillKeys = new Set();
+  for (const skill of [...profileSkills, ...jdSkills]) {
+    const key = normalize(skill);
+    if (!key || combinedSkillKeys.has(key)) continue;
+    combinedSkillKeys.add(key);
+    combinedSkills.push(String(skill));
+  }
 
   const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -508,14 +544,17 @@
       }
     }
 
-    const skills = Array.isArray(profile.skills) ? profile.skills : [];
+    const skills = combinedSkills;
     const skillInput = document.querySelector('input#skills--skills, input[id$="--skills"][data-uxi-widget-type="selectinput"]');
     if (skillInput && skills.length) {
       skillInput.dataset.localJobAutofillStructured = "true";
       const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
       descriptor?.set?.call(skillInput, "");
       skillInput.dispatchEvent(new Event("input", { bubbles: true }));
-      for (const skill of skills) await chooseWorkdayPrompt(skillInput, skill, { multi: true });
+      for (const skill of skills) {
+        const added = await chooseWorkdayPrompt(skillInput, skill, { multi: true });
+        if (added && !knownSkillKeys.has(normalize(skill))) result.jdSkillsAdded += 1;
+      }
     }
   }
 

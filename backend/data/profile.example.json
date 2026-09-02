@@ -86,6 +86,7 @@
     "overwriteExisting": false
   },
   "aiEnabled": true,
+  "includeJdSkills": false,
   "aiProvider": "backend",
   "aiModel": "qwen3:4b",
   "resumeText": ""

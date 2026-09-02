@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local Job Application Autofill",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Fill job applications from a local Docker profile, resume, and adaptive AI answer service.",
   "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage"],
   "host_permissions": [

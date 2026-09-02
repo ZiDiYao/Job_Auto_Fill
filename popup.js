@@ -117,10 +117,13 @@ fillButton.addEventListener("click", async () => {
 
     const resumeUploads = frameResults.reduce((sum, frame) => sum + Number(frame.result?.resumeUploaded || 0), 0);
     const aiFilled = frameResults.reduce((sum, frame) => sum + Number(frame.result?.aiFilled || 0), 0);
+    const jdSkillsAdded = frameResults.reduce((sum, frame) => sum + Number(frame.result?.jdSkillsAdded || 0), 0);
+    const jdSkillsDetected = frameResults.reduce((sum, frame) => sum + Number(frame.result?.jdSkillsDetected || 0), 0);
     const aiError = frameResults.map((frame) => frame.result?.aiError).find(Boolean);
     const parts = [
       `Filled ${totals.filled} field${totals.filled === 1 ? "" : "s"}`,
       aiFilled ? `${aiFilled} drafted by local AI` : "",
+      jdSkillsAdded ? `${jdSkillsAdded}/${jdSkillsDetected} JD skills added — review them` : "",
       resumeUploads ? "resume attached" : "",
       `${totals.review} required field${totals.review === 1 ? "" : "s"} need review`,
       aiError ? `AI: ${aiError}` : "",

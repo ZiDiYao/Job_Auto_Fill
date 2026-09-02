@@ -50,6 +50,7 @@ const defaultProfile = {
   disabilityStatus: "",
   veteranStatus: "",
   aiEnabled: false,
+  includeJdSkills: false,
   aiProvider: "backend",
   aiModel: "qwen3:4b",
   resumeText: "",
