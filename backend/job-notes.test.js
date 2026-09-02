@@ -187,12 +187,11 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(popupHtml, /class="popup-card resume-section"/);
   assert.match(popupHtml, /class="popup-card job-section"/);
   assert.doesNotMatch(popupHtml, /The job description is captured automatically/);
-  assert.match(popupHtml, /id="fill"[^>]*disabled/);
+  assert.doesNotMatch(popupHtml, /id="fill"|>Fill application</);
   assert.match(popupSource, /saveCurrentJobNote/);
   assert.match(popupSource, /jobAutofillOnboardingVisited/);
   assert.match(popupSource, /renderSetupState/);
   assert.match(popupSource, /onboardingVisited && hasDefaultResume/);
-  assert.match(popupSource, /historySaveTrigger === "fill"/);
   assert.match(optionsHtml, /id="chooseMarkdownFolder"/);
   assert.match(optionsHtml, /id="chooseExcelFolder"/);
   assert.match(optionsHtml, /id="historySaveTrigger"/);
@@ -254,9 +253,10 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(watcherSource, /JobPosting structured data/);
   assert.match(popupSource, /jobAutofillDetectedJobContext/);
   assert.match(popupSource, /jobAutofillAutomationPaused/);
-  assert.match(popupSource, /Pause changes/);
-  assert.match(popupSource, /Resume changes/);
+  assert.match(popupSource, /Pause automatic changes/);
+  assert.match(popupSource, /Resume automatic changes/);
   assert.match(popupHtml, /id="automationToggle"/);
+  assert.match(popupHtml, /id="automationToggleLabel">Pause automatic changes/);
   assert.doesNotMatch(popupHtml, /Stop auto-advance/);
   assert.match(optionsSource, /showSettingsPage/);
   assert.match(optionsSource, /renderSkillPreview/);

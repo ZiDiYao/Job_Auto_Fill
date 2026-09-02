@@ -54,12 +54,10 @@
         </label>
       </section>
 
-      <div class="fill-actions">
-        <button id="fill" class="primary" type="button" disabled>Fill application</button>
-        <button id="automationToggle" class="secondary automation-toggle" type="button" aria-label="Pause changes" aria-pressed="false" title="Pause changes">
-          <span class="automation-toggle-icon" aria-hidden="true">⏸</span>
-        </button>
-      </div>
+      <button id="automationToggle" class="primary automation-toggle" type="button" aria-label="Pause automatic changes" aria-pressed="false" title="Pause automatic changes">
+        <span class="automation-toggle-icon" aria-hidden="true">⏸</span>
+        <span id="automationToggleLabel">Pause automatic changes</span>
+      </button>
       <div id="status" role="status" aria-live="polite"></div>
     </main>
     <script type="module" src="popup.js"></script>

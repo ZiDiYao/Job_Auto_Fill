@@ -23,11 +23,11 @@ const lastAutomaticPageSignatures = new Map();
 
 function normalizeHistoryExportSettings(value = {}) {
   const legacyTrigger = Object.hasOwn(value, "autoSaveOnFill")
-    ? (value.autoSaveOnFill === false ? "manual" : "fill")
+    ? (value.autoSaveOnFill === false ? "manual" : "submit")
     : "submit";
   return {
     ...value,
-    historySaveTrigger: ["submit", "fill", "manual"].includes(value.historySaveTrigger)
+    historySaveTrigger: ["submit", "manual"].includes(value.historySaveTrigger)
       ? value.historySaveTrigger
       : legacyTrigger,
     destinations: {

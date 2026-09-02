@@ -64,7 +64,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 4. Select this `job-application-autofill` folder.
 5. Pin **Local Job Application Autofill** to the toolbar.
 6. Open the extension and choose **Edit profile**.
-7. Enter your information—it saves automatically—then open an application form and click **Fill with CV + JD** or use the configured keyboard shortcut.
+7. Enter your information—it saves automatically—then open an application form. The extension recognizes and fills new application pages automatically; the configured keyboard shortcut remains available as a fallback.
 
 To fill each newly displayed application page automatically, enable **Automatically recognize and fill new application pages** under **Overview → Behaviour** and approve Chrome's one-time website-access request. This mode recognizes both full page loads and application steps rendered without a navigation. It never clicks a final Submit control. Keyboard shortcuts can be changed at `chrome://extensions/shortcuts`.
 
@@ -75,7 +75,7 @@ The same process works in Edge or another Chromium browser from its extensions m
 Requirements for the double-click launcher: macOS and Node.js 20 or newer.
 
 1. Double-click **Start Job Autofill Backend.command** and leave that Terminal window open.
-2. Open the extension. Paste the JD or click **Detect from current page**, then click **Fill with CV + JD**.
+2. Open a job posting or application. The extension captures the JD and fills recognized application pages automatically; use **Refresh current page** only when you want to recapture the page manually.
 
 The direct Node.js launcher reads API credentials and connection settings from `backend/config/local-config.json`. That file is ignored by Git and Docker builds; keys are never copied into the image, extension, or application webpage. Copy `backend/config/local-config.example.json` to that filename before configuring a provider. **Configure DeepSeek Key.command** can instead save the DeepSeek key in macOS Keychain.
 
@@ -175,7 +175,7 @@ DeepSeek through the local backend is the default adapter. Select **OpenAI** und
 1. Install [Ollama](https://ollama.com/download).
 2. In Terminal, download and start a model, for example: `ollama run qwen3:4b`.
 3. In extension settings, choose **Local Ollama** and save. The extension uses the installed `qwen3:4b` model by default without exposing model configuration in the user interface.
-4. Click **Fill with CV + JD**. Deterministic answers are green, AI drafts are purple, and unresolved required fields are yellow.
+4. Open an application page. Deterministic answers are green, AI drafts are purple, and unresolved required fields are yellow. Use the popup's full-width pause/resume control to stop or continue automatic changes.
 
 All AI strategies are instructed to leave unsupported answers blank. Demographic, authorization, sponsorship, and other sensitive facts are available to the semantic planner only when **Allow backend AI to use saved demographic and legal answers** is enabled, and then only from explicitly saved profile values. Submit, signature, certification, attestation, consent, privacy, terms, compensation, government-identifier, and birth-date actions are always excluded. Review every purple field before submitting. The OpenAI strategy uses the [Responses API](https://developers.openai.com/api/reference/cli/resources/responses/methods/create); Ollama structured JSON responses are documented at [docs.ollama.com](https://docs.ollama.com/capabilities/structured-outputs).
 

@@ -65,11 +65,9 @@ button.link-button:hover { text-decoration: underline; }
 .toggle small { color: var(--muted); font-size: 10px; line-height: 1.35; }
 .behaviour-section { display: grid; gap: 11px; }
 .auto-next-toggle { border-top: 1px solid #eaecf0; padding-top: 11px; }
-.fill-actions { display: grid; grid-template-columns: minmax(0, 1fr) 38px; gap: 8px; }
-.automation-toggle { display: flex; width: 38px; min-width: 38px; align-items: center; justify-content: center; padding: 0; color: #475467; }
-.automation-toggle:hover { color: var(--text); }
-.automation-toggle.paused { border-color: var(--blue); color: #fff; background: var(--blue); }
-.automation-toggle.paused:hover { color: #fff; background: var(--blue-dark); }
+.automation-toggle { display: flex; width: 100%; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; }
+.automation-toggle.paused { border-color: var(--blue); color: var(--blue); background: #fff; }
+.automation-toggle.paused:hover { color: var(--blue-dark); background: #f4f8fd; }
 .automation-toggle-icon { font-size: 13px; line-height: 1; text-align: center; }
 #status { min-height: 16px; margin-top: 10px; color: #596579; font-size: 11px; line-height: 1.4; }
 #status.error { color: #a33c3c; }

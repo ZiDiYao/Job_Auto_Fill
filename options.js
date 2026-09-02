@@ -97,9 +97,9 @@ showSettingsPage(pageFromHash());
 
 function normalizeExportSettings(value = {}) {
   const legacyTrigger = Object.hasOwn(value, "autoSaveOnFill")
-    ? (value.autoSaveOnFill === false ? "manual" : "fill")
+    ? (value.autoSaveOnFill === false ? "manual" : "submit")
     : "submit";
-  const selectedTrigger = ["submit", "fill", "manual"].includes(value.historySaveTrigger)
+  const selectedTrigger = ["submit", "manual"].includes(value.historySaveTrigger)
     ? value.historySaveTrigger
     : legacyTrigger;
   return {
@@ -274,7 +274,7 @@ const defaultProfile = {
   veteranStatus: "",
   autoAdvanceEnabled: false,
   autoCaptureJobDescriptions: true,
-  autoFillOnPageChange: false,
+  autoFillOnPageChange: true,
   autoAdvanceMaxSteps: 10,
   autoAdvanceDelayMs: 900,
   aiEnabled: true,

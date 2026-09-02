@@ -1,12 +1,12 @@
 import { getSavedExportDirectory, hasDirectoryPermission } from "./local-directory.js";
 import { exportApplication } from "./application-export-service.js";
 
-const fillButton = document.querySelector("#fill");
 const settingsButton = document.querySelector("#settings");
 const detectButton = document.querySelector("#detect");
 const overwriteCheckbox = document.querySelector("#overwrite");
 const autoNextCheckbox = document.querySelector("#autoNext");
 const automationToggleButton = document.querySelector("#automationToggle");
+const automationToggleLabel = document.querySelector("#automationToggleLabel");
 const jobDescription = document.querySelector("#jobDescription");
 const status = document.querySelector("#status");
 const resumeDrop = document.querySelector("#resumeDrop");
@@ -23,19 +23,13 @@ const ONBOARDING_VISITED_KEY = "jobAutofillOnboardingVisited";
 const settingsLabel = document.querySelector("#settingsLabel");
 const settingsRequired = document.querySelector("#settingsRequired");
 let activeTabId = 0;
-let setupComplete = false;
 let onboardingVisited = false;
 let hasDefaultResume = false;
 let automationPaused = false;
-let fillRunning = false;
-
-function updateFillAvailability() {
-  fillButton.disabled = !setupComplete || automationPaused || fillRunning;
-}
 
 function renderSetupState(visited) {
   onboardingVisited = visited === true;
-  setupComplete = onboardingVisited && hasDefaultResume;
+  const setupComplete = onboardingVisited && hasDefaultResume;
   settingsButton.classList.toggle("setup-required", !setupComplete);
   settingsLabel.textContent = setupComplete
     ? "Profile & settings"
@@ -43,7 +37,6 @@ function renderSetupState(visited) {
       ? "Add a default resume"
       : "Complete profile & settings";
   settingsRequired.hidden = setupComplete;
-  updateFillAvailability();
 }
 
 function renderAutomationPausedState(paused) {
@@ -51,18 +44,18 @@ function renderAutomationPausedState(paused) {
   automationToggleButton.classList.toggle("paused", automationPaused);
   automationToggleButton.setAttribute("aria-pressed", String(automationPaused));
   automationToggleButton.querySelector(".automation-toggle-icon").textContent = automationPaused ? "▶" : "⏸";
-  const actionLabel = automationPaused ? "Resume changes" : "Pause changes";
+  const actionLabel = automationPaused ? "Resume automatic changes" : "Pause automatic changes";
+  automationToggleLabel.textContent = actionLabel;
   automationToggleButton.setAttribute("aria-label", actionLabel);
   automationToggleButton.title = actionLabel;
-  updateFillAvailability();
 }
 
 function normalizeExportSettings(value = {}) {
   const legacyTrigger = Object.hasOwn(value, "autoSaveOnFill")
-    ? (value.autoSaveOnFill === false ? "manual" : "fill")
+    ? (value.autoSaveOnFill === false ? "manual" : "submit")
     : "submit";
   return {
-    historySaveTrigger: ["submit", "fill", "manual"].includes(value.historySaveTrigger)
+    historySaveTrigger: ["submit", "manual"].includes(value.historySaveTrigger)
       ? value.historySaveTrigger
       : legacyTrigger,
     destinations: {
@@ -601,109 +594,4 @@ settingsButton.addEventListener("click", async () => {
   await chrome.storage.local.set({ [ONBOARDING_VISITED_KEY]: true });
   renderSetupState(true);
   chrome.runtime.openOptionsPage();
-});
-
-fillButton.addEventListener("click", async () => {
-  if (automationPaused) {
-    status.className = "error";
-    status.textContent = "Changes are paused. Resume changes before filling this application.";
-    return;
-  }
-  status.className = "";
-  status.textContent = "Filling visible application fields…";
-  fillRunning = true;
-  updateFillAvailability();
-
-  let noteSaved = false;
-  let noteWarning = "";
-  try {
-    const jd = jobDescription.value.trim();
-    await chrome.storage.local.set({ jobAutofillJobDescription: jd });
-    const noteSettings = await chrome.storage.local.get(NOTE_SETTINGS_KEY);
-    const exportSettings = normalizeExportSettings(noteSettings[NOTE_SETTINGS_KEY]);
-    if (exportSettings.historySaveTrigger === "fill") {
-      try {
-        const localEnabled = exportSettings.destinations.markdown || exportSettings.destinations.spreadsheet;
-        const notionReady = exportSettings.destinations.notion && exportSettings.notion.token
-          && (exportSettings.notion.dataSourceId || exportSettings.notion.parentPageId);
-        const localReady = localEnabled && (
-          (!exportSettings.destinations.markdown || await getSavedExportDirectory("markdown"))
-          && (!exportSettings.destinations.spreadsheet || await getSavedExportDirectory("spreadsheet"))
-        );
-        if (localReady || notionReady) {
-          await saveCurrentJobNote({ showSuccess: false });
-          noteSaved = true;
-        }
-      } catch (error) {
-        noteWarning = error.message || "job note was not saved";
-      }
-    }
-    const { jobAutofillProfile } = await chrome.storage.local.get("jobAutofillProfile");
-    if ((jobAutofillProfile?.aiProvider || "backend") === "backend") {
-      status.textContent = "Syncing profile and resume from local backend…";
-      const sync = await chrome.runtime.sendMessage({ type: "sync-backend-context" });
-      if (!sync?.ok) throw new Error(sync?.error || "Could not sync the local backend.");
-    }
-
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !/^https?:/i.test(tab.url || "")) {
-      throw new Error("Open a normal job application webpage first.");
-    }
-
-    const frameResults = await chrome.scripting.executeScript({
-      target: { tabId: tab.id, allFrames: true },
-      files: ["content.js"],
-    });
-
-    const totals = frameResults.reduce(
-      (sum, frame) => {
-        const result = frame.result || {};
-        sum.filled += Number(result.filled || 0);
-        sum.skipped += Number(result.skipped || 0);
-        sum.review += Number(result.review || 0);
-        return sum;
-      },
-      { filled: 0, skipped: 0, review: 0 },
-    );
-
-    const resumeUploads = frameResults.reduce((sum, frame) => sum + Number(frame.result?.resumeUploaded || 0), 0);
-    const aiFilled = frameResults.reduce((sum, frame) => sum + Number(frame.result?.aiFilled || 0), 0);
-    const jdSkillsAdded = frameResults.reduce((sum, frame) => sum + Number(frame.result?.jdSkillsAdded || 0), 0);
-    const jdSkillsDetected = frameResults.reduce((sum, frame) => sum + Number(frame.result?.jdSkillsDetected || 0), 0);
-    const aiError = frameResults.map((frame) => frame.result?.aiError).find(Boolean);
-    const parts = [
-      `Filled ${totals.filled} field${totals.filled === 1 ? "" : "s"}`,
-      aiFilled ? `${aiFilled} drafted by local AI` : "",
-      jdSkillsAdded ? `${jdSkillsAdded}/${jdSkillsDetected} JD skills added — review them` : "",
-      resumeUploads ? "resume attached" : "",
-      `${totals.review} required field${totals.review === 1 ? "" : "s"} need review`,
-      aiError ? `AI: ${aiError}` : "",
-      noteSaved ? "job note saved" : "",
-      noteWarning ? `Note: ${noteWarning}` : "",
-    ].filter(Boolean);
-    if (autoNextCheckbox.checked) {
-      if (totals.review > 0 || aiError) {
-        parts.push("auto-advance paused until required fields are reviewed");
-      } else {
-        const latestProfile = (await chrome.storage.local.get("jobAutofillProfile")).jobAutofillProfile || {};
-        const started = await chrome.runtime.sendMessage({
-          type: "start-auto-advance",
-          tabId: tab.id,
-          initialReview: totals.review,
-          maxSteps: latestProfile.autoAdvanceMaxSteps || 10,
-          delayMs: latestProfile.autoAdvanceDelayMs || 900,
-        });
-        if (started?.ok) {
-          parts.push("auto-advance started — final Submit remains manual");
-        } else parts.push(`auto-advance could not start: ${started?.error || "unknown error"}`);
-      }
-    }
-    status.textContent = `${parts.join(" · ")}.`;
-  } catch (error) {
-    status.className = "error";
-    status.textContent = error?.message || "The page could not be filled.";
-  } finally {
-    fillRunning = false;
-    updateFillAvailability();
-  }
 });
