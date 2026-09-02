@@ -60,7 +60,13 @@
             <label>School<input name="school" maxlength="160" /></label>
             <label>Degree<input name="degree" maxlength="120" placeholder="Bachelor of Engineering" /></label>
             <label>Field of study<input name="fieldOfStudy" maxlength="120" /></label>
-            <label>Overall result / GPA<input name="gpa" inputmode="decimal" maxlength="16" placeholder="e.g. 3.2" /></label>
+            <label>
+              Overall result / GPA
+              <span class="masked-field">
+                <input id="gpa" name="gpa" type="password" inputmode="decimal" maxlength="16" placeholder="e.g. 3.2" autocomplete="off" />
+                <button id="toggleGpaVisibility" class="field-action" type="button" aria-controls="gpa" aria-pressed="false">Show</button>
+              </span>
+            </label>
             <label>
               GPA scale
               <select name="gpaScale">

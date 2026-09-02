@@ -198,6 +198,7 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /id="previewSelectedSkills"/);
   assert.match(optionsHtml, /Skills selected from your CV \+ JD/);
   assert.match(optionsHtml, /name="skillBlacklist"/);
+  assert.match(optionsSource, /gpaField\.type = isVisible \? "password" : "text"/);
   assert.match(optionsHtml, /Why these were selected/);
   assert.doesNotMatch(optionsHtml, /Excluded by your limits|preview-explainers|preview-legend|ats-mock-header/);
   assert.match(optionsHtml, /data-settings-target="history"/);

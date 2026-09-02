@@ -34,6 +34,10 @@ textarea { width: 100%; border: 1px solid #c7ced9; border-radius: 4px; padding: 
 input:focus,
 select:focus,
 textarea:focus { outline: 2px solid rgba(23, 105, 194, 0.14); border-color: var(--blue); }
+.masked-field { position: relative; display: block; }
+.masked-field input { padding-right: 58px; }
+.field-action { position: absolute; top: 50%; right: 5px; border: 0; border-radius: 3px; padding: 5px 7px; color: var(--blue); background: transparent; font-size: 10px; transform: translateY(-50%); }
+.field-action:hover { background: #eef5fd; }
 .resume-prefilled { border-color: #6aa3e8; background: #f5f9ff; }
 textarea { min-height: 220px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; }
 

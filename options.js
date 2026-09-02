@@ -577,6 +577,15 @@ document.querySelector("#importProfile").addEventListener("change", async (event
 const resumeFile = document.querySelector("#resumeFile");
 const resumeStatus = document.querySelector("#resumeStatus");
 const removeResumeButton = document.querySelector("#removeResume");
+const gpaField = form.elements.namedItem("gpa");
+const toggleGpaVisibilityButton = document.querySelector("#toggleGpaVisibility");
+
+toggleGpaVisibilityButton.addEventListener("click", () => {
+  const isVisible = gpaField.type === "text";
+  gpaField.type = isVisible ? "password" : "text";
+  toggleGpaVisibilityButton.textContent = isVisible ? "Show" : "Hide";
+  toggleGpaVisibilityButton.setAttribute("aria-pressed", String(!isVisible));
+});
 
 function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);

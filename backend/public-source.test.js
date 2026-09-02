@@ -62,6 +62,8 @@ test("structured education settings use constrained browser controls", async () 
   assert.match(html, /name="startDate" type="month" min="1950-01" max="2100-12"/);
   assert.match(html, /<select name="workTerm">[\s\S]*?<option value="4–8 months">/);
   assert.match(html, /<select name="gpaScale">/);
+  assert.match(html, /id="gpa" name="gpa" type="password"/);
+  assert.match(html, /id="toggleGpaVisibility"[\s\S]*?aria-controls="gpa"/);
 });
 
 test("profile settings expose common developer and generic URL fields", async () => {
