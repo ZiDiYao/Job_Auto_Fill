@@ -612,7 +612,7 @@ fillButton.addEventListener("click", async () => {
           tabId: tab.id,
           initialReview: totals.review,
           maxSteps: latestProfile.autoAdvanceMaxSteps || 10,
-          delayMs: latestProfile.autoAdvanceDelayMs || 1800,
+          delayMs: latestProfile.autoAdvanceDelayMs || 900,
         });
         if (started?.ok) {
           stopAutoNextButton.hidden = false;

@@ -13,6 +13,7 @@
     /\bskills?\b/i,
     /\bjob application\b|\bapply for (?:this|the) (?:job|position|role)\b/i,
   ];
+  const INSPECTION_DELAY_MS = 350;
   let timer = null;
   let lastSignature = "";
 
@@ -127,8 +128,8 @@
   }
 
   function scheduleInspection() {
-    if (timer !== null) clearTimeout(timer);
-    timer = setTimeout(notifyIfReady, 1100);
+    if (timer !== null) return;
+    timer = setTimeout(notifyIfReady, INSPECTION_DELAY_MS);
   }
 
   new MutationObserver(scheduleInspection).observe(document.documentElement, {

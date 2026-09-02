@@ -102,7 +102,7 @@ test("auto-advance fills the next page and stops before the final Submit button"
     },
   };
   const background = loadBackground({ scripting, setTimeoutImpl: (callback) => { callback(); return 0; } });
-  const started = await background.send({ type: "start-auto-advance", tabId: 42, maxSteps: 5, delayMs: 800 });
+  const started = await background.send({ type: "start-auto-advance", tabId: 42, maxSteps: 5, delayMs: 500 });
   assert.equal(started.started, true);
   for (let index = 0; index < 20 && background.storage.jobAutofillAutoAdvanceStatus?.state !== "awaiting-submit"; index += 1) {
     await new Promise((resolve) => setImmediate(resolve));

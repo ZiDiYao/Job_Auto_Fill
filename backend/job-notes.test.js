@@ -231,6 +231,8 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(manifestSource, /"https:\/\/\*\/\*"/);
   assert.match(watcherSource, /MutationObserver/);
   assert.match(watcherSource, /job-page-observed/);
+  assert.match(watcherSource, /INSPECTION_DELAY_MS = 350/);
+  assert.doesNotMatch(watcherSource, /clearTimeout\(timer\)/);
   assert.match(watcherSource, /JobPosting structured data/);
   assert.match(popupSource, /jobAutofillDetectedJobContext/);
   assert.match(optionsSource, /showSettingsPage/);

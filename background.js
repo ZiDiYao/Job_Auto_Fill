@@ -9,6 +9,8 @@ const AUTO_FILL_ORIGINS = ["http://*/*", "https://*/*"];
 const LAST_FILL_STATUS_KEY = "jobAutofillLastFillStatus";
 const LAST_SKILL_SELECTION_KEY = "jobAutofillLastSkillSelection";
 const LAST_DETECTED_JOB_KEY = "jobAutofillDetectedJobContext";
+const DEFAULT_AUTO_ADVANCE_DELAY_MS = 900;
+const MIN_AUTO_ADVANCE_DELAY_MS = 500;
 const activeAutoAdvanceSessions = new Map();
 const activeFillSessions = new Map();
 const lastAutomaticPageSignatures = new Map();
@@ -427,14 +429,14 @@ async function fillApplicationTab(tabId, { source = "shortcut", context = null }
       if (context) await persistDetectedJobContext(context, tabId);
       else await captureJobContext(tabId);
       const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
-      const summary = summarizeFrameResults(await executeFillWithRetry(tabId, jobAutofillProfile.autoAdvanceDelayMs || 1800));
+      const summary = summarizeFrameResults(await executeFillWithRetry(tabId, jobAutofillProfile.autoAdvanceDelayMs || DEFAULT_AUTO_ADVANCE_DELAY_MS));
       await updateFillFeedback(tabId, summary, source);
       if (jobAutofillProfile.autoAdvanceEnabled === true && !summary.aiError && summary.review === 0) {
         void runAutoAdvanceSession({
           tabId,
           initialReview: summary.review,
           maxSteps: jobAutofillProfile.autoAdvanceMaxSteps || 10,
-          delayMs: jobAutofillProfile.autoAdvanceDelayMs || 1800,
+          delayMs: jobAutofillProfile.autoAdvanceDelayMs || DEFAULT_AUTO_ADVANCE_DELAY_MS,
         });
       }
       return summary;
@@ -478,7 +480,7 @@ async function runAutoAdvanceSession({ tabId, maxSteps, delayMs, initialReview =
   session.cancel = () => { session.cancelled = true; };
   activeAutoAdvanceSessions.set(tabId, session);
   const stepLimit = Math.min(30, Math.max(1, Math.trunc(Number(maxSteps || 10))));
-  const waitMs = Math.min(10000, Math.max(800, Math.trunc(Number(delayMs || 1800))));
+  const waitMs = Math.min(10000, Math.max(MIN_AUTO_ADVANCE_DELAY_MS, Math.trunc(Number(delayMs || DEFAULT_AUTO_ADVANCE_DELAY_MS))));
   try {
     if (Number(initialReview) > 0) {
       return updateAutoAdvanceStatus(tabId, { running: false, state: "needs-review", step: 0, message: `${initialReview} required field(s) need review before continuing.` });

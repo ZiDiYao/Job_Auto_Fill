@@ -60,6 +60,7 @@ test("structured education settings use constrained browser controls", async () 
   assert.match(html, /name="educationStartYear" type="number" min="1950" max="2100"/);
   assert.match(html, /name="graduationDate" type="date" min="1950-01-01" max="2100-12-31"/);
   assert.match(html, /name="startDate" type="month" min="1950-01" max="2100-12"/);
+  assert.match(html, /name="autoAdvanceDelayMs" type="number" min="500" max="10000"/);
   assert.match(html, /<select name="workTerm">[\s\S]*?<option value="4–8 months">/);
   assert.match(html, /<select name="gpaScale">/);
   assert.match(html, /id="gpa" name="gpa" type="password"/);

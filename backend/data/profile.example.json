@@ -72,7 +72,7 @@
   "autoCaptureJobDescriptions": true,
   "autoFillOnPageChange": false,
   "autoAdvanceMaxSteps": 10,
-  "autoAdvanceDelayMs": 1800,
+  "autoAdvanceDelayMs": 900,
   "workExperiences": [],
   "educationEntries": [],
   "languages": [],
