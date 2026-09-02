@@ -11,6 +11,7 @@ import {
   rankSkillCandidates,
   validateAnswers,
   validateFieldPlans,
+  validateResumeEducationEntries,
   validateResumeLanguages,
   validateResumeProfileFields,
 } from "./server.js";
@@ -45,6 +46,45 @@ test("resume profile extraction keeps only high-confidence, safe, well-formed fa
     gpaScale: "4.0",
     stackoverflow: "https://stackoverflow.com/users/123/example",
   });
+});
+
+test("resume education extraction preserves multiple distinct schools and rejects guesses", () => {
+  assert.deepEqual(validateResumeEducationEntries([
+    {
+      school: "Example University", degree: "Master of Science", fieldOfStudy: "Computer Science",
+      gpa: "3.8", gpaScale: "4.0", startMonth: "September", startYear: "2024",
+      endMonth: "May", endYear: "2026", confidence: 0.98,
+    },
+    {
+      school: "Example University", degree: "Bachelor of Engineering", fieldOfStudy: "Software Engineering",
+      startYear: "2020", endMonth: "May", endYear: "2024", confidence: 0.96,
+    },
+    { school: "Example Secondary School", degree: "High School Diploma", endYear: "2020", confidence: 0.94 },
+    { school: "Example College", degree: "Diploma", graduationDate: "2020-06-15", confidence: 0.93 },
+    { school: "Example Secondary School", degree: "High School Diploma", endYear: "2020", confidence: 0.99 },
+    { school: "Guessed School", degree: "PhD", confidence: 0.4 },
+  ]), [
+    {
+      school: "Example University", degree: "Master of Science", fieldOfStudy: "Computer Science",
+      gpa: "3.8", gpaScale: "4.0", startMonth: "September", startDay: "", startYear: "2024",
+      endMonth: "May", endDay: "", endYear: "2026", graduationDate: "",
+    },
+    {
+      school: "Example University", degree: "Bachelor of Engineering", fieldOfStudy: "Software Engineering",
+      gpa: "", gpaScale: "", startMonth: "", startDay: "", startYear: "2020",
+      endMonth: "May", endDay: "", endYear: "2024", graduationDate: "",
+    },
+    {
+      school: "Example Secondary School", degree: "High School Diploma", fieldOfStudy: "",
+      gpa: "", gpaScale: "", startMonth: "", startDay: "", startYear: "",
+      endMonth: "", endDay: "", endYear: "2020", graduationDate: "",
+    },
+    {
+      school: "Example College", degree: "Diploma", fieldOfStudy: "",
+      gpa: "", gpaScale: "", startMonth: "", startDay: "", startYear: "",
+      endMonth: "June", endDay: "15", endYear: "2020", graduationDate: "2020-06-15",
+    },
+  ]);
 });
 
 test("resume language extraction requires explicit supported proficiency", () => {

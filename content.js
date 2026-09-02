@@ -1549,6 +1549,44 @@
     return fields;
   }
 
+  function educationSchoolFields() {
+    return [...document.querySelectorAll(
+      'input[id^="education-"][id$="--schoolName"], input[id^="education-"][id$="--school"]',
+    )];
+  }
+
+  function educationSection(firstSchoolField) {
+    let ancestor = firstSchoolField?.parentElement;
+    for (let depth = 0; ancestor && depth < 10; depth += 1, ancestor = ancestor.parentElement) {
+      const fields = ancestor.querySelectorAll(
+        'input[id^="education-"][id$="--schoolName"], input[id^="education-"][id$="--school"]',
+      );
+      if (!fields.length) continue;
+      const addButton = [...ancestor.querySelectorAll("button")]
+        .find((button) => normalize(button.textContent) === "add another");
+      if (addButton) return { container: ancestor, addButton };
+    }
+    return { container: null, addButton: null };
+  }
+
+  async function ensureEducationRows(targetCount) {
+    let fields = educationSchoolFields();
+    if (!fields.length || fields.length >= targetCount) return fields;
+    while (fields.length < targetCount) {
+      const { addButton } = educationSection(fields[0]);
+      if (!addButton) break;
+      const previousCount = fields.length;
+      addButton.click();
+      for (let attempt = 0; attempt < 15; attempt += 1) {
+        await wait(160);
+        fields = educationSchoolFields();
+        if (fields.length > previousCount) break;
+      }
+      if (fields.length <= previousCount) break;
+    }
+    return fields;
+  }
+
   async function fillWorkdayStructuredSections() {
     if (!document.querySelector('[data-automation-id="applyFlowMyExpPage"]')) return;
     if (await changesArePaused(true)) return;
@@ -1580,23 +1618,32 @@
       }
     }
 
-    const storedEducation = Array.isArray(profile.educationEntries) ? (profile.educationEntries[0] || {}) : {};
-    const education = {
-      ...storedEducation,
-      school: profile.school || storedEducation.school || "",
-      degree: profile.degree || storedEducation.degree || "",
-      fieldOfStudy: profile.fieldOfStudy || storedEducation.fieldOfStudy || "",
-      gpa: profile.gpa || storedEducation.gpa || "",
-      startYear: profile.educationStartYear || storedEducation.startYear || "",
-      endMonth: profile.graduationMonth || storedEducation.endMonth || "",
-      endDay: profile.graduationDay || storedEducation.endDay || "",
-      endYear: profile.graduationYear || storedEducation.endYear || "",
+    const storedEducationEntries = Array.isArray(profile.educationEntries)
+      ? profile.educationEntries.filter((entry) => entry?.school)
+      : [];
+    const legacyEducation = {
+      school: profile.school || "",
+      degree: profile.degree || "",
+      fieldOfStudy: profile.fieldOfStudy || "",
+      gpa: profile.gpa || "",
+      startYear: profile.educationStartYear || "",
+      endMonth: profile.graduationMonth || "",
+      endDay: profile.graduationDay || "",
+      endYear: profile.graduationYear || "",
     };
+    const educationEntries = storedEducationEntries.length ? storedEducationEntries.map((entry) => ({ ...entry })) : [];
+    if (!educationEntries.length && legacyEducation.school) educationEntries.push(legacyEducation);
+    else if (educationEntries.length) {
+      for (const [key, value] of Object.entries(legacyEducation)) {
+        if (!educationEntries[0][key] && value) educationEntries[0][key] = value;
+      }
+    }
     if (await changesArePaused(true)) return;
-    const schoolField = document.querySelector(
-      'input[id^="education-"][id$="--schoolName"], input[id^="education-"][id$="--school"]',
-    );
-    if (education.school && schoolField) {
+    const schoolFields = await ensureEducationRows(educationEntries.length);
+    for (const [index, schoolField] of schoolFields.entries()) {
+      if (await changesArePaused()) return;
+      const education = educationEntries[index];
+      if (!education?.school) continue;
       const prefix = workdayPrefix(schoolField);
       await chooseWorkdayPrompt(schoolField, education.school);
       await chooseWorkdayButton(workdayField(prefix, "degree"), education.degree);

@@ -47,6 +47,13 @@ before(async () => {
           { key: "graduationYear", value: "2028", confidence: 0.92 },
           { key: "criminalRecord", value: "No", confidence: 1 },
         ],
+        educationEntries: [
+          {
+            school: "Example University", degree: "Bachelor of Engineering", fieldOfStudy: "Computing",
+            startMonth: "September", startYear: "2024", endMonth: "May", endYear: "2028", confidence: 0.98,
+          },
+          { school: "Example High School", degree: "High School Diploma", endYear: "2024", confidence: 0.95 },
+        ],
         languages: [
           { name: "Spanish", level: "Fluent", confidence: 0.96 },
           { name: "Unstated", level: "Advanced", confidence: 0.2 },
@@ -207,8 +214,27 @@ test("resume profile endpoint extracts only validated non-sensitive facts", asyn
     firstName: "Ada",
     lastName: "Lovelace",
     school: "Example University",
+    degree: "Bachelor of Engineering",
+    fieldOfStudy: "Computing",
+    gpa: "",
+    gpaScale: "",
+    educationStartYear: "2024",
     graduationMonth: "May",
+    graduationDay: "",
     graduationYear: "2028",
+    graduationDate: "",
+    educationEntries: [
+      {
+        school: "Example University", degree: "Bachelor of Engineering", fieldOfStudy: "Computing",
+        gpa: "", gpaScale: "", startMonth: "September", startDay: "", startYear: "2024",
+        endMonth: "May", endDay: "", endYear: "2028", graduationDate: "",
+      },
+      {
+        school: "Example High School", degree: "High School Diploma", fieldOfStudy: "",
+        gpa: "", gpaScale: "", startMonth: "", startDay: "", startYear: "",
+        endMonth: "", endDay: "", endYear: "2024", graduationDate: "",
+      },
+    ],
     languages: [
       { name: "Spanish", fluent: true, overall: "Fluent", reading: "Fluent", speaking: "Fluent", writing: "Fluent" },
     ],

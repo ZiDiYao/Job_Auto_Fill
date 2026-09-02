@@ -72,46 +72,15 @@
         </section>
 
         <section data-settings-page="profile" hidden>
-          <h2>Education and availability</h2>
-          <p class="help">Upload a resume below to prefill supported facts. Review the result, then complete anything the resume does not state.</p>
+          <h2>Education</h2>
+          <p class="help">Add every school you want to use in applications. Uploading a resume creates separate entries for recognized high school, college, bachelor's, master's, and doctoral education.</p>
+          <div id="educationList" class="education-list"></div>
+          <button id="addEducation" class="secondary" type="button">Add education</button>
+        </section>
+
+        <section data-settings-page="profile" hidden>
+          <h2>Availability</h2>
           <div class="grid">
-            <label>School<input name="school" maxlength="160" /></label>
-            <label>Degree<input name="degree" maxlength="120" placeholder="Bachelor of Engineering" /></label>
-            <label>Field of study<input name="fieldOfStudy" maxlength="120" /></label>
-            <label>
-              Overall result / GPA
-              <span class="masked-field">
-                <input id="gpa" name="gpa" type="password" inputmode="decimal" maxlength="16" placeholder="e.g. 3.2" autocomplete="off" />
-                <button id="toggleGpaVisibility" class="field-action" type="button" aria-controls="gpa" aria-pressed="false">Show</button>
-              </span>
-            </label>
-            <label>
-              GPA scale
-              <select name="gpaScale">
-                <option value="">Select a scale</option>
-                <option value="4.0">4.0</option>
-                <option value="4.3">4.3</option>
-                <option value="5.0">5.0</option>
-                <option value="10.0">10.0</option>
-                <option value="20.0">20.0</option>
-                <option value="100">100 / percentage</option>
-                <option value="Letter">Letter grade</option>
-                <option value="Other">Other</option>
-              </select>
-            </label>
-            <label>Education start year<input name="educationStartYear" type="number" min="1950" max="2100" step="1" placeholder="YYYY" /></label>
-            <label>
-              Graduation month
-              <select name="graduationMonth">
-                <option value="">Select month</option>
-                <option>January</option><option>February</option><option>March</option><option>April</option>
-                <option>May</option><option>June</option><option>July</option><option>August</option>
-                <option>September</option><option>October</option><option>November</option><option>December</option>
-              </select>
-            </label>
-            <label>Graduation day<input name="graduationDay" type="number" min="1" max="31" step="1" placeholder="DD" /></label>
-            <label>Graduation year<input name="graduationYear" type="number" min="1950" max="2100" step="1" placeholder="YYYY" /></label>
-            <label>Expected graduation date<input name="graduationDate" type="date" min="1950-01-01" max="2100-12-31" /></label>
             <label>Available start month<input name="startDate" type="month" min="1950-01" max="2100-12" /></label>
             <label>
               Co-op / internship duration

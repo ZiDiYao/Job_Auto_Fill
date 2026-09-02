@@ -9,7 +9,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Fills common contact, education, availability, work-authorization, and portfolio fields.
 - Optionally fills user-configured gender, pronoun, sexual-orientation, Indigenous-identity, race/ethnicity, disability, and veteran-status answers.
 - Stores a user-selected resume locally and attaches it to recognizable Resume/CV upload fields.
-- Uses the configured backend AI after a resume upload to prefill only blank, evidence-backed contact and education fields; validated legal, demographic, medical, and criminal-history fields are never inferred from a resume.
+- Uses the configured backend AI after a resume upload to prefill only blank, evidence-backed contact and education fields, creating separate editable records for every recognized school or credential (including high school, college, bachelor's, master's, and doctoral education); validated legal, demographic, medical, and criminal-history fields are never inferred from a resume.
 - Optionally uses a free local Ollama model to draft unmatched open-ended questions from resume text and visible job context.
 - Opens a movable, resizable extension window for reviewing the detected job description and controlling autofill while the application remains visible behind it.
 - Fills the current application without opening the popup through `Command+Shift+Y` on macOS or `Ctrl+Shift+Y` on Windows/Linux.
@@ -19,6 +19,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Opens on a leftmost General settings page for appearance and automatic-fill behaviour, while keeping candidate data and the uploaded resume in Profile.
 - Syncs the saved profile and resume from a backend bound to `127.0.0.1`.
 - Uses structured Workday mappings for repeated experience, education, language, and skill controls instead of asking AI to guess field boundaries.
+- Stores education as an ordered list that users can add, remove, and reorder; Workday receives one confirmed education row per saved record, while simpler forms use the first record as a compatibility default.
 - Scans unresolved visible controls into a compact semantic DOM schema containing labels, sections, control types, requirements, and exact available options.
 - Sends that schema to the backend AI for a field plan, then uses a guarded browser executor to fill, select, validate, wait for dynamic controls, and re-scan up to three rounds.
 - Adds Workday skills one at a time through the site's suggestion list so each value becomes a confirmed token.

@@ -53,6 +53,15 @@ textarea { min-height: 220px; resize: vertical; font-family: ui-monospace, SFMon
 
 .language-list { display: grid; gap: 10px; margin-bottom: 12px; }
 .language-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.education-list { display: grid; gap: 14px; margin-bottom: 12px; }
+.education-row { border: 1px solid var(--border); border-radius: 5px; padding: 16px; background: #fafbfc; }
+.education-row-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.education-row-heading h3 { margin: 0; color: var(--text); }
+.education-row-actions { display: flex; align-items: center; gap: 2px; }
+.education-action { width: 27px; height: 27px; border: 0; border-radius: 50%; padding: 0; color: #667085; background: transparent; font-size: 15px; font-weight: 600; }
+.education-action:hover:not(:disabled) { color: var(--blue); background: #eef5fd; }
+.education-action.remove-education:hover { color: #b42318; background: #fef3f2; }
+.education-action:disabled { opacity: 0.28; cursor: default; }
 
 .help { margin: -8px 0 14px; font-size: 12px; }
 .field-note { margin: -4px 0 12px; font-size: 11px; }
@@ -182,6 +191,7 @@ code { border-radius: 3px; padding: 2px 4px; color: #344054; background: #eef1f4
 :root[data-theme="green"] .field-action:hover { background: #edf8f3; }
 :root[data-theme="green"] .resume-prefilled { border-color: #6cad92; background: #f4fbf7; }
 :root[data-theme="green"] .export-destination.enabled { border-color: #9bbdab; }
+:root[data-theme="green"] .education-action:hover:not(:disabled) { background: #edf8f3; }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -232,6 +242,10 @@ code { border-radius: 3px; padding: 2px 4px; color: #344054; background: #eef1f4
 :root[data-theme="dark"] .export-destination.enabled { border-color: #657184; }
 :root[data-theme="dark"] .destination-options,
 :root[data-theme="dark"] .history-save-policy { background: #1a1e25; }
+:root[data-theme="dark"] .education-row { background: #13161b; }
+:root[data-theme="dark"] .education-action { color: #a8b0bd; }
+:root[data-theme="dark"] .education-action:hover:not(:disabled) { color: #d9dee7; background: #222a35; }
+:root[data-theme="dark"] .education-action.remove-education:hover { color: #ffb4b4; background: #2b1b1e; }
 :root[data-theme="dark"] .preview-row { border-top-color: #303641; }
 :root[data-theme="dark"] .settings-tab,
 :root[data-theme="dark"] .export-tab { color: #a8b0bd; }

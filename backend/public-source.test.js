@@ -55,16 +55,21 @@ test("container bootstrap seeds only blank config and profile files", async () =
   assert.equal(/resume/i.test(entrypoint), false);
 });
 
-test("structured education settings use constrained browser controls", async () => {
-  const html = await readFile(path.join(repositoryRoot, "options.html"), "utf8");
-  assert.match(html, /name="educationStartYear" type="number" min="1950" max="2100"/);
-  assert.match(html, /name="graduationDate" type="date" min="1950-01-01" max="2100-12-31"/);
+test("education settings support repeatable constrained records", async () => {
+  const [html, source] = await Promise.all([
+    readFile(path.join(repositoryRoot, "options.html"), "utf8"),
+    readFile(path.join(repositoryRoot, "options.js"), "utf8"),
+  ]);
+  assert.match(html, /id="educationList"/);
+  assert.match(html, /id="addEducation"/);
   assert.match(html, /name="startDate" type="month" min="1950-01" max="2100-12"/);
   assert.match(html, /name="autoAdvanceDelayMs" type="number" min="500" max="10000"/);
   assert.match(html, /<select name="workTerm">[\s\S]*?<option value="4–8 months">/);
-  assert.match(html, /<select name="gpaScale">/);
-  assert.match(html, /id="gpa" name="gpa" type="password"/);
-  assert.match(html, /id="toggleGpaVisibility"[\s\S]*?aria-controls="gpa"/);
+  assert.match(source, /educationEntries: \[\]/);
+  assert.match(source, /function createEducationRow\(/);
+  assert.match(source, /function collectEducationEntries\(/);
+  assert.match(source, /type: "password"[\s\S]*inputmode: "decimal"/);
+  assert.match(source, /type: "date"[\s\S]*min: "1950-01-01"[\s\S]*max: "2100-12-31"/);
 });
 
 test("profile settings expose common developer and generic URL fields", async () => {
@@ -86,6 +91,14 @@ test("language settings are user-managed and start without assumed languages", a
   assert.match(source, /function collectLanguages\(/);
   assert.match(source, /function renderLanguages\(/);
   assert.deepEqual(defaults.languages, []);
+});
+
+test("Workday structured filling creates and fills one row per education record", async () => {
+  const source = await readFile(path.join(repositoryRoot, "content.js"), "utf8");
+  assert.match(source, /function educationSchoolFields\(/);
+  assert.match(source, /async function ensureEducationRows\(targetCount\)/);
+  assert.match(source, /const schoolFields = await ensureEducationRows\(educationEntries\.length\)/);
+  assert.match(source, /for \(const \[index, schoolField\] of schoolFields\.entries\(\)\)/);
 });
 
 test("saved-state copy is rendered as quiet secondary text", async () => {

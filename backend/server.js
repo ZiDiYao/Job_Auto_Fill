@@ -136,7 +136,10 @@ function safeProfileForModel(profile) {
     "school", "degree", "fieldOfStudy", "gpa", "gpaScale", "educationStartYear",
     "graduationMonth", "graduationDay", "graduationYear", "graduationDate", "startDate", "workTerm",
   ];
-  return Object.fromEntries(allowedKeys.map((key) => [key, profile[key] || ""]));
+  return {
+    ...Object.fromEntries(allowedKeys.map((key) => [key, profile[key] || ""])),
+    educationEntries: Array.isArray(profile.educationEntries) ? profile.educationEntries.slice(0, 12) : [],
+  };
 }
 
 const resumeProfileKeys = new Set([
@@ -212,6 +215,53 @@ export function validateResumeLanguages(rawLanguages) {
   return languages;
 }
 
+export function validateResumeEducationEntries(rawEntries) {
+  const entries = [];
+  const seen = new Set();
+  for (const rawEntry of Array.isArray(rawEntries) ? rawEntries : []) {
+    if (confidenceScore(rawEntry?.confidence) < 0.78) continue;
+    const entry = {
+      school: String(rawEntry?.school || "").replace(/\s+/g, " ").trim().slice(0, 160),
+      degree: String(rawEntry?.degree || "").replace(/\s+/g, " ").trim().slice(0, 120),
+      fieldOfStudy: String(rawEntry?.fieldOfStudy || "").replace(/\s+/g, " ").trim().slice(0, 120),
+      gpa: String(rawEntry?.gpa || "").trim().slice(0, 16),
+      gpaScale: String(rawEntry?.gpaScale || "").trim(),
+      startMonth: String(rawEntry?.startMonth || "").trim(),
+      startDay: String(rawEntry?.startDay || "").trim(),
+      startYear: String(rawEntry?.startYear || "").trim(),
+      endMonth: String(rawEntry?.endMonth || "").trim(),
+      endDay: String(rawEntry?.endDay || "").trim(),
+      endYear: String(rawEntry?.endYear || "").trim(),
+      graduationDate: String(rawEntry?.graduationDate || "").trim(),
+    };
+    if (!entry.school) continue;
+    if (entry.gpa && (!/^\d{1,3}(?:\.\d{1,3})?$/.test(entry.gpa) || Number(entry.gpa) > 100)) entry.gpa = "";
+    if (entry.gpaScale && !gpaScales.has(entry.gpaScale)) entry.gpaScale = "";
+    for (const key of ["startMonth", "endMonth"]) {
+      if (entry[key] && !monthNames.has(entry[key])) entry[key] = "";
+    }
+    for (const key of ["startYear", "endYear"]) {
+      if (entry[key] && !validProfileYear(entry[key])) entry[key] = "";
+    }
+    for (const key of ["startDay", "endDay"]) {
+      if (entry[key] && (!/^\d{1,2}$/.test(entry[key]) || Number(entry[key]) < 1 || Number(entry[key]) > 31)) entry[key] = "";
+    }
+    if (entry.graduationDate && !validIsoProfileDate(entry.graduationDate)) entry.graduationDate = "";
+    if (entry.graduationDate) {
+      const [year, month, day] = entry.graduationDate.split("-");
+      entry.endYear ||= year;
+      entry.endMonth ||= [...monthNames][Number(month) - 1] || "";
+      entry.endDay ||= String(Number(day));
+    }
+    const key = `${entry.school}|${entry.degree}|${entry.endYear}`.toLocaleLowerCase("en");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries.push(entry);
+    if (entries.length >= 12) break;
+  }
+  return entries;
+}
+
 async function extractResumeProfile({ resumeText, provider }) {
   const profile = await getProfile();
   const resume = String(resumeText || profile.resumeText || await getResumeText().catch(() => "")).trim();
@@ -219,13 +269,15 @@ async function extractResumeProfile({ resumeText, provider }) {
   const aiStrategy = selectedAiStrategy(profile, provider);
   const system = [
     "Extract candidate profile facts from a resume. Return JSON only in this exact shape:",
-    '{"fields":[{"key":"school","value":"University name","confidence":0.98}],"languages":[{"name":"Spanish","level":"Fluent","confidence":0.95}]}',
+    '{"fields":[{"key":"firstName","value":"Ada","confidence":0.98}],"educationEntries":[{"school":"Example University","degree":"Master of Science","fieldOfStudy":"Computer Science","gpa":"3.8","gpaScale":"4.0","startMonth":"September","startDay":"","startYear":"2024","endMonth":"May","endDay":"","endYear":"2026","graduationDate":"","confidence":0.98}],"languages":[{"name":"Spanish","level":"Fluent","confidence":0.95}]}',
     `Allowed keys: ${[...resumeProfileKeys].join(", ")}.`,
     "Include a field only when its value is explicitly supported by the resume. Never guess or infer missing facts.",
     "Never extract or infer work authorization, sponsorship, age, government identifiers, criminal history, medical/disability information, demographics, gender, race, veteran status, consent, preferences, or other legal facts.",
     "Preserve names and organization capitalization exactly. Do not truncate names.",
     "Use YYYY-MM-DD for an exact graduation date, YYYY-MM for available start date, full English month names, and four digits for years.",
     "If only a graduation month and year are stated, return graduationMonth and graduationYear separately; never invent a day.",
+    "Return every explicitly listed education record in educationEntries, including high school, college, bachelor's, master's, and doctoral education. Keep each school as a separate record and order current or most recent education first.",
+    "For educationEntries use startMonth/startDay/startYear and endMonth/endDay/endYear. Leave unknown values empty and never combine two schools into one record.",
     "GPA scale must be one of 4.0, 4.3, 5.0, 10.0, 20.0, 100, Letter, Other. Omit it when unstated.",
     `workTerm must be one of: ${[...workTerms].join(", ")}. Omit it when the resume does not state availability.`,
     `Language level must be one of: ${[...languageLevels].join(", ")}. Return a language only when both the language and proficiency are explicitly supported by the resume; never assume English or any other language.`,
@@ -237,9 +289,24 @@ async function extractResumeProfile({ resumeText, provider }) {
     temperature: 0,
   });
   const languages = validateResumeLanguages(completion.data.languages);
+  const educationEntries = validateResumeEducationEntries(completion.data.educationEntries);
+  const primaryEducation = educationEntries[0];
   return {
     profile: {
       ...validateResumeProfileFields(completion.data.fields),
+      ...(primaryEducation ? {
+        school: primaryEducation.school,
+        degree: primaryEducation.degree,
+        fieldOfStudy: primaryEducation.fieldOfStudy,
+        gpa: primaryEducation.gpa,
+        gpaScale: primaryEducation.gpaScale,
+        educationStartYear: primaryEducation.startYear,
+        graduationMonth: primaryEducation.endMonth,
+        graduationDay: primaryEducation.endDay,
+        graduationYear: primaryEducation.endYear,
+        graduationDate: primaryEducation.graduationDate,
+        educationEntries,
+      } : {}),
       ...(languages.length ? { languages } : {}),
     },
     usage: completion.usage,
@@ -382,6 +449,7 @@ function decisionProfileForModel(profile) {
       startYear: experience.startYear || "",
       endYear: experience.endYear || "",
     })),
+    educationEntries: Array.isArray(profile.educationEntries) ? profile.educationEntries.slice(0, 12) : [],
     languages: Array.isArray(profile.languages) ? profile.languages : [],
     skills: Array.isArray(profile.skills) ? profile.skills : [],
   };

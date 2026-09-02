@@ -177,8 +177,34 @@ const RESUME_PREFILL_KEYS = new Set([
   "postalCode", "country", "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter",
   "otherSocialUrl", "otherWebsiteUrl", "school", "degree", "fieldOfStudy",
   "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
-  "graduationDate", "startDate", "workTerm", "languages",
+  "graduationDate", "educationEntries", "startDate", "workTerm", "languages",
 ]);
+
+function normalizeExtractedEducation(entries) {
+  const seen = new Set();
+  return (Array.isArray(entries) ? entries : []).flatMap((entry) => {
+    const school = String(entry?.school || "").replace(/\s+/g, " ").trim().slice(0, 160);
+    if (!school) return [];
+    const normalized = {
+      school,
+      degree: String(entry?.degree || "").replace(/\s+/g, " ").trim().slice(0, 120),
+      fieldOfStudy: String(entry?.fieldOfStudy || "").replace(/\s+/g, " ").trim().slice(0, 120),
+      gpa: String(entry?.gpa || "").trim().slice(0, 16),
+      gpaScale: String(entry?.gpaScale || "").trim().slice(0, 16),
+      startMonth: String(entry?.startMonth || "").trim(),
+      startDay: String(entry?.startDay || "").trim(),
+      startYear: String(entry?.startYear || "").trim(),
+      endMonth: String(entry?.endMonth || "").trim(),
+      endDay: String(entry?.endDay || "").trim(),
+      endYear: String(entry?.endYear || "").trim(),
+      graduationDate: String(entry?.graduationDate || "").trim(),
+    };
+    const key = `${normalized.school}|${normalized.degree}|${normalized.endYear}`.toLocaleLowerCase("en");
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [normalized];
+  }).slice(0, 12);
+}
 
 function normalizeExtractedLanguages(languages) {
   return (Array.isArray(languages) ? languages : []).flatMap((language) => {
@@ -207,6 +233,14 @@ async function prefillProfileFromSavedResume(resumeText) {
   const nextProfile = { ...jobAutofillProfile };
   let filled = 0;
   for (const [key, rawValue] of Object.entries(extracted.profile || {})) {
+    if (key === "educationEntries") {
+      const entries = normalizeExtractedEducation(rawValue);
+      if (entries.length && (!Array.isArray(nextProfile.educationEntries) || nextProfile.educationEntries.length === 0)) {
+        nextProfile.educationEntries = entries;
+        filled += 1;
+      }
+      continue;
+    }
     if (key === "languages") {
       const languages = normalizeExtractedLanguages(rawValue);
       if (languages.length && (!Array.isArray(nextProfile.languages) || nextProfile.languages.length === 0)) {

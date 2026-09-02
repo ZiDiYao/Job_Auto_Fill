@@ -19,6 +19,8 @@ const RESUME_KEY = "jobAutofillResume";
 const LAST_SKILL_SELECTION_KEY = "jobAutofillLastSkillSelection";
 const ONBOARDING_VISITED_KEY = "jobAutofillOnboardingVisited";
 const form = document.querySelector("#profileForm");
+const educationList = document.querySelector("#educationList");
+const addEducationButton = document.querySelector("#addEducation");
 const languageList = document.querySelector("#languageList");
 const addLanguageButton = document.querySelector("#addLanguage");
 const saveStatus = document.querySelector("#saveStatus");
@@ -238,6 +240,7 @@ const defaultProfile = {
   graduationDay: "",
   graduationYear: "",
   graduationDate: "",
+  educationEntries: [],
   startDate: "",
   workTerm: "",
   willingToCommute: "",
@@ -311,6 +314,7 @@ function mergeProfile(profile = {}) {
   if (!migrated.meetsMinimumWorkingAge && migrated.age18OrOlder) migrated.meetsMinimumWorkingAge = migrated.age18OrOlder;
   migrated.graduationDate = normalizeDateValue(migrated.graduationDate);
   migrated.startDate = normalizeMonthValue(migrated.startDate);
+  migrated.educationEntries = normalizeEducationEntries(migrated.educationEntries, migrated);
   migrated.languages = normalizeLanguageEntries(migrated.languages);
   return {
     ...defaultProfile,
@@ -432,16 +436,243 @@ function normalizeMonthValue(value) {
   return monthIndex >= 0 ? `${match[2]}-${String(monthIndex + 1).padStart(2, "0")}` : "";
 }
 
+const EDUCATION_FIELDS = [
+  "school", "degree", "fieldOfStudy", "gpa", "gpaScale", "startMonth", "startDay", "startYear",
+  "endMonth", "endDay", "endYear", "graduationDate",
+];
+
+function cleanEducationText(value, maxLength = 160) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function normalizeEducationEntry(entry = {}) {
+  const graduationDate = normalizeDateValue(entry.graduationDate);
+  const dateParts = graduationDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return {
+    school: cleanEducationText(entry.school),
+    degree: cleanEducationText(entry.degree, 120),
+    fieldOfStudy: cleanEducationText(entry.fieldOfStudy, 120),
+    gpa: cleanEducationText(entry.gpa, 16),
+    gpaScale: cleanEducationText(entry.gpaScale, 16),
+    startMonth: MONTH_NAMES.includes(entry.startMonth) ? entry.startMonth : "",
+    startDay: cleanEducationText(entry.startDay, 2),
+    startYear: cleanEducationText(entry.startYear || entry.educationStartYear, 4),
+    endMonth: MONTH_NAMES.includes(entry.endMonth || entry.graduationMonth)
+      ? (entry.endMonth || entry.graduationMonth)
+      : (dateParts ? MONTH_NAMES[Number(dateParts[2]) - 1] : ""),
+    endDay: cleanEducationText(entry.endDay || entry.graduationDay || (dateParts ? String(Number(dateParts[3])) : ""), 2),
+    endYear: cleanEducationText(entry.endYear || entry.graduationYear || (dateParts ? dateParts[1] : ""), 4),
+    graduationDate,
+  };
+}
+
+function educationEntryHasContent(entry) {
+  return EDUCATION_FIELDS.some((key) => String(entry?.[key] || "").trim());
+}
+
+function legacyEducationEntry(profile = {}) {
+  return normalizeEducationEntry({
+    school: profile.school,
+    degree: profile.degree,
+    fieldOfStudy: profile.fieldOfStudy,
+    gpa: profile.gpa,
+    gpaScale: profile.gpaScale,
+    startYear: profile.educationStartYear,
+    endMonth: profile.graduationMonth,
+    endDay: profile.graduationDay,
+    endYear: profile.graduationYear,
+    graduationDate: profile.graduationDate,
+  });
+}
+
+function normalizeEducationEntries(entries, legacyProfile = {}) {
+  const source = Array.isArray(entries) ? entries : [];
+  const normalized = source.map(normalizeEducationEntry).filter(educationEntryHasContent);
+  if (!normalized.length) {
+    const legacy = legacyEducationEntry(legacyProfile);
+    if (educationEntryHasContent(legacy)) normalized.push(legacy);
+  }
+  const seen = new Set();
+  return normalized.filter((entry) => {
+    const key = `${entry.school}|${entry.degree}|${entry.endYear}`.toLocaleLowerCase("en");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 12);
+}
+
+function mergeEducationEntries(currentEntries, extractedEntries) {
+  const merged = normalizeEducationEntries(currentEntries);
+  for (const extracted of normalizeEducationEntries(extractedEntries)) {
+    const match = merged.find((entry) => entry.school.toLocaleLowerCase("en") === extracted.school.toLocaleLowerCase("en")
+      && (!entry.degree || !extracted.degree || entry.degree.toLocaleLowerCase("en") === extracted.degree.toLocaleLowerCase("en")));
+    if (match) {
+      for (const field of EDUCATION_FIELDS) {
+        if (!match[field] && extracted[field]) match[field] = extracted[field];
+      }
+    } else {
+      merged.push(extracted);
+    }
+  }
+  return merged.slice(0, 12);
+}
+
+function educationInput(field, value, attributes = {}) {
+  const input = document.createElement("input");
+  input.name = `education${field[0].toUpperCase()}${field.slice(1)}`;
+  input.dataset.educationField = field;
+  input.value = String(value || "");
+  for (const [key, attributeValue] of Object.entries(attributes)) input.setAttribute(key, attributeValue);
+  return input;
+}
+
+function educationSelect(field, value, choices, placeholder) {
+  const select = document.createElement("select");
+  select.name = `education${field[0].toUpperCase()}${field.slice(1)}`;
+  select.dataset.educationField = field;
+  select.append(new Option(placeholder, ""));
+  for (const choice of choices) select.append(new Option(choice.label || choice, choice.value || choice));
+  select.value = String(value || "");
+  return select;
+}
+
+function educationLabel(text, control) {
+  const label = document.createElement("label");
+  label.append(text, control);
+  return label;
+}
+
+function relabelEducationRows() {
+  [...educationList.querySelectorAll("[data-education-row]")].forEach((row, index, rows) => {
+    row.querySelector("[data-education-title]").textContent = `Education ${index + 1}`;
+    row.querySelector("[data-move-up]").disabled = index === 0;
+    row.querySelector("[data-move-down]").disabled = index === rows.length - 1;
+  });
+}
+
+function createEducationRow(rawEducation = {}) {
+  const education = normalizeEducationEntry(rawEducation);
+  const row = document.createElement("article");
+  row.className = "education-row";
+  row.dataset.educationRow = "true";
+
+  const heading = document.createElement("div");
+  heading.className = "education-row-heading";
+  const title = document.createElement("h3");
+  title.dataset.educationTitle = "true";
+  const actions = document.createElement("div");
+  actions.className = "education-row-actions";
+  for (const [label, attribute, direction] of [["Move up", "moveUp", -1], ["Move down", "moveDown", 1]]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "education-action";
+    button.dataset[attribute] = "true";
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.textContent = direction < 0 ? "↑" : "↓";
+    button.addEventListener("click", () => {
+      const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+      if (!sibling) return;
+      if (direction < 0) educationList.insertBefore(row, sibling);
+      else educationList.insertBefore(sibling, row);
+      relabelEducationRows();
+      profileAutosave.schedule();
+    });
+    actions.append(button);
+  }
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "education-action remove-education";
+  remove.title = "Remove education";
+  remove.setAttribute("aria-label", "Remove education");
+  remove.textContent = "×";
+  remove.addEventListener("click", () => {
+    row.remove();
+    relabelEducationRows();
+    profileAutosave.schedule();
+    updateIncompleteProfileFields();
+  });
+  actions.append(remove);
+  heading.append(title, actions);
+
+  const grid = document.createElement("div");
+  grid.className = "grid education-grid";
+  grid.append(
+    educationLabel("School", educationInput("school", education.school, { maxlength: "160", placeholder: "School or university" })),
+    educationLabel("Degree / credential", educationInput("degree", education.degree, { maxlength: "120", placeholder: "High School Diploma, BEng, MSc, PhD…" })),
+    educationLabel("Field of study", educationInput("fieldOfStudy", education.fieldOfStudy, { maxlength: "120" })),
+  );
+
+  const gpaInput = educationInput("gpa", education.gpa, { type: "password", inputmode: "decimal", maxlength: "16", placeholder: "e.g. 3.2", autocomplete: "off" });
+  const gpaWrapper = document.createElement("span");
+  gpaWrapper.className = "masked-field";
+  const toggleGpa = document.createElement("button");
+  toggleGpa.type = "button";
+  toggleGpa.className = "field-action";
+  toggleGpa.textContent = "Show";
+  toggleGpa.setAttribute("aria-pressed", "false");
+  toggleGpa.addEventListener("click", () => {
+    const hidden = gpaInput.type === "password";
+    gpaInput.type = hidden ? "text" : "password";
+    toggleGpa.textContent = hidden ? "Hide" : "Show";
+    toggleGpa.setAttribute("aria-pressed", String(hidden));
+  });
+  gpaWrapper.append(gpaInput, toggleGpa);
+
+  grid.append(
+    educationLabel("Overall result / GPA", gpaWrapper),
+    educationLabel("GPA scale", educationSelect("gpaScale", education.gpaScale, ["4.0", "4.3", "5.0", "10.0", "20.0", { label: "100 / percentage", value: "100" }, "Letter", "Other"], "Select a scale")),
+    educationLabel("Start month", educationSelect("startMonth", education.startMonth, MONTH_NAMES, "Select month")),
+    educationLabel("Start year", educationInput("startYear", education.startYear, { type: "number", min: "1950", max: "2100", step: "1", placeholder: "YYYY" })),
+    educationLabel("Completion month", educationSelect("endMonth", education.endMonth, MONTH_NAMES, "Select month")),
+    educationLabel("Completion year", educationInput("endYear", education.endYear, { type: "number", min: "1950", max: "2100", step: "1", placeholder: "YYYY" })),
+    educationLabel("Exact completion date (if known)", educationInput("graduationDate", education.graduationDate, { type: "date", min: "1950-01-01", max: "2100-12-31" })),
+  );
+
+  row.append(heading, grid);
+  const dateField = grid.querySelector('[data-education-field="graduationDate"]');
+  dateField.addEventListener("change", () => {
+    const parts = dateField.value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!parts) {
+      row.dataset.endDay = "";
+      return;
+    }
+    grid.querySelector('[data-education-field="endMonth"]').value = MONTH_NAMES[Number(parts[2]) - 1];
+    grid.querySelector('[data-education-field="endYear"]').value = parts[1];
+    row.dataset.endDay = String(Number(parts[3]));
+  });
+  row.dataset.startDay = education.startDay;
+  row.dataset.endDay = education.endDay;
+  return row;
+}
+
+function renderEducationEntries(entries) {
+  const normalized = normalizeEducationEntries(entries);
+  educationList.replaceChildren(...(normalized.length ? normalized : [{}]).map(createEducationRow));
+  relabelEducationRows();
+}
+
+function collectEducationEntries() {
+  return normalizeEducationEntries([...educationList.querySelectorAll("[data-education-row]")].map((row) => {
+    const entry = Object.fromEntries([...row.querySelectorAll("[data-education-field]")]
+      .map((field) => [field.dataset.educationField, field.value]));
+    entry.startDay = row.dataset.startDay || "";
+    entry.endDay = row.dataset.endDay || "";
+    return entry;
+  }));
+}
+
 function renderProfile(profile) {
   const merged = mergeProfile(profile);
   applyTheme(merged.theme);
   savedAiModel = String(merged.aiModel || defaultProfile.aiModel);
   for (const [key, value] of Object.entries(merged)) {
-    if (key === "settings" || key === "languages") continue;
+    if (key === "settings" || key === "languages" || key === "educationEntries") continue;
     const field = form.elements.namedItem(key);
     if (field?.type === "checkbox") field.checked = Boolean(value);
     else if (field) field.value = value ?? "";
   }
+  renderEducationEntries(merged.educationEntries);
   renderLanguages(merged.languages);
   form.elements.namedItem("highlightUnmatched").checked = merged.settings.highlightUnmatched;
   form.elements.namedItem("overwriteExisting").checked = merged.settings.overwriteExisting;
@@ -453,7 +684,8 @@ function collectProfile() {
   for (const key of Object.keys(defaultProfile)) {
     if (key === "settings") continue;
     const field = form.elements.namedItem(key);
-    if (key === "languages") profile[key] = collectLanguages();
+    if (key === "educationEntries") profile[key] = collectEducationEntries();
+    else if (key === "languages") profile[key] = collectLanguages();
     else if (field?.type === "checkbox") profile[key] = field.checked;
     else if (key === "maxSkills") profile[key] = Math.min(50, Math.max(1, Number(data.get(key) || 15)));
     else if (key === "maxNonTechnicalSkills") profile[key] = Math.min(5, Math.max(0, Number(data.get(key) || 0)));
@@ -466,40 +698,18 @@ function collectProfile() {
     highlightUnmatched: form.elements.namedItem("highlightUnmatched").checked,
     overwriteExisting: form.elements.namedItem("overwriteExisting").checked,
   };
-  const dateParts = profile.graduationDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (dateParts) {
-    profile.graduationYear = dateParts[1];
-    profile.graduationMonth = MONTH_NAMES[Number(dateParts[2]) - 1];
-    profile.graduationDay = String(Number(dateParts[3]));
-  }
+  const primaryEducation = profile.educationEntries[0] || normalizeEducationEntry();
+  profile.school = primaryEducation.school;
+  profile.degree = primaryEducation.degree;
+  profile.fieldOfStudy = primaryEducation.fieldOfStudy;
+  profile.gpa = primaryEducation.gpa;
+  profile.gpaScale = primaryEducation.gpaScale;
+  profile.educationStartYear = primaryEducation.startYear;
+  profile.graduationMonth = primaryEducation.endMonth;
+  profile.graduationDay = primaryEducation.endDay;
+  profile.graduationYear = primaryEducation.endYear;
+  profile.graduationDate = primaryEducation.graduationDate;
   return profile;
-}
-
-function syncGraduationControls(sourceName) {
-  const dateField = form.elements.namedItem("graduationDate");
-  const monthField = form.elements.namedItem("graduationMonth");
-  const dayField = form.elements.namedItem("graduationDay");
-  const yearField = form.elements.namedItem("graduationYear");
-  if (sourceName === "graduationDate") {
-    const parts = String(dateField.value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!parts) return;
-    yearField.value = parts[1];
-    monthField.value = MONTH_NAMES[Number(parts[2]) - 1];
-    dayField.value = String(Number(parts[3]));
-    return;
-  }
-  const month = MONTH_NAMES.indexOf(monthField.value) + 1;
-  const day = Number(dayField.value);
-  const year = Number(yearField.value);
-  if (month && day >= 1 && day <= 31 && year >= 1950 && year <= 2100) {
-    dateField.value = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  } else {
-    dateField.value = "";
-  }
-}
-
-for (const name of ["graduationDate", "graduationMonth", "graduationDay", "graduationYear"]) {
-  form.elements.namedItem(name).addEventListener("change", () => syncGraduationControls(name));
 }
 
 function skillPriorityLabel(skill) {
@@ -604,6 +814,12 @@ const profileAutosave = createDebouncedAutosave({
   onState: renderAutosaveState,
 });
 
+addEducationButton.addEventListener("click", () => {
+  educationList.append(createEducationRow());
+  relabelEducationRows();
+  educationList.lastElementChild?.querySelector('[data-education-field="school"]')?.focus();
+});
+
 addLanguageButton.addEventListener("click", () => {
   languageList.append(createLanguageRow());
   languageList.lastElementChild?.querySelector('[name="languageName"]')?.focus();
@@ -691,15 +907,6 @@ const resumeFile = document.querySelector("#resumeFile");
 const resumeStatus = document.querySelector("#resumeStatus");
 const removeResumeButton = document.querySelector("#removeResume");
 const profileCompletionHint = document.querySelector("#profileCompletionHint");
-const gpaField = form.elements.namedItem("gpa");
-const toggleGpaVisibilityButton = document.querySelector("#toggleGpaVisibility");
-
-toggleGpaVisibilityButton.addEventListener("click", () => {
-  const isVisible = gpaField.type === "text";
-  gpaField.type = isVisible ? "password" : "text";
-  toggleGpaVisibilityButton.textContent = isVisible ? "Show" : "Hide";
-  toggleGpaVisibilityButton.setAttribute("aria-pressed", String(!isVisible));
-});
 
 function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -724,7 +931,7 @@ async function extractPdfText(buffer) {
 
 const PROFILE_COMPLETION_FIELDS = [
   "firstName", "lastName", "email", "phone", "address", "city", "province", "postalCode", "country",
-  "school", "degree", "fieldOfStudy", "educationStartYear", "graduationDate", "startDate", "workTerm",
+  "startDate", "workTerm",
 ];
 
 let hasDefaultResume = false;
@@ -743,6 +950,22 @@ function updateIncompleteProfileFields() {
     } else {
       field.removeAttribute("aria-invalid");
       if (field.title === "Not found in the uploaded resume — please review") field.removeAttribute("title");
+    }
+  }
+  const educationRows = [...educationList.querySelectorAll("[data-education-row]")];
+  for (const row of educationRows) {
+    for (const fieldName of ["school", "degree"]) {
+      const field = row.querySelector(`[data-education-field="${fieldName}"]`);
+      const missing = hasDefaultResume && !String(field?.value || "").trim();
+      field?.classList.toggle("profile-incomplete", missing);
+      if (missing) {
+        missingCount += 1;
+        field.setAttribute("aria-invalid", "true");
+        field.title = "Not found in the uploaded resume — please review";
+      } else if (field) {
+        field.removeAttribute("aria-invalid");
+        if (field.title === "Not found in the uploaded resume — please review") field.removeAttribute("title");
+      }
     }
   }
   if (!profileCompletionHint) return;
@@ -770,7 +993,7 @@ const RESUME_PREFILL_KEYS = new Set([
   "postalCode", "country", "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter",
   "otherSocialUrl", "otherWebsiteUrl", "school", "degree", "fieldOfStudy",
   "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
-  "graduationDate", "startDate", "workTerm", "languages",
+  "graduationDate", "educationEntries", "startDate", "workTerm", "languages",
 ]);
 
 async function prefillEmptyProfileFields(resumeText) {
@@ -783,6 +1006,15 @@ async function prefillEmptyProfileFields(resumeText) {
   const current = collectProfile();
   const filledKeys = [];
   for (const [key, rawValue] of Object.entries(response.profile || {})) {
+    if (key === "educationEntries") {
+      const educationEntries = normalizeEducationEntries(rawValue);
+      const mergedEducation = mergeEducationEntries(current.educationEntries, educationEntries);
+      if (educationEntries.length && JSON.stringify(mergedEducation) !== JSON.stringify(current.educationEntries)) {
+        current.educationEntries = mergedEducation;
+        filledKeys.push(key);
+      }
+      continue;
+    }
     if (key === "languages") {
       const languages = normalizeLanguageEntries(rawValue);
       if (languages.length && current.languages.length === 0) {
@@ -801,7 +1033,8 @@ async function prefillEmptyProfileFields(resumeText) {
   if (!filledKeys.length) return [];
   renderProfile(current);
   for (const key of filledKeys) {
-    if (key === "languages") languageList.querySelectorAll("input, select").forEach((field) => field.classList.add("resume-prefilled"));
+    if (key === "educationEntries") educationList.querySelectorAll("input, select").forEach((field) => field.classList.add("resume-prefilled"));
+    else if (key === "languages") languageList.querySelectorAll("input, select").forEach((field) => field.classList.add("resume-prefilled"));
     else form.elements.namedItem(key)?.classList.add("resume-prefilled");
   }
   const result = await persistProfile();
