@@ -245,15 +245,6 @@
     return null;
   }
 
-  function customValue(label) {
-    for (const rule of profile.customAnswers || []) {
-      try {
-        if (new RegExp(rule.match, "i").test(label)) return String(rule.value ?? "");
-      } catch { /* Invalid rules are rejected by the options page. */ }
-    }
-    return null;
-  }
-
   function monthNumber(value) {
     const text = normalize(value);
     const monthNames = [
@@ -311,8 +302,6 @@
   }
 
   function mappedValue(label, field = null) {
-    const custom = customValue(label);
-    if (custom !== null) return custom;
     if (/\b(country phone code|phone country code|calling code|dialing code)\b/.test(label)) return null;
     const employerPreference = employerPreferenceValue(label);
     if (employerPreference !== null) return employerPreference;

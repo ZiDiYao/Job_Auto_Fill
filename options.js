@@ -16,7 +16,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("vendor/pdf.worke
 const PROFILE_KEY = "jobAutofillProfile";
 const RESUME_KEY = "jobAutofillResume";
 const form = document.querySelector("#profileForm");
-const customAnswers = document.querySelector("#customAnswers");
 const saveStatus = document.querySelector("#saveStatus");
 const markdownFolderStatus = document.querySelector("#markdownFolderStatus");
 const excelFolderStatus = document.querySelector("#excelFolderStatus");
@@ -271,7 +270,6 @@ const defaultProfile = {
   aiModel: "qwen3:4b",
   resumeFileName: "",
   resumeText: "",
-  customAnswers: [],
   settings: {
     highlightUnmatched: true,
     overwriteExisting: true,
@@ -282,7 +280,6 @@ function mergeProfile(profile = {}) {
   return {
     ...defaultProfile,
     ...profile,
-    customAnswers: Array.isArray(profile.customAnswers) ? profile.customAnswers : [],
     settings: { ...defaultProfile.settings, ...(profile.settings || {}) },
   };
 }
@@ -290,36 +287,20 @@ function mergeProfile(profile = {}) {
 function renderProfile(profile) {
   const merged = mergeProfile(profile);
   for (const [key, value] of Object.entries(merged)) {
-    if (key === "customAnswers" || key === "settings") continue;
+    if (key === "settings") continue;
     const field = form.elements.namedItem(key);
     if (field?.type === "checkbox") field.checked = Boolean(value);
     else if (field) field.value = value ?? "";
   }
   form.elements.namedItem("highlightUnmatched").checked = merged.settings.highlightUnmatched;
   form.elements.namedItem("overwriteExisting").checked = merged.settings.overwriteExisting;
-  customAnswers.value = JSON.stringify(merged.customAnswers, null, 2);
-}
-
-function parseCustomAnswers() {
-  const text = customAnswers.value.trim();
-  if (!text) return [];
-  const parsed = JSON.parse(text);
-  if (!Array.isArray(parsed)) throw new Error("Custom rules must be a JSON array.");
-
-  return parsed.map((rule, index) => {
-    if (!rule || typeof rule.match !== "string" || !("value" in rule)) {
-      throw new Error(`Rule ${index + 1} must contain \"match\" and \"value\".`);
-    }
-    new RegExp(rule.match, "i");
-    return { match: rule.match, value: String(rule.value) };
-  });
 }
 
 function collectProfile() {
   const data = new FormData(form);
   const profile = { ...defaultProfile };
   for (const key of Object.keys(defaultProfile)) {
-    if (key === "customAnswers" || key === "settings") continue;
+    if (key === "settings") continue;
     const field = form.elements.namedItem(key);
     if (field?.type === "checkbox") profile[key] = field.checked;
     else if (key === "maxSkills") profile[key] = Math.min(50, Math.max(1, Number(data.get(key) || 15)));
@@ -328,7 +309,6 @@ function collectProfile() {
     else if (key === "autoAdvanceDelayMs") profile[key] = Math.min(10000, Math.max(800, Number(data.get(key) || 1800)));
     else profile[key] = String(data.get(key) ?? "").trim();
   }
-  profile.customAnswers = parseCustomAnswers();
   profile.settings = {
     highlightUnmatched: form.elements.namedItem("highlightUnmatched").checked,
     overwriteExisting: form.elements.namedItem("overwriteExisting").checked,

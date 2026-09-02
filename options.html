@@ -320,23 +320,6 @@
         </section>
 
         <section data-settings-page="profile">
-          <h2>Custom question rules</h2>
-          <p class="help">
-            Add repetitive questions as JSON. <code>match</code> is a case-insensitive regular expression tested against the
-            field label; <code>value</code> is what should be entered. Custom rules override built-in mappings.
-          </p>
-          <textarea id="customAnswers" spellcheck="false" aria-label="Custom answer rules"></textarea>
-          <details>
-            <summary>Example rules</summary>
-            <pre>[
-  { "match": "available.*start|start date", "value": "January 2027" },
-  { "match": "length.*work term|co-?op duration", "value": "8 months" },
-  { "match": "how did you hear", "value": "Company website" }
-]</pre>
-          </details>
-        </section>
-
-        <section data-settings-page="profile">
           <h2>Optional self-identification</h2>
           <p class="help">
             Enter the wording you normally select, such as <code>Prefer not to answer</code>, <code>No</code>, or the identity

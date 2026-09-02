@@ -7,7 +7,6 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 ## What it does
 
 - Fills common contact, education, availability, work-authorization, and portfolio fields.
-- Supports reusable custom question rules with regular-expression matching.
 - Optionally fills user-configured gender, pronoun, sexual-orientation, Indigenous-identity, race/ethnicity, disability, and veteran-status answers.
 - Stores a user-selected resume locally and attaches it to recognizable Resume/CV upload fields.
 - Optionally uses a free local Ollama model to draft unmatched open-ended questions from resume text and visible job context.
@@ -48,7 +47,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Works on ordinary HTML forms and dispatches the events commonly required by React-based forms.
 - Highlights required fields that still need manual review.
 - Never clicks Submit; the local backend sends only the configured profile evidence, CV, JD, page context, and semantic field schema to the configured AI provider.
-- Leaves self-identification questions untouched unless the user explicitly configures an answer, and always ignores salary, consent, signature, and background-check fields unless a custom rule is added.
+- Leaves self-identification and background-check questions untouched unless the user explicitly configures an answer, and never automates salary, contractual consent, certification, or signature fields.
 
 ## Install in Chrome
 
@@ -153,20 +152,6 @@ Internal-token developer mode remains available under the collapsed section on t
 The extension creates the **Job Application** root page (or your chosen name) and an inline **Application List** database. Every database row is a clickable application
 page containing the summary, full JD, and interview sections. Notion credentials and generated IDs are stored only in that
 Chrome profile; they are not included in Git, Docker images, profile exports, or application webpages.
-
-## Custom rules
-
-Custom rules override built-in mappings. Each rule has a case-insensitive regular expression and the answer to enter:
-
-```json
-[
-  { "match": "available.*start|start date", "value": "your configured date" },
-  { "match": "length.*work term|co-?op duration", "value": "your configured duration" },
-  { "match": "how did you hear", "value": "Company website" }
-]
-```
-
-Keep legal and sensitive answers truthful. Leave them blank when the correct response depends on the employer, location, or role.
 
 ## Resume upload and AI
 

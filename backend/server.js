@@ -117,7 +117,11 @@ function getResumeText() {
 }
 
 async function getProfile() {
-  return { ...profileDefaults, ...JSON.parse(await readFile(profilePath, "utf8")) };
+  const savedProfile = JSON.parse(await readFile(profilePath, "utf8"));
+  return Object.fromEntries(Object.entries(profileDefaults).map(([key, defaultValue]) => [
+    key,
+    Object.prototype.hasOwnProperty.call(savedProfile, key) ? savedProfile[key] : defaultValue,
+  ]));
 }
 
 const sensitiveQuestion = /\b(salary|compensation|criminal|background|security clearance|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security|authori[sz]ed to work|work authori[sz]ation|sponsor|sponsorship|visa|gender|sex|sexual orientation|race|racial|ethnic|disability|disabled|veteran|indigenous|aboriginal|first nations?|m[eé]tis|inuit|pronouns?)\b/i;

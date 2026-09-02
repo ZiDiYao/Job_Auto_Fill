@@ -243,19 +243,6 @@ test("preserves non-authoritative existing values when overwrite is disabled", a
   assert.equal(result.skipped, 1);
 });
 
-test("custom answer rules override built-in profile mappings", async () => {
-  const field = new FakeInput({ ariaLabel: "First Name" });
-  await runContent({
-    profile: {
-      firstName: "Profile name",
-      customAnswers: [{ match: "first name", value: "Custom name" }],
-      aiEnabled: false,
-    },
-    fields: [field],
-  });
-  assert.equal(field.value, "Custom name");
-});
-
 test("select controls use semantic option text matching", async () => {
   const country = new FakeSelect({
     ariaLabel: "Country",
@@ -347,17 +334,6 @@ test("a saved No preference clears a prechecked checkbox", async () => {
   checkbox.checked = true;
   const result = await runContent({ profile: { willingToTravel: "No", aiEnabled: false }, fields: [checkbox] });
   assert.equal(checkbox.checked, false);
-  assert.equal(result.filled, 1);
-});
-
-test("contenteditable controls receive custom answers", async () => {
-  const field = new FakeElement({ ariaLabel: "Additional Information" });
-  field.isContentEditable = true;
-  const result = await runContent({
-    profile: { customAnswers: [{ match: "additional information", value: "Available upon request" }], aiEnabled: false },
-    fields: [field],
-  });
-  assert.equal(field.textContent, "Available upon request");
   assert.equal(result.filled, 1);
 });
 
