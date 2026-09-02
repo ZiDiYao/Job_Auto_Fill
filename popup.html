@@ -8,8 +8,13 @@
   </head>
   <body>
     <main>
-      <div class="eyebrow">LOCAL-ONLY</div>
-      <h1>Job Autofill</h1>
+      <header class="popup-header">
+        <div>
+          <div class="eyebrow">LOCAL-ONLY</div>
+          <h1>Job Autofill</h1>
+        </div>
+        <button id="settings" class="secondary header-settings" type="button">Edit profile</button>
+      </header>
       <p>Detect or paste the job description, then fill the current application from your backend profile and resume.</p>
       <div class="resume-label">Saved CV</div>
       <label id="resumeDrop" class="resume-drop" for="resumeFile">
@@ -33,7 +38,6 @@
         Overwrite fields that already contain text
       </label>
       <button id="fill" class="primary" type="button">Fill with CV + JD</button>
-      <button id="settings" class="secondary" type="button">Edit profile & answers</button>
       <div id="status" role="status" aria-live="polite"></div>
     </main>
     <script type="module" src="popup.js"></script>
