@@ -25,8 +25,8 @@
 
       <div class="notice">
         Sensitive self-identification answers are optional. They are filled only when you explicitly save a value below;
-        otherwise those questions remain untouched. Salary, consent, signature, and background-check questions always require
-        an explicit custom rule.
+        otherwise those questions remain untouched. Legal facts are filled only from answers you explicitly save; AI never
+        invents them. Salary, contractual consent, and signature questions still require review.
       </div>
 
       <form id="profileForm">
@@ -75,6 +75,27 @@
                 <option value="No">No</option>
               </select>
             </label>
+          </div>
+        </section>
+
+        <section>
+          <h2>Employer-friendly defaults</h2>
+          <p class="help">
+            These are deterministic answers, not AI guesses. Choose <code>Always ask me</code> for anything that is not true.
+            The extension never submits the application, so all answers remain available for review.
+          </p>
+          <div class="grid">
+            <label>Willing to commute<select name="willingToCommute"><option value="">Always ask me</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+            <label>Willing to relocate<select name="willingToRelocate"><option value="">Always ask me</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+            <label>Willing to travel<select name="willingToTravel"><option value="">Always ask me</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+            <label>Willing to work onsite / hybrid<select name="willingToWorkOnsite"><option value="">Always ask me</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+            <label>Flexible shifts / overtime / weekends<select name="willingFlexibleSchedule"><option value="">Always ask me</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+            <label>Consent to a background check<select name="backgroundCheckConsent"><option value="">Always ask me</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+            <label>Willing to complete drug screening<select name="drugScreeningConsent"><option value="">Always ask me</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+            <label>Criminal record / convictions<select name="criminalRecord"><option value="">Always ask me</option><option value="No">No</option><option value="Yes">Yes</option></select></label>
+            <label>Previously worked for this employer<select name="previouslyWorkedForEmployer"><option value="">Always ask me</option><option value="No">No</option><option value="Yes">Yes</option></select></label>
+            <label>Referred by an employee<select name="employeeReferral"><option value="">Always ask me</option><option value="No">No</option><option value="Yes">Yes</option></select></label>
+            <label>Relatives or close contacts at employer<select name="relativesAtEmployer"><option value="">Always ask me</option><option value="No">No</option><option value="Yes">Yes</option></select></label>
           </div>
         </section>
 

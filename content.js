@@ -149,6 +149,62 @@
     },
   ];
 
+  const employerPreferenceRules = [
+    {
+      key: "backgroundCheckConsent",
+      pattern: /\b(willing|consent|agree|authori[sz]e|undergo|submit to|complete|pass).{0,100}\b(background check|criminal record check|pre employment screening)\b|\b(background check|criminal record check).{0,100}\b(willing|consent|agree|authori[sz]e)\b/,
+    },
+    {
+      key: "drugScreeningConsent",
+      pattern: /\b(willing|consent|agree|undergo|submit to|complete|pass).{0,100}\b(drug (?:test|screening)|substance screening)\b|\b(drug (?:test|screening)|substance screening).{0,100}\b(willing|consent|agree)\b/,
+    },
+    {
+      key: "criminalRecord",
+      pattern: /\bdo you have (?:a|any) criminal record\b|\bhave you (?:ever )?been convicted\b|\b(criminal convictions?|felony convictions?|indictable offences?|pending criminal charges?)\b/,
+    },
+    {
+      key: "willingToCommute",
+      pattern: /\b(willing|able|prepared|available).{0,80}\b(commute|travel to the (?:job|work) location)\b|\bcommut(?:e|ing).{0,80}\b(willing|able|prepared)\b/,
+    },
+    {
+      key: "willingToRelocate",
+      pattern: /\b(willingness to|willing to|able to|prepared to).{0,80}\brelocat(?:e|ion)\b|\brelocat(?:e|ion).{0,80}\b(willing|able|prepared)\b/,
+    },
+    {
+      key: "willingToTravel",
+      pattern: /\b(willing|able|prepared|available).{0,80}\btravel\b|\btravel requirement.{0,80}\b(accept|agree|yes|willing)\b/,
+    },
+    {
+      key: "willingToWorkOnsite",
+      pattern: /\b(willing|able|prepared|available).{0,80}\b(on[ -]?site|in[ -]?office|hybrid)\b|\b(on[ -]?site|in[ -]?office|hybrid).{0,80}\b(willing|able|available)\b/,
+    },
+    {
+      key: "willingFlexibleSchedule",
+      pattern: /\b(willing|able|prepared|available).{0,100}\b(overtime|weekends?|evenings?|night shifts?|rotating shifts?|on call|holidays?)\b|\b(overtime|weekends?|evenings?|night shifts?|rotating shifts?|on call|holidays?).{0,100}\b(willing|able|available)\b/,
+    },
+    {
+      key: "previouslyWorkedForEmployer",
+      pattern: /\b(have you|did you|were you|are you).{0,100}\b(worked|employed|employee)\b.{0,100}\b(with|for|by|at)\b.{0,120}\b(before|previously|formerly|erstwhile|ever)\b|\bpreviously employed (?:with|by|at)\b/,
+    },
+    {
+      key: "relativesAtEmployer",
+      pattern: /\b(relative|close kin|kinship|family member|acquaintance|close friend).{0,120}\b(work|working|employ|company|organization|organisation|group companies)\b/,
+    },
+    {
+      key: "employeeReferral",
+      pattern: /\b(were you|have you|did you).{0,80}\b(referred|referral)\b|\b(employee referral|referred by (?:an?|a current) employee|internal referral)\b/,
+    },
+  ];
+
+  function employerPreferenceValue(label) {
+    for (const rule of employerPreferenceRules) {
+      if (!rule.pattern.test(label)) continue;
+      const configured = profile[rule.key];
+      return configured === undefined || configured === null || configured === "" ? null : String(configured);
+    }
+    return null;
+  }
+
   function indeedPreferenceValue(label) {
     if (!onIndeed) return null;
     for (const rule of indeedPreferenceRules) {
@@ -171,6 +227,8 @@
   function mappedValue(label) {
     const custom = customValue(label);
     if (custom !== null) return custom;
+    const employerPreference = employerPreferenceValue(label);
+    if (employerPreference !== null) return employerPreference;
     const indeedPreference = indeedPreferenceValue(label);
     if (indeedPreference !== null) return indeedPreference;
     for (const rule of sensitiveRules) {

@@ -16,6 +16,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Uses structured Workday mappings for repeated experience, education, language, and skill controls instead of asking AI to guess field boundaries.
 - Adds Workday skills one at a time through the site's suggestion list so each value becomes a confirmed token.
 - Applies saved Indeed preferences to commute/relocation, prior-employment, employee-referral, and relatives-at-employer questions by reading the complete radio-group question.
+- Supports explicit employer-friendly defaults for travel, onsite work, flexible schedules, screenings, and criminal-record questions while keeping unsupported factual claims out of AI-generated answers.
 - Uses DeepSeek JSON output to draft answers from CV evidence plus the job description.
 - Works on ordinary HTML forms and dispatches the events commonly required by React-based forms.
 - Highlights required fields that still need manual review.
