@@ -101,8 +101,8 @@ const sensitiveQuestion = /\b(salary|compensation|criminal|background|security c
 function safeProfileForModel(profile) {
   const allowedKeys = [
     "firstName", "lastName", "preferredName", "email", "phone", "city", "province", "country",
-    "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy", "graduationMonth",
-    "graduationYear", "startDate", "workTerm",
+    "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy", "gpa", "educationStartYear",
+    "graduationMonth", "graduationDay", "graduationYear", "graduationDate", "startDate", "workTerm",
   ];
   return Object.fromEntries(allowedKeys.map((key) => [key, profile[key] || ""]));
 }
@@ -208,7 +208,8 @@ async function callDeepSeek({ jobDescription, pageContext, questions }) {
 function decisionProfileForModel(profile) {
   const keys = [
     "firstName", "lastName", "preferredName", "city", "province", "country", "school", "degree",
-    "fieldOfStudy", "graduationYear", "startDate", "workTerm", "workAuthorized", "sponsorship",
+    "fieldOfStudy", "gpa", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
+    "graduationDate", "startDate", "workTerm", "workAuthorized", "sponsorship",
     "willingToCommute", "willingToRelocate", "willingToTravel", "willingToWorkOnsite",
     "willingFlexibleSchedule", "backgroundCheckConsent", "drugScreeningConsent", "criminalRecord",
     "validSin", "age18OrOlder", "outsideActivitiesConflict", "previouslyWorkedForAuditor",

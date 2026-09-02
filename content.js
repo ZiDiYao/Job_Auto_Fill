@@ -118,7 +118,11 @@
     { key: "school", pattern: /\b(school|university|college|institution)\b/ },
     { key: "degree", pattern: /\b(degree|degree type)\b/ },
     { key: "fieldOfStudy", pattern: /\b(field|area|major|program) of study\b|\bmajor\b/ },
+    { key: "gpa", pattern: /\b(gpa|grade point average|overall result|grade average)\b/ },
+    { key: "educationStartYear", pattern: /\b(education|school|university|college).{0,40}\b(start|from|first).{0,20}\byear\b|\bfirst year attended\b/ },
+    { key: "graduationDate", pattern: /\b(expected |anticipated )?(graduation|completion) date\b/ },
     { key: "graduationMonth", pattern: /\b(graduation|completion|end) month\b/ },
+    { key: "graduationDay", pattern: /\b(graduation|completion|end) day\b/ },
     { key: "graduationYear", pattern: /\b(graduation|completion|end) year\b/ },
     { key: "startDate", pattern: /\b(available|availability|preferred) start|\bstart date\b/ },
     { key: "workTerm", pattern: /\b(work term|co op duration|internship duration|length of placement)\b/ },
@@ -129,7 +133,7 @@
   const authoritativeProfileKeys = new Set([
     "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
     "postalCode", "country", "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy",
-    "graduationMonth", "graduationYear",
+    "gpa", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear", "graduationDate",
   ]);
 
   const onIndeed = /(^|\.)indeed\.(com|ca)$/i.test(location.hostname)
@@ -779,7 +783,11 @@
       await chooseWorkdayButton(workdayField(prefix, "degree"), education.degree);
       await chooseWorkdayPrompt(workdayField(prefix, "fieldOfStudy"), education.fieldOfStudy);
       setStructuredValue(workdayField(prefix, "gradeAverage"), education.gpa);
+      setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionMonth-input"), education.startMonth);
+      setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionDay-input"), education.startDay);
       setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionYear-input"), education.startYear);
+      setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionMonth-input"), education.endMonth);
+      setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionDay-input"), education.endDay);
       setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionYear-input"), education.endYear);
     }
 
