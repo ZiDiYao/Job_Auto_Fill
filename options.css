@@ -158,6 +158,15 @@ button,
   font-size: 13px;
 }
 
+#notesFolderStatus {
+  color: #5d6678;
+  font-size: 13px;
+}
+
+#interview-notes:target {
+  outline: 4px solid rgba(47, 111, 85, 0.18);
+}
+
 .ai-grid { margin: 16px 0; }
 .skill-limit-grid { margin: 16px 0 10px; }
 .skill-limit-help { margin: 0 0 12px; }

@@ -33,6 +33,8 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Commits Workday's segmented month/year controls through real focus transitions so the portal clears stale required-field errors after autofill.
 - Supports Workday tenants that identify the school control as either `schoolName` or `school`, detects Education From/To years both by stable field IDs and row order, and verifies the React-controlled values after filling.
 - Lets users drop a PDF into the popup and persists it in the local Docker-mounted resume file until another PDF replaces it.
+- Lets users choose a local interview-notes folder once, then save or automatically update one Markdown note per job with the
+  source URL, complete job description, resume name, application metadata, and a reusable interview-preparation template.
 - Uses a Strategy + Factory provider layer to switch between DeepSeek and OpenAI without coupling application logic to either API.
 - Uses structured JSON output to draft answers from CV evidence plus the job description.
 - Works on ordinary HTML forms and dispatches the events commonly required by React-based forms.

@@ -1,4 +1,10 @@
 import * as pdfjsLib from "./vendor/pdf.mjs";
+import {
+  chooseNotesDirectory,
+  forgetNotesDirectory,
+  getSavedNotesDirectory,
+  hasDirectoryPermission,
+} from "./job-notes.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("vendor/pdf.worker.mjs");
 
@@ -7,6 +13,9 @@ const RESUME_KEY = "jobAutofillResume";
 const form = document.querySelector("#profileForm");
 const customAnswers = document.querySelector("#customAnswers");
 const saveStatus = document.querySelector("#saveStatus");
+const notesFolderStatus = document.querySelector("#notesFolderStatus");
+const autoSaveJobNotes = document.querySelector("#autoSaveJobNotes");
+const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 
 const defaultProfile = {
   firstName: "",
@@ -277,10 +286,44 @@ document.querySelector("#removeResume").addEventListener("click", async () => {
   await refreshResumeStatus();
 });
 
+async function refreshNotesFolderStatus() {
+  const handle = await getSavedNotesDirectory();
+  if (!handle) {
+    notesFolderStatus.textContent = "No notes folder selected";
+    return;
+  }
+  const granted = await hasDirectoryPermission(handle, false);
+  notesFolderStatus.textContent = granted
+    ? `${handle.name} · ready for Markdown notes`
+    : `${handle.name} · click Choose notes folder to restore access`;
+}
+
+document.querySelector("#chooseNotesFolder").addEventListener("click", async () => {
+  try {
+    const handle = await chooseNotesDirectory();
+    notesFolderStatus.textContent = `${handle.name} · ready for Markdown notes`;
+  } catch (error) {
+    if (error?.name !== "AbortError") notesFolderStatus.textContent = error.message || "Could not select the notes folder.";
+  }
+});
+
+document.querySelector("#forgetNotesFolder").addEventListener("click", async () => {
+  await forgetNotesDirectory();
+  await refreshNotesFolderStatus();
+});
+
+autoSaveJobNotes.addEventListener("change", async () => {
+  await chrome.storage.local.set({
+    [NOTE_SETTINGS_KEY]: { autoSaveOnFill: autoSaveJobNotes.checked },
+  });
+});
+
 async function initialize() {
-  const cached = await chrome.storage.local.get(PROFILE_KEY);
+  const cached = await chrome.storage.local.get([PROFILE_KEY, NOTE_SETTINGS_KEY]);
   renderProfile(cached[PROFILE_KEY]);
+  autoSaveJobNotes.checked = cached[NOTE_SETTINGS_KEY]?.autoSaveOnFill !== false;
   await refreshResumeStatus();
+  await refreshNotesFolderStatus();
   try {
     await syncFromBackend(true);
   } catch (error) {

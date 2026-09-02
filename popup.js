@@ -1,3 +1,9 @@
+import {
+  getSavedNotesDirectory,
+  hasDirectoryPermission,
+  writeJobNote,
+} from "./job-notes.js";
+
 const fillButton = document.querySelector("#fill");
 const settingsButton = document.querySelector("#settings");
 const detectButton = document.querySelector("#detect");
@@ -7,8 +13,12 @@ const status = document.querySelector("#status");
 const resumeDrop = document.querySelector("#resumeDrop");
 const resumeFile = document.querySelector("#resumeFile");
 const resumeStatus = document.querySelector("#resumeStatus");
+const saveNoteButton = document.querySelector("#saveNote");
+const notesSettingsButton = document.querySelector("#notesSettings");
+const notesFolderStatus = document.querySelector("#notesFolderStatus");
+const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 
-chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription", "jobAutofillResume"]).then(({ jobAutofillProfile, jobAutofillJobDescription, jobAutofillResume }) => {
+chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription", "jobAutofillResume"]).then(async ({ jobAutofillProfile, jobAutofillJobDescription, jobAutofillResume }) => {
   overwriteCheckbox.checked = true;
   chrome.storage.local.set({
     jobAutofillProfile: {
@@ -27,6 +37,7 @@ chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription", "jo
   }
   jobDescription.value = jobAutofillJobDescription || "";
   if (!jobDescription.value) detectJobDescription(false);
+  await refreshNotesFolderStatus();
 });
 
 function showResume(resume) {
@@ -127,6 +138,131 @@ function extractJobDescriptionFromPage() {
   return { text: fallback.slice(0, 30000), source: "page" };
 }
 
+function extractJobMetadataFromPage() {
+  const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
+  const firstText = (selectors) => {
+    for (const selector of selectors) {
+      const element = document.querySelector(selector);
+      const value = clean(element?.content || element?.innerText || element?.textContent);
+      if (value) return value;
+    }
+    return "";
+  };
+  const postings = [];
+  for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+    try {
+      const parsed = JSON.parse(script.textContent || "null");
+      const values = Array.isArray(parsed) ? parsed : [parsed];
+      for (const value of values) {
+        const graph = Array.isArray(value?.["@graph"]) ? value["@graph"] : [value];
+        postings.push(...graph.filter((item) => item?.["@type"] === "JobPosting"));
+      }
+    } catch {
+      // Ignore invalid page-owned structured data.
+    }
+  }
+  const posting = postings[0] || {};
+  const structuredLocation = posting.jobLocation?.address || posting.jobLocation?.[0]?.address || {};
+  const locationParts = [structuredLocation.addressLocality, structuredLocation.addressRegion, structuredLocation.addressCountry]
+    .map(clean)
+    .filter(Boolean);
+  const pageTitle = clean(document.title).replace(/\s*[|–—-]\s*(careers?|jobs?|application).*$/i, "");
+
+  return {
+    jobTitle: clean(posting.title) || firstText([
+      "[data-automation-id='jobPostingHeader']",
+      "[data-automation-id='jobTitle']",
+      "[data-testid*='job-title' i]",
+      "h1",
+      "meta[property='og:title']",
+    ]) || pageTitle,
+    company: clean(posting.hiringOrganization?.name) || firstText([
+      "[data-automation-id='jobPostingCompany']",
+      "[data-testid*='company' i]",
+      "meta[property='og:site_name']",
+    ]),
+    location: locationParts.join(", ") || firstText([
+      "[data-automation-id='locations']",
+      "[data-automation-id='jobPostingLocation']",
+      "[data-testid*='location' i]",
+    ]),
+  };
+}
+
+async function refreshNotesFolderStatus() {
+  try {
+    const handle = await getSavedNotesDirectory();
+    if (!handle) {
+      notesFolderStatus.textContent = "No folder selected";
+      return;
+    }
+    const ready = await hasDirectoryPermission(handle, false);
+    notesFolderStatus.textContent = ready ? `${handle.name} · ready` : `${handle.name} · access required`;
+  } catch (error) {
+    notesFolderStatus.textContent = error.message || "Folder unavailable";
+  }
+}
+
+async function currentJobRecord() {
+  const description = jobDescription.value.trim();
+  if (!description) throw new Error("Add or detect a job description before saving a note.");
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || !/^https?:/i.test(tab.url || "")) throw new Error("Open the job posting or application page first.");
+  const [result] = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: extractJobMetadataFromPage,
+  });
+  const metadata = result?.result || {};
+  const {
+    jobAutofillResume = {},
+    jobAutofillJobMetadata = {},
+  } = await chrome.storage.local.get(["jobAutofillResume", "jobAutofillJobMetadata"]);
+  const savedMetadataMatches = jobAutofillJobMetadata.descriptionStart === description.slice(0, 240);
+  return {
+    jobDescription: description,
+    jobTitle: (savedMetadataMatches && jobAutofillJobMetadata.jobTitle) || metadata.jobTitle || tab.title || "Unknown role",
+    company: (savedMetadataMatches && jobAutofillJobMetadata.company) || metadata.company || new URL(tab.url).hostname.replace(/^www\./, ""),
+    location: (savedMetadataMatches && jobAutofillJobMetadata.location) || metadata.location || "",
+    url: tab.url,
+    resumeName: jobAutofillResume.name || "",
+    savedAt: new Date(),
+  };
+}
+
+async function saveCurrentJobNote({ showSuccess = true } = {}) {
+  const directory = await getSavedNotesDirectory();
+  const result = await writeJobNote(directory, await currentJobRecord(), { requestPermission: false });
+  await chrome.storage.local.set({
+    jobAutofillLastSavedNote: {
+      filename: result.filename,
+      directoryName: result.directoryName,
+      savedAt: new Date().toISOString(),
+    },
+  });
+  notesFolderStatus.textContent = `${result.directoryName} · ${result.filename}`;
+  if (showSuccess) {
+    status.className = "";
+    status.textContent = `Saved ${result.filename}`;
+  }
+  return result;
+}
+
+saveNoteButton.addEventListener("click", async () => {
+  saveNoteButton.disabled = true;
+  try {
+    await saveCurrentJobNote();
+  } catch (error) {
+    status.className = "error";
+    status.textContent = error.message || "Could not save the job note.";
+  } finally {
+    saveNoteButton.disabled = false;
+  }
+});
+
+notesSettingsButton.addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("options.html#interview-notes") });
+});
+
 async function detectJobDescription(showFailure = true) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -138,7 +274,18 @@ async function detectJobDescription(showFailure = true) {
     const detected = result?.result?.text || "";
     if (detected.length < 180) throw new Error("No substantial job description was detected. Paste it manually.");
     jobDescription.value = detected;
-    await chrome.storage.local.set({ jobAutofillJobDescription: detected });
+    const [metadataResult] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: extractJobMetadataFromPage,
+    });
+    await chrome.storage.local.set({
+      jobAutofillJobDescription: detected,
+      jobAutofillJobMetadata: {
+        ...(metadataResult?.result || {}),
+        sourceUrl: tab.url,
+        descriptionStart: detected.slice(0, 240),
+      },
+    });
     status.className = "";
     status.textContent = `Detected ${detected.length.toLocaleString()} characters from ${result.result.source}.`;
   } catch (error) {
@@ -173,9 +320,23 @@ fillButton.addEventListener("click", async () => {
   status.textContent = "Filling visible application fields…";
   fillButton.disabled = true;
 
+  let noteSaved = false;
+  let noteWarning = "";
   try {
     const jd = jobDescription.value.trim();
     await chrome.storage.local.set({ jobAutofillJobDescription: jd });
+    const noteSettings = await chrome.storage.local.get(NOTE_SETTINGS_KEY);
+    if (noteSettings[NOTE_SETTINGS_KEY]?.autoSaveOnFill !== false) {
+      try {
+        const directory = await getSavedNotesDirectory();
+        if (directory) {
+          await saveCurrentJobNote({ showSuccess: false });
+          noteSaved = true;
+        }
+      } catch (error) {
+        noteWarning = error.message || "job note was not saved";
+      }
+    }
     const { jobAutofillProfile } = await chrome.storage.local.get("jobAutofillProfile");
     if ((jobAutofillProfile?.aiProvider || "backend") === "backend") {
       status.textContent = "Syncing profile and resume from local backend…";
@@ -216,6 +377,8 @@ fillButton.addEventListener("click", async () => {
       resumeUploads ? "resume attached" : "",
       `${totals.review} required field${totals.review === 1 ? "" : "s"} need review`,
       aiError ? `AI: ${aiError}` : "",
+      noteSaved ? "job note saved" : "",
+      noteWarning ? `Note: ${noteWarning}` : "",
     ].filter(Boolean);
     status.textContent = `${parts.join(" · ")}.`;
   } catch (error) {

@@ -20,6 +20,14 @@
       <label class="jd-label" for="jobDescription">Job description</label>
       <textarea id="jobDescription" placeholder="Paste the job description here, or detect it from the current page."></textarea>
       <button id="detect" class="secondary" type="button">Detect from current page</button>
+      <div class="notes-panel">
+        <div>
+          <strong>Interview note</strong>
+          <span id="notesFolderStatus">No notes folder selected</span>
+        </div>
+        <button id="saveNote" class="secondary compact" type="button">Save job note</button>
+        <button id="notesSettings" class="link-button" type="button">Choose / change folder</button>
+      </div>
       <label class="toggle">
         <input id="overwrite" type="checkbox" checked />
         Overwrite fields that already contain text
@@ -28,6 +36,6 @@
       <button id="settings" class="secondary" type="button">Edit profile & answers</button>
       <div id="status" role="status" aria-live="polite"></div>
     </main>
-    <script src="popup.js"></script>
+    <script type="module" src="popup.js"></script>
   </body>
 </html>
