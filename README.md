@@ -161,7 +161,7 @@ DeepSeek through the local backend is the default adapter. Select **OpenAI** und
 
 1. Install [Ollama](https://ollama.com/download).
 2. In Terminal, download and start a model, for example: `ollama run qwen3:4b`.
-3. In extension settings, enable **Use local AI**, enter the same model name, paste the resume text, and save.
+3. In extension settings, choose **Local Ollama** and save. The extension uses the installed `qwen3:4b` model by default without exposing model configuration in the user interface.
 4. Click **Fill with CV + JD**. Deterministic answers are green, AI drafts are purple, and unresolved required fields are yellow.
 
 All AI strategies are instructed to leave unsupported answers blank. Demographic, authorization, sponsorship, and other sensitive facts are available to the semantic planner only when **Allow backend AI to use saved demographic and legal answers** is enabled, and then only from explicitly saved profile values. Submit, signature, certification, attestation, consent, privacy, terms, compensation, government-identifier, and birth-date actions are always excluded. Review every purple field before submitting. The OpenAI strategy uses the [Responses API](https://developers.openai.com/api/reference/cli/resources/responses/methods/create); Ollama structured JSON responses are documented at [docs.ollama.com](https://docs.ollama.com/capabilities/structured-outputs).

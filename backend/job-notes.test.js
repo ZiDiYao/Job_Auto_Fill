@@ -176,6 +176,7 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   for (const field of ["genderIdentity", "pronouns", "sexualOrientation", "indigenousIdentity", "raceEthnicity", "visibleMinority", "disabilityStatus", "veteranStatus"]) {
     assert.match(optionsHtml, new RegExp(`<select name="${field}">`));
   }
+  assert.doesNotMatch(optionsHtml, /name="aiModel"|qwen3:4b/);
   assert.match(popupHtml, /type="module" src="popup\.js"/);
   assert.match(popupSource, /saveCurrentJobNote/);
   assert.match(popupSource, /autoSaveOnFill/);

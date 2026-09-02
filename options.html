@@ -222,7 +222,7 @@
           <div data-ai-page="settings">
           <p class="help">
             Unanswered open-ended questions can be drafted by the local backend using the selected cloud provider, or by an
-            optional local Ollama model. The model receives CV evidence and job context. Saved demographic and legal answers are included for
+            optional locally hosted Ollama service. AI receives CV evidence and job context. Saved demographic and legal answers are included for
             structured-field mapping only when the separate permission below is enabled. AI-filled fields are marked purple
             and must be reviewed before submission.
           </p>
@@ -274,7 +274,6 @@
                 <option value="openai">OpenAI</option>
               </select>
             </label>
-            <label>Ollama model (Ollama mode only)<input name="aiModel" placeholder="qwen3:4b" /></label>
           </div>
           <label class="resume-text-label">
             Resume text used as AI evidence

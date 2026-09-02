@@ -275,6 +275,7 @@ const defaultProfile = {
     overwriteExisting: true,
   },
 };
+let savedAiModel = defaultProfile.aiModel;
 
 function mergeProfile(profile = {}) {
   return {
@@ -286,6 +287,7 @@ function mergeProfile(profile = {}) {
 
 function renderProfile(profile) {
   const merged = mergeProfile(profile);
+  savedAiModel = String(merged.aiModel || defaultProfile.aiModel);
   for (const [key, value] of Object.entries(merged)) {
     if (key === "settings") continue;
     const field = form.elements.namedItem(key);
@@ -307,6 +309,7 @@ function collectProfile() {
     else if (key === "maxNonTechnicalSkills") profile[key] = Math.min(5, Math.max(0, Number(data.get(key) || 0)));
     else if (key === "autoAdvanceMaxSteps") profile[key] = Math.min(30, Math.max(1, Number(data.get(key) || 10)));
     else if (key === "autoAdvanceDelayMs") profile[key] = Math.min(10000, Math.max(800, Number(data.get(key) || 1800)));
+    else if (key === "aiModel") profile[key] = savedAiModel;
     else profile[key] = String(data.get(key) ?? "").trim();
   }
   profile.settings = {
