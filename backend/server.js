@@ -419,11 +419,45 @@ export function createServer() {
         return sendJson(response, 200, {
           profile: { ...profile, resumeText },
           resume: {
-            name: path.basename(resumePath),
+            name: profile.resumeFileName || path.basename(resumePath),
             type: "application/pdf",
             size: resumeBytes.length,
             lastModified: Date.now(),
             base64: resumeBytes.toString("base64"),
+          },
+        });
+      }
+
+      if (request.method === "PUT" && request.url === "/api/resume") {
+        const body = await readJson(request, 8_000_000);
+        const originalName = path.basename(String(body.name || "resume.pdf"));
+        if (!/\.pdf$/i.test(originalName)) {
+          throw Object.assign(new Error("Only PDF resumes are supported."), { statusCode: 400 });
+        }
+        const bytes = Buffer.from(String(body.base64 || ""), "base64");
+        if (!bytes.length || bytes.length > 5 * 1024 * 1024) {
+          throw Object.assign(new Error("Resume PDF must be between 1 byte and 5 MB."), { statusCode: 400 });
+        }
+        if (bytes.subarray(0, 5).toString("ascii") !== "%PDF-") {
+          throw Object.assign(new Error("The uploaded file is not a valid PDF."), { statusCode: 400 });
+        }
+        await writeFile(resumePath, bytes);
+        resumeTextPromise = undefined;
+        const resumeText = await getResumeText();
+        const currentProfile = await getProfile();
+        await writeFile(profilePath, `${JSON.stringify({
+          ...currentProfile,
+          resumeFileName: originalName,
+          resumeText,
+        }, null, 2)}\n`, "utf8");
+        return sendJson(response, 200, {
+          saved: true,
+          resumeText,
+          resume: {
+            name: originalName,
+            type: "application/pdf",
+            size: bytes.length,
+            lastModified: Number(body.lastModified || Date.now()),
           },
         });
       }

@@ -24,6 +24,5 @@ services:
       - type: bind
         source: ./backend/data/Resume_2027_ZIDI.pdf
         target: /app/backend/data/Resume_2027_ZIDI.pdf
-        read_only: true
     security_opt:
       - no-new-privileges:true

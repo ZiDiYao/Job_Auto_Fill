@@ -4,8 +4,11 @@ const detectButton = document.querySelector("#detect");
 const overwriteCheckbox = document.querySelector("#overwrite");
 const jobDescription = document.querySelector("#jobDescription");
 const status = document.querySelector("#status");
+const resumeDrop = document.querySelector("#resumeDrop");
+const resumeFile = document.querySelector("#resumeFile");
+const resumeStatus = document.querySelector("#resumeStatus");
 
-chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription"]).then(({ jobAutofillProfile, jobAutofillJobDescription }) => {
+chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription", "jobAutofillResume"]).then(({ jobAutofillProfile, jobAutofillJobDescription, jobAutofillResume }) => {
   overwriteCheckbox.checked = true;
   chrome.storage.local.set({
     jobAutofillProfile: {
@@ -16,8 +19,85 @@ chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription"]).th
       },
     },
   });
+  showResume(jobAutofillResume);
+  if (!jobAutofillResume?.base64) {
+    chrome.runtime.sendMessage({ type: "sync-backend-context" }).then((synced) => {
+      if (synced?.ok) showResume(synced.resume);
+    });
+  }
   jobDescription.value = jobAutofillJobDescription || "";
   if (!jobDescription.value) detectJobDescription(false);
+});
+
+function showResume(resume) {
+  resumeStatus.textContent = resume?.name
+    ? `${resume.name} · ${Math.max(1, Math.round(Number(resume.size || 0) / 1024))} KB · saved`
+    : "No CV saved yet";
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
+}
+
+async function saveResume(file) {
+  if (!file) return;
+  if (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name)) {
+    throw new Error("Choose a PDF resume.");
+  }
+  if (!file.size || file.size > 5 * 1024 * 1024) {
+    throw new Error("Resume PDF must be no larger than 5 MB.");
+  }
+  resumeStatus.textContent = "Saving PDF to the local backend…";
+  const resume = {
+    name: file.name,
+    type: "application/pdf",
+    size: file.size,
+    lastModified: file.lastModified,
+    base64: arrayBufferToBase64(await file.arrayBuffer()),
+  };
+  const saved = await chrome.runtime.sendMessage({ type: "save-backend-resume", resume });
+  if (!saved?.ok) throw new Error(saved?.error || "The local backend could not save the resume.");
+  showResume(saved.resume || resume);
+  status.className = "";
+  status.textContent = "CV saved locally and will remain selected until you replace it.";
+}
+
+resumeFile.addEventListener("change", async (event) => {
+  try {
+    await saveResume(event.target.files?.[0]);
+  } catch (error) {
+    status.className = "error";
+    status.textContent = error.message || "Could not save the resume.";
+  } finally {
+    event.target.value = "";
+  }
+});
+
+for (const eventName of ["dragenter", "dragover"]) {
+  resumeDrop.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    resumeDrop.classList.add("dragging");
+  });
+}
+for (const eventName of ["dragleave", "drop"]) {
+  resumeDrop.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    resumeDrop.classList.remove("dragging");
+  });
+}
+resumeDrop.addEventListener("drop", async (event) => {
+  try {
+    await saveResume(event.dataTransfer?.files?.[0]);
+  } catch (error) {
+    status.className = "error";
+    status.textContent = error.message || "Could not save the resume.";
+  }
 });
 
 function extractJobDescriptionFromPage() {

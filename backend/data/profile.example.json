@@ -120,5 +120,6 @@
   "aiUseSensitiveProfile": false,
   "aiProvider": "backend",
   "aiModel": "qwen3:4b",
+  "resumeFileName": "",
   "resumeText": ""
 }

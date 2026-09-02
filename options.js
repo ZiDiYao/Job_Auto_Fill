@@ -64,6 +64,7 @@ const defaultProfile = {
   aiUseSensitiveProfile: false,
   aiProvider: "backend",
   aiModel: "qwen3:4b",
+  resumeFileName: "",
   resumeText: "",
   customAnswers: [],
   settings: {
@@ -243,8 +244,10 @@ resumeFile.addEventListener("change", async (event) => {
       base64: arrayBufferToBase64(buffer),
     };
     await chrome.storage.local.set({ [RESUME_KEY]: resume });
-    let extractedText = "";
-    if (/\.pdf$/i.test(resume.name) || resume.type === "application/pdf") {
+    const backendSave = await chrome.runtime.sendMessage({ type: "save-backend-resume", resume });
+    if (!backendSave?.ok) throw new Error(backendSave?.error || "The Docker backend could not save the resume.");
+    let extractedText = backendSave.resumeText || "";
+    if (!extractedText && (/\.pdf$/i.test(resume.name) || resume.type === "application/pdf")) {
       extractedText = await extractPdfText(buffer);
     } else if (/^text\//i.test(resume.type) || /\.txt$/i.test(resume.name)) {
       extractedText = new TextDecoder().decode(buffer);

@@ -136,6 +136,36 @@ async function resolveWorkdayDropdowns(message) {
   return { answers: Array.isArray(payload.answers) ? payload.answers : [] };
 }
 
+async function saveBackendResume(message) {
+  const resume = message.resume || {};
+  const response = await fetch(`${BACKEND_ENDPOINT}/api/resume`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(resume),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `Local backend returned ${response.status}.`);
+
+  const existing = await chrome.storage.local.get("jobAutofillProfile");
+  const profile = {
+    ...(existing.jobAutofillProfile || {}),
+    resumeFileName: payload.resume?.name || resume.name || "resume.pdf",
+    resumeText: payload.resumeText || "",
+  };
+  const cachedResume = {
+    name: payload.resume?.name || resume.name || "resume.pdf",
+    type: "application/pdf",
+    size: Number(payload.resume?.size || resume.size || 0),
+    lastModified: Number(payload.resume?.lastModified || resume.lastModified || Date.now()),
+    base64: resume.base64 || "",
+  };
+  await chrome.storage.local.set({
+    jobAutofillProfile: profile,
+    jobAutofillResume: cachedResume,
+  });
+  return { resume: cachedResume, resumeText: payload.resumeText || "" };
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "sync-backend-context") {
     fetch(`${BACKEND_ENDPOINT}/api/context`)
@@ -172,6 +202,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     resolveWorkdayDropdowns(message)
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => sendResponse({ ok: false, error: error.message || "AI dropdown resolution failed." }));
+    return true;
+  }
+
+  if (message?.type === "save-backend-resume") {
+    saveBackendResume(message)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || "Resume save failed." }));
     return true;
   }
 

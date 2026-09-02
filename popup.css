@@ -51,6 +51,53 @@ p {
   font-weight: 750;
 }
 
+.resume-label {
+  margin-bottom: 6px;
+  color: #39445a;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.resume-drop {
+  display: flex;
+  min-height: 58px;
+  box-sizing: border-box;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 3px;
+  border: 2px dashed #aeb9ca;
+  border-radius: 10px;
+  color: #344158;
+  background: #ffffff;
+  cursor: pointer;
+  text-align: center;
+}
+
+.resume-drop.dragging {
+  border-color: #2f6f55;
+  background: #edf7f2;
+}
+
+.resume-drop input {
+  display: none;
+}
+
+.resume-drop strong {
+  font-size: 12px;
+}
+
+.resume-drop span {
+  max-width: 100%;
+  overflow: hidden;
+  color: #667085;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 textarea {
   width: 100%;
   min-height: 150px;

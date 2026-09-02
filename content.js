@@ -756,11 +756,45 @@
     return buttons;
   }
 
+  function workExperienceTitleFields() {
+    return [...document.querySelectorAll('input[name="jobTitle"][id*="workExperience-"]')];
+  }
+
+  function workExperienceSection(firstTitleField) {
+    let ancestor = firstTitleField?.parentElement;
+    for (let depth = 0; ancestor && depth < 10; depth += 1, ancestor = ancestor.parentElement) {
+      const fields = ancestor.querySelectorAll('input[name="jobTitle"][id*="workExperience-"]');
+      if (!fields.length) continue;
+      const addButton = [...ancestor.querySelectorAll("button")]
+        .find((button) => normalize(button.textContent) === "add another");
+      if (addButton) return { container: ancestor, addButton };
+    }
+    return { container: null, addButton: null };
+  }
+
+  async function ensureWorkExperienceRows(targetCount) {
+    let fields = workExperienceTitleFields();
+    if (!fields.length || fields.length >= targetCount) return fields;
+    while (fields.length < targetCount) {
+      const { addButton } = workExperienceSection(fields[0]);
+      if (!addButton) break;
+      const previousCount = fields.length;
+      addButton.click();
+      for (let attempt = 0; attempt < 15; attempt += 1) {
+        await wait(160);
+        fields = workExperienceTitleFields();
+        if (fields.length > previousCount) break;
+      }
+      if (fields.length <= previousCount) break;
+    }
+    return fields;
+  }
+
   async function fillWorkdayStructuredSections() {
     if (!document.querySelector('[data-automation-id="applyFlowMyExpPage"]')) return;
 
     const experiences = Array.isArray(profile.workExperiences) ? profile.workExperiences : [];
-    const jobTitleFields = [...document.querySelectorAll('input[name="jobTitle"][id*="workExperience-"]')];
+    const jobTitleFields = await ensureWorkExperienceRows(experiences.length);
     for (const [index, titleField] of jobTitleFields.entries()) {
       const experience = experiences[index];
       if (!experience) continue;

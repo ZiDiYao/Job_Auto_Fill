@@ -11,6 +11,12 @@
       <div class="eyebrow">LOCAL-ONLY</div>
       <h1>Job Autofill</h1>
       <p>Detect or paste the job description, then fill the current application from your backend profile and resume.</p>
+      <div class="resume-label">Saved CV</div>
+      <label id="resumeDrop" class="resume-drop" for="resumeFile">
+        <input id="resumeFile" type="file" accept="application/pdf,.pdf" />
+        <strong>Drop PDF here or choose a file</strong>
+        <span id="resumeStatus">Loading saved CV…</span>
+      </label>
       <label class="jd-label" for="jobDescription">Job description</label>
       <textarea id="jobDescription" placeholder="Paste the job description here, or detect it from the current page."></textarea>
       <button id="detect" class="secondary" type="button">Detect from current page</button>
