@@ -43,22 +43,13 @@ h1 { margin: 5px 0 8px; font-size: 32px; }
 h2 { margin: 0 0 18px; font-size: 19px; }
 p { margin: 0; color: #5d6678; line-height: 1.5; }
 
-section,
-.notice {
+section {
   margin-bottom: 18px;
   border: 1px solid #d6e4f7;
   border-radius: 12px;
   padding: 24px;
   background: white;
   box-shadow: 0 5px 20px rgba(9, 105, 218, 0.06);
-}
-
-.notice {
-  border-color: #c9dcf7;
-  color: #174a83;
-  background: #f4f8ff;
-  font-size: 13px;
-  line-height: 1.5;
 }
 
 .grid {
