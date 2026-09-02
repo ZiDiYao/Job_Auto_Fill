@@ -22,6 +22,42 @@
     .map((id) => document.getElementById(id)?.textContent || "")
     .join(" ");
 
+  function optionLabel(field) {
+    const labels = [field.value, field.getAttribute("aria-label")];
+    if (field.id) {
+      try {
+        const explicit = document.querySelector(`label[for="${CSS.escape(field.id)}"]`);
+        if (explicit) labels.push(explicit.textContent);
+      } catch { /* Ignore invalid third-party IDs. */ }
+    }
+    const wrappingLabel = field.closest("label");
+    if (wrappingLabel) labels.push(wrappingLabel.textContent);
+    return normalize(labels.filter(Boolean).join(" "));
+  }
+
+  function choiceGroupLabel(field) {
+    if (!["radio", "checkbox"].includes(field.type)) return "";
+    const fieldset = field.closest("fieldset");
+    if (fieldset) {
+      const legend = fieldset.querySelector(":scope > legend, legend");
+      if (legend?.textContent) return legend.textContent;
+    }
+    const semanticGroup = field.closest('[role="radiogroup"], [role="group"]');
+    if (semanticGroup) {
+      const labelled = textFromIds(semanticGroup.getAttribute("aria-labelledby"));
+      if (labelled) return labelled;
+      if (semanticGroup.getAttribute("aria-label")) return semanticGroup.getAttribute("aria-label");
+    }
+    let ancestor = field.parentElement;
+    for (let depth = 0; ancestor && depth < 7; depth += 1, ancestor = ancestor.parentElement) {
+      const choices = ancestor.querySelectorAll('input[type="radio"]');
+      if (choices.length < 2 || ![...choices].includes(field)) continue;
+      const text = String(ancestor.innerText || ancestor.textContent || "").trim();
+      if (text) return text;
+    }
+    return "";
+  }
+
   function fieldLabel(field) {
     const labels = [];
     if (field.id) {
@@ -39,6 +75,8 @@
     if (field.id) labels.push(field.id);
     const legend = field.closest("fieldset")?.querySelector("legend");
     if (legend) labels.push(legend.textContent);
+    const choiceQuestion = choiceGroupLabel(field);
+    if (choiceQuestion) labels.push(choiceQuestion);
     return normalize(labels.filter(Boolean).join(" "));
   }
 
@@ -85,6 +123,42 @@
     { key: "sponsorship", pattern: /\b(sponsor|sponsorship|visa support)\b/ },
   ];
 
+  const onIndeed = /(^|\.)indeed\.(com|ca)$/i.test(location.hostname)
+    || /(^|\.)smartapply\.indeed\.com$/i.test(location.hostname);
+
+  const indeedPreferenceRules = [
+    {
+      key: "willingToCommute",
+      fallback: "Yes",
+      pattern: /\b(willingness to|willing to|able to|prepared to).{0,80}\b(commute|relocat(?:e|ion)|travel to|work on[ -]?site|work in[ -]?office)\b|\b(commute|relocat(?:e|ion)).{0,80}\b(willing|able|prepared)\b/,
+    },
+    {
+      key: "previouslyWorkedForEmployer",
+      fallback: "No",
+      pattern: /\b(have you|did you|were you|are you).{0,100}\b(worked|employed|employee)\b.{0,100}\b(with|for|by|at)\b.{0,120}\b(before|previously|formerly|erstwhile|ever)\b|\bpreviously employed (?:with|by|at)\b/,
+    },
+    {
+      key: "relativesAtEmployer",
+      fallback: "No",
+      pattern: /\b(relative|close kin|kinship|family member|acquaintance|close friend).{0,120}\b(work|working|employ|company|organization|organisation|group companies)\b/,
+    },
+    {
+      key: "employeeReferral",
+      fallback: "No",
+      pattern: /\b(were you|have you|did you).{0,80}\b(referred|referral)\b|\b(employee referral|referred by (?:an?|a current) employee|internal referral)\b/,
+    },
+  ];
+
+  function indeedPreferenceValue(label) {
+    if (!onIndeed) return null;
+    for (const rule of indeedPreferenceRules) {
+      if (!rule.pattern.test(label)) continue;
+      const configured = profile.indeedPreferences?.[rule.key];
+      return String(configured || rule.fallback);
+    }
+    return null;
+  }
+
   function customValue(label) {
     for (const rule of profile.customAnswers || []) {
       try {
@@ -97,6 +171,8 @@
   function mappedValue(label) {
     const custom = customValue(label);
     if (custom !== null) return custom;
+    const indeedPreference = indeedPreferenceValue(label);
+    if (indeedPreference !== null) return indeedPreference;
     for (const rule of sensitiveRules) {
       if (rule.pattern.test(label)) {
         const value = profile[rule.key];
@@ -146,7 +222,7 @@
         : /^(false|no|0|unchecked)$/i.test(value)
           ? false
           : null;
-      const candidateText = normalize(`${field.value} ${fieldLabel(field)}`);
+      const candidateText = optionLabel(field);
       const desired = booleanValue ?? candidateText.includes(normalizedValue);
       const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
       descriptor?.set?.call(field, desired);
@@ -155,7 +231,7 @@
     }
 
     if (field.type === "radio") {
-      const candidateText = normalize(`${field.value} ${fieldLabel(field)}`);
+      const candidateText = optionLabel(field);
       if (!candidateText.includes(normalize(value))) return false;
       const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
       descriptor?.set?.call(field, true);

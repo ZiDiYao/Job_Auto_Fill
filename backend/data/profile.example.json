@@ -62,6 +62,13 @@
     }
   ],
   "skills": ["C#", "Angular", "SQL", "Azure"],
+  "indeedPreferences": {
+    "willingToCommute": "Yes",
+    "willingToRelocate": "Yes",
+    "previouslyWorkedForEmployer": "No",
+    "employeeReferral": "No",
+    "relativesAtEmployer": "No"
+  },
   "customAnswers": [],
   "settings": {
     "highlightUnmatched": true,
