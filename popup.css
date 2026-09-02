@@ -22,12 +22,15 @@ button:focus-visible,
 input:focus-visible { outline: 2px solid rgba(23, 105, 194, 0.2); outline-offset: 2px; }
 button:disabled { cursor: not-allowed; opacity: 0.55; }
 input[type="checkbox"] { accent-color: var(--blue); }
-button.header-settings { display: flex; width: 100%; min-height: 48px; margin: 0; align-items: center; justify-content: space-between; border-color: var(--blue); padding: 9px 12px; color: #fff; background: var(--blue); box-shadow: 0 1px 3px rgba(23, 105, 194, 0.2); line-height: 1.2; text-align: left; }
-button.header-settings:hover { border-color: var(--blue-dark); background: var(--blue-dark); }
+button.header-settings { display: flex; width: 100%; min-height: 52px; margin: 0; align-items: center; justify-content: space-between; border-color: var(--blue-dark); border-bottom-width: 3px; padding: 9px 10px 8px 12px; color: #fff; background: var(--blue); box-shadow: 0 2px 5px rgba(23, 105, 194, 0.22); line-height: 1.2; text-align: left; }
+button.header-settings:hover { border-color: #0d477f; background: var(--blue-dark); box-shadow: 0 3px 7px rgba(23, 105, 194, 0.28); }
+button.header-settings:active { border-bottom-width: 1px; padding-bottom: 10px; transform: translateY(1px); box-shadow: 0 1px 2px rgba(23, 105, 194, 0.2); }
+.settings-leading { display: flex; min-width: 0; align-items: center; gap: 9px; }
+.settings-icon { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 .settings-copy { display: grid; gap: 2px; }
 button.header-settings strong { font-size: 12px; }
 button.header-settings small { color: rgba(255, 255, 255, 0.82); font-size: 9px; font-weight: 600; }
-.settings-chevron { color: rgba(255, 255, 255, 0.82); font-size: 21px; font-weight: 400; }
+.settings-action { flex: 0 0 auto; border-radius: 4px; padding: 6px 9px; color: var(--blue-dark); background: #fff; font-size: 10px; font-weight: 800; }
 button.header-settings:not(.setup-required) small { display: none; }
 button.header-settings.setup-required { box-shadow: 0 0 0 3px rgba(23, 105, 194, 0.16); }
 button.header-settings.setup-required:hover { background: var(--blue-dark); }
@@ -108,7 +111,7 @@ button.link-button:hover { text-decoration: underline; }
 :root[data-theme="dark"] button.header-settings { border-color: var(--blue); color: #0b1726; background: var(--blue); box-shadow: 0 1px 3px rgba(114, 174, 247, 0.2); }
 :root[data-theme="dark"] button.header-settings:hover { border-color: var(--blue-dark); background: var(--blue-dark); }
 :root[data-theme="dark"] button.header-settings small,
-:root[data-theme="dark"] .settings-chevron { color: rgba(11, 23, 38, 0.72); }
+:root[data-theme="dark"] .settings-action { color: #0b1726; }
 :root[data-theme="dark"] button.header-settings.setup-required { box-shadow: 0 0 0 3px rgba(114, 174, 247, 0.2); }
 :root[data-theme="dark"] button.header-settings.setup-required:hover { background: var(--blue-dark); }
 :root[data-theme="dark"] .jd-label,

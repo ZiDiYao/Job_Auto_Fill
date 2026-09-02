@@ -182,7 +182,9 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   }
   assert.doesNotMatch(optionsHtml, /name="aiModel"|qwen3:4b/);
   assert.match(popupHtml, /type="module" src="popup\.js"/);
-  assert.match(popupHtml, /Complete profile &amp; settings/);
+  assert.match(popupHtml, /Set up profile &amp; settings/);
+  assert.match(popupHtml, /class="settings-icon"/);
+  assert.match(popupHtml, /class="settings-action"[^>]*>Open</);
   assert.match(popupHtml, /id="settingsRequired">Required before your first autofill/);
   assert.match(popupHtml, /class="popup-card resume-section"/);
   assert.match(popupHtml, /class="popup-card job-section"/);

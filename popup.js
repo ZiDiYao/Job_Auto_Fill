@@ -49,10 +49,10 @@ function renderSetupState(visited) {
   const setupComplete = onboardingVisited && hasDefaultResume;
   settingsButton.classList.toggle("setup-required", !setupComplete);
   settingsLabel.textContent = setupComplete
-    ? "Profile & settings"
+    ? "Edit profile & settings"
     : onboardingVisited
-      ? "Upload a resume"
-      : "Complete profile & settings";
+      ? "Upload resume in settings"
+      : "Set up profile & settings";
   settingsRequired.hidden = setupComplete;
 }
 
