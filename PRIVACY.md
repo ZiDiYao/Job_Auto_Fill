@@ -2,7 +2,7 @@
 
 Effective September 2, 2026
 
-Job Autofill processes information only to help a user complete and organize their own job applications. Questions may be sent to `yaoz25@mcmaster.ca`.
+Job Autofill processes information only to help a user complete and organize their own job applications. Questions may be sent to `zidiyaocanada@outlook.com`.
 
 ## Data processed
 

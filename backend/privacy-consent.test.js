@@ -44,6 +44,17 @@ test("first-run disclosure names sensitive data, external destinations, and sepa
   assert.doesNotMatch(html, /type="checkbox"[^>]*checked/);
 });
 
+test("public privacy notice uses the product support email", async () => {
+  const [html, markdown] = await Promise.all([
+    readFile(new URL("../privacy.html", import.meta.url), "utf8"),
+    readFile(new URL("../PRIVACY.md", import.meta.url), "utf8"),
+  ]);
+  for (const notice of [html, markdown]) {
+    assert.match(notice, /zidiyaocanada@outlook\.com/i);
+    assert.doesNotMatch(notice, /yaoz25@mcmaster\.ca/i);
+  }
+});
+
 test("privacy settings support revocation and complete local deletion", async () => {
   const [html, source, background] = await Promise.all([
     readFile(new URL("../options.html", import.meta.url), "utf8"),

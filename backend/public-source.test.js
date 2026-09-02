@@ -127,7 +127,7 @@ test("public extension bundles local platform adapters for common ATS providers"
   for (const platform of ["workday", "dayforce", "indeed", "linkedin", "greenhouse", "lever", "smartrecruiters", "icims", "taleo", "successfactors", "ashby"]) {
     assert.match(adapters, new RegExp(`id: "${platform}"`));
   }
-  assert.deepEqual(manifest.version, "2.44.0");
+  assert.deepEqual(manifest.version, "2.44.1");
   assert.match(packager, /platform-adapters\.js/);
   assert.doesNotMatch(adapters, /eval\s*\(|new Function\s*\(/);
 });
