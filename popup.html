@@ -9,41 +9,51 @@
   <body>
     <main>
       <header class="popup-header">
-        <div>
-          <h1>Job Autofill</h1>
-        </div>
-        <button id="settings" class="header-settings setup-required" type="button">
-          <span id="settingsLabel">Complete profile &amp; settings</span>
-          <small id="settingsRequired">Required</small>
-        </button>
+        <h1>Job Autofill</h1>
       </header>
-      <div id="setupPrompt" class="setup-prompt">Complete the one-time profile setup before your first autofill.</div>
-      <p>The job description is captured automatically. Review it, then fill the current application.</p>
-      <div class="resume-label">Saved CV</div>
-      <label id="resumeDrop" class="resume-drop" for="resumeFile">
-        <input id="resumeFile" type="file" accept="application/pdf,.pdf" />
-        <strong>Choose or drop a resume PDF</strong>
-        <span id="resumeStatus">Loading saved CV…</span>
-      </label>
-      <label class="jd-label" for="jobDescription">Job description · auto-captured</label>
-      <textarea id="jobDescription" placeholder="Open a job posting and its description will appear here automatically."></textarea>
-      <button id="detect" class="secondary" type="button">Refresh current page</button>
-      <div class="notes-panel">
+      <button id="settings" class="header-settings setup-required" type="button">
+        <span class="settings-copy">
+          <strong id="settingsLabel">Complete profile &amp; settings</strong>
+          <small id="settingsRequired">Required before your first autofill</small>
+        </span>
+        <span class="settings-chevron" aria-hidden="true">›</span>
+      </button>
+
+      <section class="popup-card resume-section">
+        <div class="resume-label">Default resume</div>
+        <label id="resumeDrop" class="resume-drop" for="resumeFile">
+          <input id="resumeFile" type="file" accept="application/pdf,.pdf" />
+          <strong>Choose or drop a resume PDF</strong>
+          <span id="resumeStatus">Loading default resume…</span>
+        </label>
+      </section>
+
+      <section class="popup-card job-section">
+        <label class="jd-label" for="jobDescription">Job description · auto-captured</label>
+        <textarea id="jobDescription" placeholder="Open a job posting and its description will appear here automatically."></textarea>
+        <button id="detect" class="secondary" type="button">Refresh current page</button>
+      </section>
+
+      <section class="popup-card notes-panel">
         <div>
           <strong>Application history</strong>
           <span id="notesFolderStatus">No export destination configured</span>
         </div>
         <button id="saveNote" class="secondary compact" type="button">Save application</button>
         <button id="notesSettings" class="link-button" type="button">Export settings</button>
-      </div>
-      <label class="toggle">
-        <input id="overwrite" type="checkbox" checked />
-        Overwrite fields that already contain text
-      </label>
-      <label class="toggle auto-next-toggle">
-        <input id="autoNext" type="checkbox" />
-        <span><strong>Auto-advance through completed pages</strong><small>Clicks only Next / Continue. Stops before Submit or whenever manual review is needed.</small></span>
-      </label>
+      </section>
+
+      <section class="popup-card behaviour-section">
+        <label class="toggle">
+          <input id="overwrite" type="checkbox" checked />
+          Overwrite fields that already contain text
+        </label>
+        <label class="toggle auto-next-toggle">
+          <input id="autoNext" type="checkbox" />
+          <span><strong>Auto-advance through completed pages</strong><small>Clicks only Next / Continue. Stops before Submit or whenever manual review is needed.</small></span>
+        </label>
+      </section>
+
       <div class="fill-actions">
         <button id="fill" class="primary" type="button" disabled>Fill application</button>
         <button id="automationToggle" class="secondary automation-toggle" type="button" aria-label="Pause changes" aria-pressed="false" title="Pause changes">

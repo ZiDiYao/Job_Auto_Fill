@@ -39,6 +39,8 @@ textarea:focus { outline: 2px solid rgba(23, 105, 194, 0.14); border-color: var(
 .field-action { position: absolute; top: 50%; right: 5px; border: 0; border-radius: 3px; padding: 5px 7px; color: var(--blue); background: transparent; font-size: 10px; transform: translateY(-50%); }
 .field-action:hover { background: #eef5fd; }
 .resume-prefilled { border-color: #6aa3e8; background: #f5f9ff; }
+.profile-incomplete { border-color: #d14343; background: #fffafa; }
+.profile-incomplete:focus { border-color: #b42318; outline-color: rgba(209, 67, 67, 0.16); }
 textarea { min-height: 220px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; }
 
 .language-list { display: grid; gap: 10px; margin-bottom: 12px; }
@@ -78,6 +80,10 @@ input[type="checkbox"] { accent-color: var(--blue); }
 #saveStatus[data-state="error"] { color: #a12f2f; }
 
 .resume-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.default-resume-section { border-color: #c9d2df; }
+.default-resume-section.needs-resume { border-color: #d14343; }
+.completion-hint { margin-top: 11px; color: #667085; font-size: 11px; }
+.completion-hint.needs-attention { color: #b42318; }
 .icon-button { width: 28px; height: 28px; flex: 0 0 28px; border-radius: 4px; padding: 0; font-size: 18px; font-weight: 500; line-height: 1; }
 #resumeStatus,
 #notesFolderStatus,

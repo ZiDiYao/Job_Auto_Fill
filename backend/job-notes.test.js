@@ -183,11 +183,15 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.doesNotMatch(optionsHtml, /name="aiModel"|qwen3:4b/);
   assert.match(popupHtml, /type="module" src="popup\.js"/);
   assert.match(popupHtml, /Complete profile &amp; settings/);
-  assert.match(popupHtml, /id="settingsRequired">Required/);
+  assert.match(popupHtml, /id="settingsRequired">Required before your first autofill/);
+  assert.match(popupHtml, /class="popup-card resume-section"/);
+  assert.match(popupHtml, /class="popup-card job-section"/);
+  assert.doesNotMatch(popupHtml, /The job description is captured automatically/);
   assert.match(popupHtml, /id="fill"[^>]*disabled/);
   assert.match(popupSource, /saveCurrentJobNote/);
   assert.match(popupSource, /jobAutofillOnboardingVisited/);
   assert.match(popupSource, /renderSetupState/);
+  assert.match(popupSource, /onboardingVisited && hasDefaultResume/);
   assert.match(popupSource, /historySaveTrigger === "fill"/);
   assert.match(optionsHtml, /id="chooseMarkdownFolder"/);
   assert.match(optionsHtml, /id="chooseExcelFolder"/);
@@ -199,7 +203,7 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /data-settings-target="profile"/);
   assert.match(optionsHtml, /data-settings-target="overview"/);
   assert.match(optionsHtml, /data-settings-target="ai"/);
-  assert.match(optionsHtml, /data-settings-page="overview"[^>]*hidden>[\s\S]*?<h2>Resume upload<\/h2>/);
+  assert.match(optionsHtml, /data-settings-page="profile"[^>]*class="default-resume-section">[\s\S]*?<h2>Default resume<\/h2>/);
   assert.match(optionsHtml, /data-settings-page="overview"[^>]*hidden>[\s\S]*?<h2>Behaviour<\/h2>/);
   assert.match(optionsHtml, /id="profileFooter" data-settings-page="profile"/);
   assert.doesNotMatch(optionsHtml, /data-ai-target|data-ai-page|Mock job description skills|Mock resume\/profile skills|Run skills preview/);
@@ -232,6 +236,7 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsSource, /createDebouncedAutosave/);
   assert.match(optionsSource, /form\.addEventListener\("input", queueChangedSetting\)/);
   assert.match(optionsSource, /form\.addEventListener\("change", queueChangedSetting\)/);
+  assert.match(optionsSource, /updateIncompleteProfileFields/);
   assert.match(optionsSource, /notionToken\.value\.trim\(\) \|\| current\.notion\.token/);
   assert.match(optionsHtml, /name="autoFillOnPageChange"/);
   assert.match(optionsHtml, /name="autoCaptureJobDescriptions"/);

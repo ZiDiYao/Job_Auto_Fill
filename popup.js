@@ -22,9 +22,10 @@ const LAST_DETECTED_JOB_KEY = "jobAutofillDetectedJobContext";
 const ONBOARDING_VISITED_KEY = "jobAutofillOnboardingVisited";
 const settingsLabel = document.querySelector("#settingsLabel");
 const settingsRequired = document.querySelector("#settingsRequired");
-const setupPrompt = document.querySelector("#setupPrompt");
 let activeTabId = 0;
 let setupComplete = false;
+let onboardingVisited = false;
+let hasDefaultResume = false;
 let automationPaused = false;
 let fillRunning = false;
 
@@ -33,11 +34,15 @@ function updateFillAvailability() {
 }
 
 function renderSetupState(visited) {
-  setupComplete = visited === true;
+  onboardingVisited = visited === true;
+  setupComplete = onboardingVisited && hasDefaultResume;
   settingsButton.classList.toggle("setup-required", !setupComplete);
-  settingsLabel.textContent = setupComplete ? "Profile & settings" : "Complete profile & settings";
+  settingsLabel.textContent = setupComplete
+    ? "Profile & settings"
+    : onboardingVisited
+      ? "Add a default resume"
+      : "Complete profile & settings";
   settingsRequired.hidden = setupComplete;
-  setupPrompt.hidden = setupComplete;
   updateFillAvailability();
 }
 
@@ -82,8 +87,9 @@ function normalizeExportSettings(value = {}) {
   };
 }
 
-chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY, AUTOMATION_PAUSED_KEY, LAST_DETECTED_JOB_KEY, ONBOARDING_VISITED_KEY]).then(async ({ jobAutofillProfile, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus, [AUTOMATION_PAUSED_KEY]: paused, [LAST_DETECTED_JOB_KEY]: detectedJob, [ONBOARDING_VISITED_KEY]: onboardingVisited }) => {
-  renderSetupState(onboardingVisited);
+chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY, AUTOMATION_PAUSED_KEY, LAST_DETECTED_JOB_KEY, ONBOARDING_VISITED_KEY]).then(async ({ jobAutofillProfile, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus, [AUTOMATION_PAUSED_KEY]: paused, [LAST_DETECTED_JOB_KEY]: detectedJob, [ONBOARDING_VISITED_KEY]: visited }) => {
+  hasDefaultResume = Boolean(jobAutofillResume?.base64);
+  renderSetupState(visited);
   renderAutomationPausedState(paused);
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTabId = Number(activeTab?.id || 0);
@@ -133,9 +139,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 function showResume(resume) {
+  hasDefaultResume = Boolean(resume?.base64);
   resumeStatus.textContent = resume?.name
-    ? `${resume.name} · ${Math.max(1, Math.round(Number(resume.size || 0) / 1024))} KB · saved`
-    : "No CV saved yet";
+    ? `${resume.name} · ${Math.max(1, Math.round(Number(resume.size || 0) / 1024))} KB · default`
+    : "No default resume saved yet";
+  renderSetupState(onboardingVisited);
 }
 
 function arrayBufferToBase64(buffer) {

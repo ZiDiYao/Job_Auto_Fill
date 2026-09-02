@@ -29,6 +29,25 @@
       </nav>
 
       <form id="profileForm">
+        <section data-settings-page="profile" class="default-resume-section">
+          <h2>Default resume</h2>
+          <p class="help">
+            This resume is used for applications until you replace it. After upload, AI extracts supported profile facts,
+            saves them automatically, and marks common fields that still need your attention.
+          </p>
+          <div class="resume-row">
+            <label class="secondary file-button">
+              Choose default resume
+              <input id="resumeFile" type="file" accept="application/pdf,.pdf" />
+            </label>
+            <span id="resumeStatus">No default resume saved</span>
+            <button id="removeResume" class="danger icon-button" type="button" aria-label="Remove default resume" title="Remove default resume" hidden>&times;</button>
+          </div>
+          <p id="profileCompletionHint" class="completion-hint" aria-live="polite">
+            Upload a default resume to prefill your profile.
+          </p>
+        </section>
+
         <section data-settings-page="profile">
           <h2>Personal information</h2>
           <div class="grid">
@@ -193,23 +212,6 @@
             <label>Bound by a non-compete or restrictive covenant<select name="restrictiveCovenant"><option value="">Always ask me</option><option value="No">No</option><option value="Yes">Yes</option></select></label>
             <label>Ever terminated or dismissed for cause<select name="terminatedForCause"><option value="">Always ask me</option><option value="No">No</option><option value="Yes">Yes</option></select></label>
             <label>Eligible for rehire by former employers<select name="eligibleForRehire"><option value="">Always ask me</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
-          </div>
-        </section>
-
-        <section data-settings-page="overview" hidden>
-          <h2>Resume upload</h2>
-          <p class="help">
-            Your Docker backend supplies the saved resume and the extension keeps a browser-local cache for attachment to
-            application pages. It is never uploaded anywhere except the application page you opened and the configured AI
-            provider when its text is required as evidence.
-          </p>
-          <div class="resume-row">
-            <label class="secondary file-button">
-              Choose resume file
-              <input id="resumeFile" type="file" accept="application/pdf,.pdf" />
-            </label>
-            <span id="resumeStatus">No resume saved</span>
-            <button id="removeResume" class="danger icon-button" type="button" aria-label="Remove saved resume" title="Remove saved resume" hidden>&times;</button>
           </div>
         </section>
 

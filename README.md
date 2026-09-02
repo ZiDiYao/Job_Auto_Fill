@@ -164,9 +164,11 @@ The extension creates the **Job Application** root page (or your chosen name) an
 page containing the summary, full JD, and interview sections. Notion credentials and generated IDs are stored only in that
 Chrome profile; they are not included in Git, Docker images, profile exports, or application webpages.
 
-## Resume upload and AI
+## Default resume and AI profile setup
 
-The saved PDF is used for the application page's file-upload control. Its text is extracted automatically for AI evidence and for safe, empty-only profile prefilling. Existing profile values are never overwritten by resume extraction.
+Add a default PDF at the top of the **Profile** page or from the popup. It remains the active resume for applications until the user replaces or removes it. After upload, its text is extracted automatically for AI evidence and safe, empty-only profile prefilling; existing profile values are never overwritten. Common application fields that the resume does not establish are marked in red for the user to complete.
+
+The popup uses separate sections for profile setup, the default resume, the captured job description, application history, and automation controls. The full-width **Profile & settings** entry remains highlighted until the one-time setup page has been opened.
 
 DeepSeek through the local backend is the default adapter. Select **OpenAI** under **Backend AI provider** after configuring its key and model in the active configuration file (`local-data/local-config.json` for Docker). An entirely local Ollama fallback remains available:
 

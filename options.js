@@ -41,12 +41,12 @@ const SETTINGS_PAGES = {
   profile: {
     hash: "#profile",
     title: "Profile",
-    description: "Personal details, education, languages, and reusable application answers.",
+    description: "Default resume, personal details, education, languages, and reusable application answers.",
   },
   overview: {
     hash: "#overview",
     title: "Overview",
-    description: "Manage your saved resume and choose how autofill behaves while you browse.",
+    description: "Choose how autofill behaves while you browse and move through application pages.",
   },
   ai: {
     hash: "#ai/settings",
@@ -627,6 +627,7 @@ function queueChangedSetting(event) {
   const control = event.target;
   if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement)) return;
   if (control.type === "file") return;
+  if (control.name) updateIncompleteProfileFields();
   if (control.closest('[data-settings-page="history"]')) exportAutosave.schedule();
   else if (control.name) profileAutosave.schedule();
 }
@@ -690,6 +691,7 @@ document.querySelector("#importProfile").addEventListener("change", async (event
 const resumeFile = document.querySelector("#resumeFile");
 const resumeStatus = document.querySelector("#resumeStatus");
 const removeResumeButton = document.querySelector("#removeResume");
+const profileCompletionHint = document.querySelector("#profileCompletionHint");
 const gpaField = form.elements.namedItem("gpa");
 const toggleGpaVisibilityButton = document.querySelector("#toggleGpaVisibility");
 
@@ -721,12 +723,47 @@ async function extractPdfText(buffer) {
   return pages.filter(Boolean).join("\n\n");
 }
 
+const PROFILE_COMPLETION_FIELDS = [
+  "firstName", "lastName", "email", "phone", "address", "city", "province", "postalCode", "country",
+  "school", "degree", "fieldOfStudy", "educationStartYear", "graduationDate", "startDate", "workTerm",
+];
+
+let hasDefaultResume = false;
+
+function updateIncompleteProfileFields() {
+  let missingCount = 0;
+  for (const name of PROFILE_COMPLETION_FIELDS) {
+    const field = form.elements.namedItem(name);
+    if (!field) continue;
+    const missing = hasDefaultResume && !String(field.value || "").trim();
+    field.classList.toggle("profile-incomplete", missing);
+    if (missing) {
+      missingCount += 1;
+      field.setAttribute("aria-invalid", "true");
+      field.title = "Not found in the default resume — please review";
+    } else {
+      field.removeAttribute("aria-invalid");
+      if (field.title === "Not found in the default resume — please review") field.removeAttribute("title");
+    }
+  }
+  if (!profileCompletionHint) return;
+  profileCompletionHint.classList.toggle("needs-attention", missingCount > 0);
+  profileCompletionHint.textContent = !hasDefaultResume
+    ? "Upload a default resume to prefill your profile."
+    : missingCount
+      ? `AI filled what it could. ${missingCount} common application field${missingCount === 1 ? "" : "s"} still need your attention.`
+      : "Your common application fields are complete.";
+}
+
 async function refreshResumeStatus() {
   const { [RESUME_KEY]: resume } = await chrome.storage.local.get(RESUME_KEY);
+  hasDefaultResume = Boolean(resume?.name);
+  document.querySelector(".default-resume-section")?.classList.toggle("needs-resume", !hasDefaultResume);
   removeResumeButton.hidden = !resume?.name;
   resumeStatus.textContent = resume?.name
-    ? `${resume.name} (${Math.max(1, Math.round(resume.size / 1024))} KB) saved locally`
-    : "No resume saved";
+    ? `${resume.name} (${Math.max(1, Math.round(resume.size / 1024))} KB) · default`
+    : "No default resume saved";
+  updateIncompleteProfileFields();
 }
 
 const RESUME_PREFILL_KEYS = new Set([
@@ -770,6 +807,7 @@ async function prefillEmptyProfileFields(resumeText) {
   }
   const result = await persistProfile();
   renderAutosaveState("saved", { result });
+  updateIncompleteProfileFields();
   return filledKeys;
 }
 
@@ -821,7 +859,8 @@ resumeFile.addEventListener("change", async (event) => {
         resumeStatus.textContent += " · analyzing profile…";
         const filledKeys = await prefillEmptyProfileFields(extractedText);
         const skillCount = await generateResumeSkillBaseline();
-        resumeStatus.textContent = `${resume.name} saved · AI filled ${filledKeys.length} blank profile field${filledKeys.length === 1 ? "" : "s"} and selected ${skillCount} baseline skill${skillCount === 1 ? "" : "s"}`;
+        resumeStatus.textContent = `${resume.name} · default · AI filled ${filledKeys.length} blank profile field${filledKeys.length === 1 ? "" : "s"} and selected ${skillCount} baseline skill${skillCount === 1 ? "" : "s"}`;
+        updateIncompleteProfileFields();
       } catch (error) {
         resumeStatus.textContent += ` · profile prefill unavailable: ${error.message}`;
       }
