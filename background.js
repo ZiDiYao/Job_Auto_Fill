@@ -670,7 +670,10 @@ async function executeFillWithRetry(tabId, delayMs) {
   let lastError;
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
-      return await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ["content.js"] });
+      return await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        files: ["platform-adapters.js", "content.js"],
+      });
     } catch (error) {
       lastError = error;
       await pause(Math.min(1200, Math.max(300, delayMs / 2)));
@@ -689,6 +692,17 @@ function detectJobContextFromPage() {
   const selectors = [
     "[data-automation-id='jobPostingDescription']",
     "[data-testid*='job-description' i]",
+    "[data-test='job-description']",
+    "#jobDescriptionText",
+    "[data-testid='jobsearch-JobComponent-description']",
+    ".jobs-description__content",
+    ".jobs-box__html-content",
+    "#job-details",
+    ".posting-page .content",
+    ".iCIMS_JobContent",
+    "[id*='requisitionDescriptionInterface']",
+    ".ResAts__jobDescription",
+    ".jv-job-detail-description",
     "#job-description",
     ".job-description",
     "[class*='jobDescription']",
@@ -732,8 +746,9 @@ function detectJobContextFromPage() {
   return {
     jobDescription: (candidates[0]?.text || "").slice(0, 30000),
     metadata: {
-      jobTitle: textOf(document.querySelector("h1")),
-      company: textOf(document.querySelector("[data-automation-id='company'], [data-testid*='company' i], .company")),
+      jobTitle: textOf(document.querySelector("[data-automation-id='jobTitle'], [data-testid*='job-title' i], [data-testid='jobsearch-JobInfoHeader-title'], .job-details-jobs-unified-top-card__job-title, .posting-headline h2, [data-test='job-title'], h1")),
+      company: textOf(document.querySelector("[data-automation-id='company'], [data-testid*='company' i], [data-testid='inlineHeader-companyName'], .job-details-jobs-unified-top-card__company-name, [data-test='company-name'], .company")),
+      location: textOf(document.querySelector("[data-automation-id='locations'], [data-testid*='location' i], .job-details-jobs-unified-top-card__primary-description-container, .posting-categories .location, [class*='job-location' i]")),
       sourceUrl: location.href,
     },
   };
@@ -846,7 +861,7 @@ async function configureAutomaticFill(enabled) {
   await chrome.scripting.registerContentScripts([{
     id: AUTO_FILL_SCRIPT_ID,
     matches: AUTO_FILL_ORIGINS,
-    js: ["auto-fill-watcher.js"],
+    js: ["platform-adapters.js", "auto-fill-watcher.js"],
     runAt: "document_idle",
     persistAcrossSessions: true,
   }]);

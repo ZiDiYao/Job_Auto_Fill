@@ -538,7 +538,7 @@ test("automatic fill registration adds and removes the persistent page watcher",
   assert.equal(enabled.enabled, true);
   assert.equal(disabled.enabled, false);
   assert.equal(registrations[0][0], "register");
-  assert.equal(registrations[0][1][0].js[0], "auto-fill-watcher.js");
+  assert.deepEqual(Array.from(registrations[0][1][0].js), ["platform-adapters.js", "auto-fill-watcher.js"]);
   assert.equal(registrations[1][0], "unregister");
 });
 

@@ -17,6 +17,7 @@ mkdir -p "$output_directory" "$staging_directory/exporters" "$staging_directory/
 for file in \
   manifest.json \
   background.js \
+  platform-adapters.js \
   content.js \
   auto-fill-watcher.js \
   popup.html popup.css popup.js \

@@ -115,6 +115,20 @@ test("Workday structured filling creates and fills one row per education record"
   assert.match(source, /for \(const \[index, schoolField\] of schoolFields\.entries\(\)\)/);
 });
 
+test("public extension bundles local platform adapters for common ATS providers", async () => {
+  const [manifest, adapters, packager] = await Promise.all([
+    readFile(path.join(repositoryRoot, "manifest.json"), "utf8").then(JSON.parse),
+    readFile(path.join(repositoryRoot, "platform-adapters.js"), "utf8"),
+    readFile(path.join(repositoryRoot, "scripts/package-extension.sh"), "utf8"),
+  ]);
+  for (const platform of ["workday", "dayforce", "indeed", "linkedin", "greenhouse", "lever", "smartrecruiters", "icims", "taleo", "successfactors", "ashby"]) {
+    assert.match(adapters, new RegExp(`id: "${platform}"`));
+  }
+  assert.deepEqual(manifest.version, "2.42.0");
+  assert.match(packager, /platform-adapters\.js/);
+  assert.doesNotMatch(adapters, /eval\s*\(|new Function\s*\(/);
+});
+
 test("saved-state copy is rendered as quiet secondary text", async () => {
   const css = await readFile(path.join(repositoryRoot, "options.css"), "utf8");
   assert.match(css, /#saveStatus \{[^}]*color: #98a2b3;[^}]*font-size: 10px;/);
@@ -211,7 +225,7 @@ test("MV3 AI protocol is semantic-only and cannot return executable browser inst
   assert.match(serverSource, /Never return selectors, element paths, JavaScript, event names, click instructions, wait times, navigation instructions, operations, or action sequences/);
   assert.match(contentSource, /async function applySemanticSuggestion\(suggestion, target\)/);
   assert.match(contentSource, /target\.kind === "text"/);
-  assert.match(contentSource, /target\.kind === "workday-button"/);
+  assert.match(contentSource, /target\.kind === "platform-button"/);
   assert.match(contentSource, /target\.kind === "radio"/);
   assert.match(contentSource, /target\.kind === "checkbox"/);
   assert.doesNotMatch(contentSource, /suggestion\.(?:selector|javascript|operation|action|wait|click|navigate)/i);

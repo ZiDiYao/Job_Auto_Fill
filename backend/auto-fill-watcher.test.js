@@ -4,7 +4,11 @@ import test from "node:test";
 import vm from "node:vm";
 
 test("page watcher shuts down quietly after its extension context is invalidated", async () => {
-  const source = await readFile(new URL("../auto-fill-watcher.js", import.meta.url), "utf8");
+  const [platformSource, watcherSource] = await Promise.all([
+    readFile(new URL("../platform-adapters.js", import.meta.url), "utf8"),
+    readFile(new URL("../auto-fill-watcher.js", import.meta.url), "utf8"),
+  ]);
+  const source = `${platformSource}\n${watcherSource}`;
   let scheduledInspection;
   let disconnected = false;
   let pageInspected = false;
@@ -26,7 +30,7 @@ test("page watcher shuts down quietly after its extension context is invalidated
         return [];
       },
     },
-    location: { href: "https://example.com/jobs/1" },
+    location: { hostname: "example.com", href: "https://example.com/jobs/1" },
     MutationObserver: class {
       constructor(callback) { this.callback = callback; }
       observe() {}

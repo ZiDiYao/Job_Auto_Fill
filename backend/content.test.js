@@ -3,7 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
-const source = await readFile(new URL("../content.js", import.meta.url), "utf8");
+const [platformSource, contentSource] = await Promise.all([
+  readFile(new URL("../platform-adapters.js", import.meta.url), "utf8"),
+  readFile(new URL("../content.js", import.meta.url), "utf8"),
+]);
+const source = `${platformSource}\n${contentSource}`;
 
 class FakeElement {
   constructor({ id = "", name = "", type = "text", value = "", ariaLabel = "", required = false, visible = true } = {}) {
@@ -93,9 +97,12 @@ async function runContent({
     body: { innerText: "Application page" },
     getElementById: (id) => fields.find((field) => field.id === id) || null,
     querySelector: () => null,
-    querySelectorAll: (selector) => (
-      selector === "input, select, textarea, [contenteditable='true']" ? fields : []
-    ),
+    querySelectorAll: (selector) => {
+      const value = String(selector || "");
+      if (/\binput\b|\bselect\b|\btextarea\b|\[contenteditable/.test(value)
+        && !/\[role=['"]?(?:option|menuitem|menuitemradio)/.test(value)) return fields;
+      return [];
+    },
   };
   const chrome = {
     storage: {
@@ -144,7 +151,7 @@ async function runContent({
     HTMLTextAreaElement: FakeTextArea,
     InputEvent: Event,
     KeyboardEvent: Event,
-    location: { hostname },
+    location: { hostname, href: `https://${hostname}/apply` },
     MouseEvent: Event,
     setTimeout,
     clearTimeout,
@@ -152,8 +159,19 @@ async function runContent({
   });
   context.window = context;
   context.top = context;
-  return vm.runInContext(source, context, { filename: "content.js" });
+  return vm.runInContext(source, context, { filename: "platform-adapters-and-content.js" });
 }
+
+test("reports the detected platform while using the same bundled form engine", async () => {
+  const firstName = new FakeInput({ ariaLabel: "First Name" });
+  const result = await runContent({
+    hostname: "jobs.dayforcehcm.com",
+    profile: { firstName: "JoAnn", aiEnabled: false },
+    fields: [firstName],
+  });
+  assert.equal(result.platform, "dayforce");
+  assert.equal(firstName.value, "JoAnn");
+});
 
 test("fills authoritative text fields and dispatches framework-compatible events", async () => {
   const firstName = new FakeInput({ id: "first", ariaLabel: "First Name" });

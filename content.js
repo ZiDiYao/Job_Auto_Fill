@@ -5,10 +5,21 @@
     jobAutofillJobDescription: jobDescription = "",
     jobAutofillAutomationPaused: initiallyPaused = false,
   } = await chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", "jobAutofillJobDescription", "jobAutofillAutomationPaused"]);
+  const platform = globalThis.JobAutofillPlatformAdapters?.detect?.({
+    hostname: location.hostname,
+    document,
+  }) || {
+    id: "generic",
+    name: "Company career site",
+    controlSelectors: ["input", "select", "textarea", "[contenteditable='true']", "button[aria-haspopup='listbox']", "[role='combobox']"],
+    optionSelectors: ["[role='option']", "[data-automation-id='promptOption']"],
+    settleMs: 180,
+  };
   if (initiallyPaused) {
     return {
       filled: 0, skipped: 0, review: 0, resumeUploaded: 0, aiFilled: 0,
       jdSkillsDetected: 0, jdSkillsAdded: 0, aiError: "", paused: true,
+      platform: platform.id,
     };
   }
   const settings = {
@@ -23,6 +34,34 @@
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+  function queryAllDeep(selectors) {
+    const selector = Array.isArray(selectors) ? selectors.join(",") : String(selectors || "");
+    if (!selector) return [];
+    const roots = [document];
+    const visited = new Set();
+    const matches = [];
+    const seen = new Set();
+    while (roots.length) {
+      const root = roots.shift();
+      if (!root || visited.has(root) || !root.querySelectorAll) continue;
+      visited.add(root);
+      try {
+        for (const element of root.querySelectorAll(selector)) {
+          if (!seen.has(element)) {
+            seen.add(element);
+            matches.push(element);
+          }
+        }
+        for (const element of root.querySelectorAll("*")) {
+          if (element.shadowRoot && !visited.has(element.shadowRoot)) roots.push(element.shadowRoot);
+        }
+      } catch {
+        // Ignore invalid selectors or page-owned roots that reject traversal.
+      }
+    }
+    return matches;
+  }
 
   const textFromIds = (ids) => String(ids || "")
     .split(/\s+/)
@@ -87,6 +126,13 @@
     if (legend) labels.push(legend.textContent);
     const choiceQuestion = choiceGroupLabel(field);
     if (choiceQuestion) labels.push(choiceQuestion);
+    const labelledContainer = field.closest?.(
+      "[data-testid*='field' i], [data-automation-id^='formField-'], .form-group, .field, [class*='form-field' i]",
+    );
+    if (labelledContainer) {
+      const nearby = labelledContainer.querySelector?.("label, legend, [data-testid*='label' i], .label, [class*='label' i]");
+      if (nearby?.textContent) labels.push(nearby.textContent);
+    }
     return normalize(labels.filter(Boolean).join(" "));
   }
 
@@ -152,8 +198,7 @@
     "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear", "graduationDate",
   ]);
 
-  const onIndeed = /(^|\.)indeed\.(com|ca)$/i.test(location.hostname)
-    || /(^|\.)smartapply\.indeed\.com$/i.test(location.hostname);
+  const onIndeed = platform.id === "indeed";
 
   const indeedPreferenceRules = [
     {
@@ -536,7 +581,10 @@
     field.style.outlineOffset = "2px";
   }
 
-  let fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
+  const formControlSelector = platform.controlSelectors || ["input", "select", "textarea", "[contenteditable='true']"];
+  const collectFormFields = () => queryAllDeep(formControlSelector)
+    .filter((field) => !field.matches?.("button, [role='combobox']:not(input):not(textarea):not(select)"));
+  let fields = collectFormFields();
   const result = {
     filled: 0,
     skipped: 0,
@@ -547,6 +595,7 @@
     jdSkillsAdded: 0,
     aiError: "",
     paused: false,
+    platform: platform.id,
   };
 
   let pauseStateCheckedAt = 0;
@@ -708,7 +757,7 @@
   }
 
   function visiblePromptOptions() {
-    return [...document.querySelectorAll('[role="option"], [data-automation-id="promptOption"]')]
+    return queryAllDeep(platform.optionSelectors || ['[role="option"]', '[data-automation-id="promptOption"]'])
       .filter((option) => {
         if (!isVisible(option)) return false;
         const selectedItems = option.closest('[role="listbox"]');
@@ -997,7 +1046,7 @@
     button.click();
     let match = null;
     for (let attempt = 0; attempt < 8 && !match; attempt += 1) {
-      await wait(150);
+      await wait(Math.max(120, Number(platform.settleMs || 180)));
       const desired = normalize(value);
       match = visiblePromptOptions().find((option) => {
         const candidate = normalize(option.textContent);
@@ -1037,6 +1086,13 @@
     if (labelledBy) return stripCurrentValue(labelledBy);
     const formField = button.closest('[data-automation-id^="formField-"]');
     if (formField?.textContent) return stripCurrentValue(formField.textContent);
+    const genericField = button.closest?.(
+      "[data-testid*='field' i], .form-group, .field, [class*='form-field' i], [class*='question' i]",
+    );
+    if (genericField) {
+      const label = genericField.querySelector?.("label, legend, [data-testid*='label' i], .label, [class*='label' i]");
+      if (label?.textContent) return stripCurrentValue(label.textContent);
+    }
     return "";
   }
 
@@ -1086,7 +1142,7 @@
 
   function findWorkdayQuestionButton(target) {
     if (target.buttonId) return document.getElementById(target.buttonId);
-    return [...document.querySelectorAll('button[aria-haspopup="listbox"]')]
+    return queryAllDeep(platform.controlSelectors || ['button[aria-haspopup="listbox"]', '[role="combobox"]'])
       .find((button) => isVisible(button) && workdayQuestionLabel(button) === target.label);
   }
 
@@ -1099,10 +1155,12 @@
     ) return;
 
     for (let round = 0; round < 3; round += 1) {
-      const candidates = [...document.querySelectorAll('button[aria-haspopup="listbox"]')]
+      const candidates = queryAllDeep(platform.controlSelectors || ['button[aria-haspopup="listbox"]', '[role="combobox"]'])
         .filter((button) => (
           isVisible(button)
-          && normalize(button.textContent) === "select one"
+          && !button.matches?.("input, textarea, select")
+          && ["listbox", "true"].includes(String(button.getAttribute?.("aria-haspopup") || (button.getAttribute?.("role") === "combobox" ? "listbox" : "")))
+          && /^(select|choose)( one| an option)?$/.test(normalize(button.textContent || button.getAttribute?.("aria-label")))
           && workdayQuestionLabel(button)
         ))
         .slice(0, 30);
@@ -1212,14 +1270,20 @@
     const descriptors = [];
     const targets = new Map();
     const completedGroups = new Set();
-    const controls = [...document.querySelectorAll(
-      'input, select, textarea, [contenteditable="true"], button[aria-haspopup="listbox"]',
-    )];
+    const controls = queryAllDeep(platform.controlSelectors || [
+      "input", "select", "textarea", "[contenteditable='true']", "button[aria-haspopup='listbox']", "[role='combobox']",
+    ]);
 
     for (const control of controls) {
       if (descriptors.length >= 45 || !isVisible(control) || control.disabled || control.readOnly) continue;
-      const isListboxButton = control instanceof HTMLButtonElement && control.getAttribute("aria-haspopup") === "listbox";
-      if (control instanceof HTMLButtonElement && !isListboxButton) continue;
+      const isNativeFormControl = control instanceof HTMLInputElement
+        || control instanceof HTMLSelectElement
+        || control instanceof HTMLTextAreaElement;
+      const isListboxButton = !isNativeFormControl && (
+        control.getAttribute?.("aria-haspopup") === "listbox"
+        || control.getAttribute?.("role") === "combobox"
+      );
+      if (control.matches?.("button") && !isListboxButton) continue;
       if (!isListboxButton && ["hidden", "file", "password", "submit", "button", "reset", "image"].includes(control.type)) continue;
 
       if (isListboxButton) {
@@ -1242,7 +1306,7 @@
           maxLength: 0,
           options,
         });
-        targets.set(id, { kind: "workday-button", control, label, options, markElement: control });
+        targets.set(id, { kind: "platform-button", control, label, options, markElement: control });
         continue;
       }
 
@@ -1380,7 +1444,7 @@
       await wait(160);
       const selected = target.control.selectedOptions?.[0]?.textContent || target.control.value;
       accepted = accepted && normalize(selected) === normalize(suggestion.answer);
-    } else if (target.kind === "workday-button") {
+    } else if (target.kind === "platform-button") {
       accepted = await chooseWorkdayButton(target.control, suggestion.answer);
       await wait(180);
       accepted = accepted || normalize(target.control.textContent).includes(normalize(suggestion.answer));
@@ -1454,6 +1518,7 @@
   }
 
   async function fillWorkdayQuestionDropdowns() {
+    if (platform.id !== "workday") return;
     const completed = new Set();
     for (let pass = 0; pass < 60; pass += 1) {
       const buttons = [...document.querySelectorAll('button[aria-haspopup="listbox"]')]
@@ -1709,7 +1774,7 @@
   if (await changesArePaused(true)) return result;
   await resolveWorkdayDropdownsWithAi();
   if (await changesArePaused(true)) return result;
-  fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
+  fields = collectFormFields();
 
   function base64ToBytes(base64) {
     const binary = atob(base64);
@@ -1787,7 +1852,7 @@
   if (await changesArePaused(true)) return result;
   await applySemanticDomSuggestions();
   if (await changesArePaused(true)) return result;
-  fields = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")];
+  fields = collectFormFields();
 
   const adaptiveQuestion = /\b(why|describe|tell us|tell me|additional information|motivation|interested|interest in|relevant experience|skills|experience with|years of|how many years|cover letter|comments|anything else|proud of|challenge|project)\b/i;
 

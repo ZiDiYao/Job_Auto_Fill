@@ -13,6 +13,10 @@
     /\bskills?\b/i,
     /\bjob application\b|\bapply for (?:this|the) (?:job|position|role)\b/i,
   ];
+  const platform = globalThis.JobAutofillPlatformAdapters?.detect?.({
+    hostname: location.hostname,
+    document,
+  }) || { id: "generic", name: "Company career site" };
   const INSPECTION_DELAY_MS = 350;
   const FINAL_SUBMIT_LABEL = /^(?:submit|submit (?:my |this |your )?application(?: now)?|send (?:my |this |your )?application|complete (?:my |this |your )?application|finish (?:my |this |your )?application|final submit|soumettre(?: (?:ma|cette) candidature)?|envoyer (?:ma|cette) candidature|提交(?:申请)?|提交)$/i;
   let timer = null;
@@ -67,6 +71,19 @@
     return String(element?.innerText || element?.textContent || "").replace(/\s+/g, " ").trim();
   }
 
+  function firstVisibleText(selectors = []) {
+    for (const selector of selectors) {
+      let candidates = [];
+      try { candidates = [...document.querySelectorAll(selector)]; } catch { continue; }
+      for (const element of candidates) {
+        if (!visible(element)) continue;
+        const value = element.matches?.("meta") ? element.getAttribute("content") : compactText(element);
+        if (value) return value;
+      }
+    }
+    return "";
+  }
+
   function hash(text) {
     let value = 2166136261;
     for (let index = 0; index < text.length; index += 1) {
@@ -77,7 +94,7 @@
   }
 
   function detectJobDescription() {
-    const selectors = [
+    const selectors = platform.jobDescriptionSelectors || [
       "[data-automation-id='jobPostingDescription']",
       "[data-testid*='job-description' i]",
       "#job-description",
@@ -151,8 +168,11 @@
       applicationReady,
       jobDescription: detected.text,
       metadata: {
-        jobTitle: compactText(document.querySelector("h1")),
-        company: compactText(document.querySelector("[data-automation-id='company'], [data-testid*='company' i], .company")),
+        jobTitle: firstVisibleText(platform.jobTitleSelectors || ["h1"]),
+        company: firstVisibleText(platform.companySelectors || ["[data-automation-id='company']", "[data-testid*='company' i]", ".company"]),
+        location: firstVisibleText(platform.locationSelectors || ["[data-testid*='location' i]", "[class*='job-location' i]"]),
+        platform: platform.id,
+        platformName: platform.name,
         sourceUrl: location.href,
         detectionSource: detected.source,
       },
