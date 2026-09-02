@@ -164,6 +164,18 @@ test("fills authoritative text fields and dispatches framework-compatible events
   assert.equal(result.filled, 1);
 });
 
+test("fills address line 1 and address line 2 independently", async () => {
+  const addressLine1 = new FakeInput({ ariaLabel: "Address Line 1" });
+  const addressLine2 = new FakeInput({ ariaLabel: "Apartment / Unit / Suite (Address Line 2)" });
+  const result = await runContent({
+    profile: { address: "10 Main Street", addressLine2: "Unit 502", aiEnabled: false },
+    fields: [addressLine1, addressLine2],
+  });
+  assert.equal(addressLine1.value, "10 Main Street");
+  assert.equal(addressLine2.value, "Unit 502");
+  assert.equal(result.filled, 2);
+});
+
 test("corrects authoritative capitalization even when overwrite is disabled", async () => {
   const firstName = new FakeInput({ ariaLabel: "First Name", value: "JOANN" });
   const result = await runContent({

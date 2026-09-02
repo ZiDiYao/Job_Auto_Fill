@@ -20,6 +20,7 @@ test("resume profile extraction keeps only high-confidence, safe, well-formed fa
   assert.deepEqual(validateResumeProfileFields([
     { key: "firstName", value: "Ada", confidence: 0.99 },
     { key: "lastName", value: "Lovelace", confidence: 0.99 },
+    { key: "addressLine2", value: "Apartment 12", confidence: 0.97 },
     { key: "school", value: "Example University", confidence: 0.96 },
     { key: "graduationMonth", value: "May", confidence: 0.92 },
     { key: "graduationYear", value: "2028", confidence: 0.92 },
@@ -37,6 +38,7 @@ test("resume profile extraction keeps only high-confidence, safe, well-formed fa
   ]), {
     firstName: "Ada",
     lastName: "Lovelace",
+    addressLine2: "Apartment 12",
     school: "Example University",
     graduationMonth: "May",
     graduationYear: "2028",
@@ -104,7 +106,7 @@ test("ships blank candidate and credential templates", async () => {
   const profile = JSON.parse(await readFile(new URL("./data/profile.example.json", import.meta.url), "utf8"));
   const config = JSON.parse(await readFile(new URL("./config/local-config.example.json", import.meta.url), "utf8"));
   const candidateFields = [
-    "firstName", "lastName", "email", "phone", "address", "city", "province", "postalCode",
+    "firstName", "lastName", "email", "phone", "address", "addressLine2", "city", "province", "postalCode",
     "country", "school", "gpa", "graduationYear", "workAuthorized", "sponsorship",
     "criminalRecord", "pendingCriminalCharges", "nationalTaxIdAvailable", "meetsMinimumWorkingAge", "holdsSecurityClearance",
     "eligibleForSecurityClearance", "bondable", "validDriversLicense", "reliableTransportation",

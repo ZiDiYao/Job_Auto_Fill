@@ -115,6 +115,7 @@
     { key: "preferredName", pattern: /\b(preferred|chosen) name\b/ },
     { key: "email", pattern: /\b(e mail|email)\b/ },
     { key: "phone", pattern: /\b(phone|telephone|mobile|cell)\b/ },
+    { key: "addressLine2", pattern: /\b(address line 2|address 2|street address 2|apartment|apt\.?|unit|suite)\b/ },
     { key: "address", pattern: /\b(street address|address line 1|home address|mailing address)\b/ },
     { key: "city", pattern: /\b(city|municipality)\b/ },
     { key: "province", pattern: /\b(province|state|region)\b/ },
@@ -145,7 +146,7 @@
   ];
 
   const authoritativeProfileKeys = new Set([
-    "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
+    "firstName", "lastName", "preferredName", "email", "phone", "address", "addressLine2", "city", "province",
     "postalCode", "country", "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter",
     "otherSocialUrl", "otherWebsiteUrl", "school", "degree", "fieldOfStudy",
     "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear", "graduationDate",

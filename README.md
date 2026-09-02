@@ -6,7 +6,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 
 ## What it does
 
-- Fills common contact, education, availability, work-authorization, and portfolio fields.
+- Fills common contact fields—including separate address lines—plus education, availability, work-authorization, and portfolio fields.
 - Optionally fills user-configured gender, pronoun, sexual-orientation, Indigenous-identity, race/ethnicity, disability, and veteran-status answers.
 - Stores a user-selected resume locally and attaches it to recognizable Resume/CV upload fields.
 - Uses the configured backend AI after a resume upload to prefill only blank, evidence-backed contact and education fields, creating separate editable records for every recognized school or credential (including high school, college, bachelor's, master's, and doctoral education); validated legal, demographic, medical, and criminal-history fields are never inferred from a resume.

@@ -79,6 +79,20 @@ test("profile settings expose common developer and generic URL fields", async ()
   }
 });
 
+test("profile and field mapping support an optional second address line", async () => {
+  const [html, optionsSource, contentSource, defaults] = await Promise.all([
+    readFile(path.join(repositoryRoot, "options.html"), "utf8"),
+    readFile(path.join(repositoryRoot, "options.js"), "utf8"),
+    readFile(path.join(repositoryRoot, "content.js"), "utf8"),
+    readFile(path.join(repositoryRoot, "backend/data/profile.example.json"), "utf8").then(JSON.parse),
+  ]);
+  assert.match(html, /name="address" autocomplete="address-line1"/);
+  assert.match(html, /name="addressLine2" autocomplete="address-line2"/);
+  assert.match(optionsSource, /addressLine2: ""/);
+  assert.match(contentSource, /key: "addressLine2"[\s\S]*?address line 2/);
+  assert.equal(defaults.addressLine2, "");
+});
+
 test("language settings are user-managed and start without assumed languages", async () => {
   const [html, source, defaults] = await Promise.all([
     readFile(path.join(repositoryRoot, "options.html"), "utf8"),

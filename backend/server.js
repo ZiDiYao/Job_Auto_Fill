@@ -143,7 +143,7 @@ function safeProfileForModel(profile) {
 }
 
 const resumeProfileKeys = new Set([
-  "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
+  "firstName", "lastName", "preferredName", "email", "phone", "address", "addressLine2", "city", "province",
   "postalCode", "country", "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter",
   "otherSocialUrl", "otherWebsiteUrl", "school", "degree", "fieldOfStudy",
   "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
@@ -424,7 +424,7 @@ async function answerQuestions({ jobDescription, pageContext, questions, provide
 
 function decisionProfileForModel(profile) {
   const keys = [
-    "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
+    "firstName", "lastName", "preferredName", "email", "phone", "address", "addressLine2", "city", "province",
     "postalCode", "country", "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter",
     "otherSocialUrl", "otherWebsiteUrl", "school", "degree",
     "fieldOfStudy", "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",

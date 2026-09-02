@@ -173,7 +173,7 @@ function arrayBufferToBase64(buffer) {
 }
 
 const RESUME_PREFILL_KEYS = new Set([
-  "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
+  "firstName", "lastName", "preferredName", "email", "phone", "address", "addressLine2", "city", "province",
   "postalCode", "country", "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter",
   "otherSocialUrl", "otherWebsiteUrl", "school", "degree", "fieldOfStudy",
   "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
