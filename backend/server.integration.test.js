@@ -37,7 +37,18 @@ before(async () => {
     aiRequests.push({ url: request.url, body, system, payload });
 
     let data;
-    if (payload.savedProfileSkills) {
+    if (payload.resume && !payload.questions && !payload.visibleDomFields && !payload.savedProfileSkills) {
+      data = {
+        fields: [
+          { key: "firstName", value: "Ada", confidence: 0.99 },
+          { key: "lastName", value: "Lovelace", confidence: 0.99 },
+          { key: "school", value: "Example University", confidence: 0.96 },
+          { key: "graduationMonth", value: "May", confidence: 0.92 },
+          { key: "graduationYear", value: "2028", confidence: 0.92 },
+          { key: "criminalRecord", value: "No", confidence: 1 },
+        ],
+      };
+    } else if (payload.savedProfileSkills) {
       data = {
         skills: [
           { name: "SQL", source: "both", technical: true },
@@ -159,6 +170,24 @@ test("skill extraction can rank saved skills without calling an AI provider", as
   assert.deepEqual(payload.skills, ["SQL"]);
   assert.equal(payload.maxSkills, 2);
   assert.equal(payload.maxNonTechnicalSkills, 0);
+});
+
+test("resume profile endpoint extracts only validated non-sensitive facts", async () => {
+  const beforeCount = aiRequests.length;
+  const { response, payload } = await request("/api/extract-profile", {
+    method: "POST",
+    body: { provider: "deepseek", resumeText: "Ada Lovelace — Example University — expected May 2028" },
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(payload.profile, {
+    firstName: "Ada",
+    lastName: "Lovelace",
+    school: "Example University",
+    graduationMonth: "May",
+    graduationYear: "2028",
+  });
+  assert.equal(aiRequests.length, beforeCount + 1);
+  assert.equal(aiRequests.at(-1).system.includes("Never extract or infer work authorization"), true);
 });
 
 test("empty structured-field requests return empty validated results", async () => {

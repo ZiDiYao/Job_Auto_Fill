@@ -50,19 +50,55 @@
 
         <section data-settings-page="profile">
           <h2>Education and availability</h2>
-          <p class="help">These values are editable profile data used at runtime; GPA and education dates are not embedded in the autofill code.</p>
+          <p class="help">Upload a resume below to prefill supported facts. Review the result, then complete anything the resume does not state.</p>
           <div class="grid">
-            <label>School<input name="school" /></label>
-            <label>Degree<input name="degree" placeholder="Bachelor of Engineering" /></label>
-            <label>Field of study<input name="fieldOfStudy" /></label>
-            <label>Overall result / GPA<input name="gpa" /></label>
-            <label>Education start year<input name="educationStartYear" inputmode="numeric" /></label>
-            <label>Graduation month<input name="graduationMonth" /></label>
-            <label>Graduation day<input name="graduationDay" inputmode="numeric" /></label>
-            <label>Graduation year<input name="graduationYear" inputmode="numeric" /></label>
-            <label>Expected graduation date<input name="graduationDate" /></label>
-            <label>Available start date<input name="startDate" placeholder="January 2027" /></label>
-            <label>Co-op duration<input name="workTerm" placeholder="4–8 months" /></label>
+            <label>School<input name="school" maxlength="160" /></label>
+            <label>Degree<input name="degree" maxlength="120" placeholder="Bachelor of Engineering" /></label>
+            <label>Field of study<input name="fieldOfStudy" maxlength="120" /></label>
+            <label>Overall result / GPA<input name="gpa" inputmode="decimal" maxlength="16" placeholder="e.g. 3.2" /></label>
+            <label>
+              GPA scale
+              <select name="gpaScale">
+                <option value="">Select a scale</option>
+                <option value="4.0">4.0</option>
+                <option value="4.3">4.3</option>
+                <option value="5.0">5.0</option>
+                <option value="10.0">10.0</option>
+                <option value="20.0">20.0</option>
+                <option value="100">100 / percentage</option>
+                <option value="Letter">Letter grade</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+            <label>Education start year<input name="educationStartYear" type="number" min="1950" max="2100" step="1" placeholder="YYYY" /></label>
+            <label>
+              Graduation month
+              <select name="graduationMonth">
+                <option value="">Select month</option>
+                <option>January</option><option>February</option><option>March</option><option>April</option>
+                <option>May</option><option>June</option><option>July</option><option>August</option>
+                <option>September</option><option>October</option><option>November</option><option>December</option>
+              </select>
+            </label>
+            <label>Graduation day<input name="graduationDay" type="number" min="1" max="31" step="1" placeholder="DD" /></label>
+            <label>Graduation year<input name="graduationYear" type="number" min="1950" max="2100" step="1" placeholder="YYYY" /></label>
+            <label>Expected graduation date<input name="graduationDate" type="date" min="1950-01-01" max="2100-12-31" /></label>
+            <label>Available start month<input name="startDate" type="month" min="1950-01" max="2100-12" /></label>
+            <label>
+              Co-op / internship duration
+              <select name="workTerm">
+                <option value="">Select duration</option>
+                <option value="3 months">3 months</option>
+                <option value="4 months">4 months</option>
+                <option value="6 months">6 months</option>
+                <option value="8 months">8 months</option>
+                <option value="12 months">12 months</option>
+                <option value="16 months">16 months</option>
+                <option value="4–8 months">4–8 months</option>
+                <option value="8–12 months">8–12 months</option>
+                <option value="Flexible">Flexible / as required</option>
+              </select>
+            </label>
             <label>
               Legally authorized to work?
               <select name="workAuthorized">
@@ -141,7 +177,7 @@
           <div class="resume-row">
             <label class="secondary file-button">
               Choose resume file
-              <input id="resumeFile" type="file" accept=".pdf,.doc,.docx,.txt" />
+              <input id="resumeFile" type="file" accept="application/pdf,.pdf" />
             </label>
             <span id="resumeStatus">No resume saved</span>
             <button id="removeResume" class="danger icon-button" type="button" aria-label="Remove saved resume" title="Remove saved resume" hidden>&times;</button>

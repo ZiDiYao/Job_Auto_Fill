@@ -172,6 +172,19 @@ test("corrects authoritative capitalization even when overwrite is disabled", as
   assert.equal(result.filled, 1);
 });
 
+test("fills the configured GPA scale independently from the GPA value", async () => {
+  const scale = new FakeSelect({
+    ariaLabel: "GPA scale (out of)",
+    options: [
+      { value: "4", text: "4.0" },
+      { value: "100", text: "100 / percentage" },
+    ],
+  });
+  const result = await runContent({ profile: { gpa: "3.2", gpaScale: "4.0", aiEnabled: false }, fields: [scale] });
+  assert.equal(scale.value, "4");
+  assert.equal(result.filled, 1);
+});
+
 test("commits the expected graduation date through a masked Workday date input", async () => {
   const graduation = new FakeInput({
     ariaLabel: "What is your expected graduation date?",

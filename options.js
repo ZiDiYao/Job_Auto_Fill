@@ -231,6 +231,7 @@ const defaultProfile = {
   degree: "",
   fieldOfStudy: "",
   gpa: "",
+  gpaScale: "",
   educationStartYear: "",
   graduationMonth: "",
   graduationDay: "",
@@ -304,11 +305,35 @@ function mergeProfile(profile = {}) {
   const migrated = { ...profile };
   if (!migrated.nationalTaxIdAvailable && migrated.validSin) migrated.nationalTaxIdAvailable = migrated.validSin;
   if (!migrated.meetsMinimumWorkingAge && migrated.age18OrOlder) migrated.meetsMinimumWorkingAge = migrated.age18OrOlder;
+  migrated.graduationDate = normalizeDateValue(migrated.graduationDate);
+  migrated.startDate = normalizeMonthValue(migrated.startDate);
   return {
     ...defaultProfile,
     ...migrated,
     settings: { ...defaultProfile.settings, ...(migrated.settings || {}) },
   };
+}
+
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function normalizeDateValue(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const numeric = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (numeric) return `${numeric[3]}-${numeric[1].padStart(2, "0")}-${numeric[2].padStart(2, "0")}`;
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+}
+
+function normalizeMonthValue(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/^\d{4}-(?:0[1-9]|1[0-2])$/.test(text)) return text;
+  const match = text.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  const monthIndex = match ? MONTH_NAMES.findIndex((month) => month.toLowerCase() === match[1].toLowerCase()) : -1;
+  return monthIndex >= 0 ? `${match[2]}-${String(monthIndex + 1).padStart(2, "0")}` : "";
 }
 
 function renderProfile(profile) {
@@ -342,7 +367,40 @@ function collectProfile() {
     highlightUnmatched: form.elements.namedItem("highlightUnmatched").checked,
     overwriteExisting: form.elements.namedItem("overwriteExisting").checked,
   };
+  const dateParts = profile.graduationDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateParts) {
+    profile.graduationYear = dateParts[1];
+    profile.graduationMonth = MONTH_NAMES[Number(dateParts[2]) - 1];
+    profile.graduationDay = String(Number(dateParts[3]));
+  }
   return profile;
+}
+
+function syncGraduationControls(sourceName) {
+  const dateField = form.elements.namedItem("graduationDate");
+  const monthField = form.elements.namedItem("graduationMonth");
+  const dayField = form.elements.namedItem("graduationDay");
+  const yearField = form.elements.namedItem("graduationYear");
+  if (sourceName === "graduationDate") {
+    const parts = String(dateField.value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!parts) return;
+    yearField.value = parts[1];
+    monthField.value = MONTH_NAMES[Number(parts[2]) - 1];
+    dayField.value = String(Number(parts[3]));
+    return;
+  }
+  const month = MONTH_NAMES.indexOf(monthField.value) + 1;
+  const day = Number(dayField.value);
+  const year = Number(yearField.value);
+  if (month && day >= 1 && day <= 31 && year >= 1950 && year <= 2100) {
+    dateField.value = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  } else {
+    dateField.value = "";
+  }
+}
+
+for (const name of ["graduationDate", "graduationMonth", "graduationDay", "graduationYear"]) {
+  form.elements.namedItem(name).addEventListener("change", () => syncGraduationControls(name));
 }
 
 function skillPriorityLabel(skill) {
@@ -576,6 +634,38 @@ async function refreshResumeStatus() {
     : "No resume saved";
 }
 
+const RESUME_PREFILL_KEYS = new Set([
+  "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
+  "postalCode", "country", "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy",
+  "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
+  "graduationDate", "startDate", "workTerm",
+]);
+
+async function prefillEmptyProfileFields(resumeText) {
+  const response = await chrome.runtime.sendMessage({
+    type: "extract-resume-profile",
+    resumeText,
+    backendProvider: collectProfile().backendAiProvider,
+  });
+  if (!response?.ok) throw new Error(response?.error || "AI could not analyze the resume.");
+  const current = collectProfile();
+  const filledKeys = [];
+  for (const [key, rawValue] of Object.entries(response.profile || {})) {
+    const value = String(rawValue || "").trim();
+    if (!RESUME_PREFILL_KEYS.has(key) || !value || String(current[key] || "").trim()) continue;
+    if (key === "graduationDate" && ["graduationMonth", "graduationDay", "graduationYear"].some((part) => String(current[part] || "").trim())) continue;
+    if (["graduationMonth", "graduationDay", "graduationYear"].includes(key) && String(current.graduationDate || "").trim()) continue;
+    current[key] = value;
+    filledKeys.push(key);
+  }
+  if (!filledKeys.length) return [];
+  renderProfile(current);
+  for (const key of filledKeys) form.elements.namedItem(key)?.classList.add("resume-prefilled");
+  const result = await persistProfile();
+  renderAutosaveState("saved", { result });
+  return filledKeys;
+}
+
 resumeFile.addEventListener("change", async (event) => {
   const [file] = event.target.files;
   if (!file) return;
@@ -603,7 +693,16 @@ resumeFile.addEventListener("change", async (event) => {
       renderAutosaveState("saved", { result });
     }
     await refreshResumeStatus();
-    if (extractedText) resumeStatus.textContent += ` · ${extractedText.length.toLocaleString()} characters extracted for AI`;
+    if (extractedText) {
+      resumeStatus.textContent += ` · ${extractedText.length.toLocaleString()} characters extracted`;
+      try {
+        resumeStatus.textContent += " · analyzing profile…";
+        const filledKeys = await prefillEmptyProfileFields(extractedText);
+        resumeStatus.textContent = `${resume.name} saved · AI filled ${filledKeys.length} previously blank profile field${filledKeys.length === 1 ? "" : "s"}`;
+      } catch (error) {
+        resumeStatus.textContent += ` · profile prefill unavailable: ${error.message}`;
+      }
+    }
   } catch (error) {
     resumeStatus.textContent = `Could not save resume: ${error.message}`;
   } finally {

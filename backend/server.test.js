@@ -10,7 +10,37 @@ import {
   rankSkillCandidates,
   validateAnswers,
   validateFieldPlans,
+  validateResumeProfileFields,
 } from "./server.js";
+
+test("resume profile extraction keeps only high-confidence, safe, well-formed facts", () => {
+  assert.deepEqual(validateResumeProfileFields([
+    { key: "firstName", value: "Ada", confidence: 0.99 },
+    { key: "lastName", value: "Lovelace", confidence: 0.99 },
+    { key: "school", value: "Example University", confidence: 0.96 },
+    { key: "graduationMonth", value: "May", confidence: 0.92 },
+    { key: "graduationYear", value: "2028", confidence: 0.92 },
+    { key: "startDate", value: "2027-01", confidence: 0.9 },
+    { key: "workTerm", value: "4–8 months", confidence: 0.88 },
+    { key: "gpa", value: "3.2", confidence: 0.91 },
+    { key: "gpaScale", value: "4.0", confidence: 0.91 },
+    { key: "email", value: "not-an-email", confidence: 0.99 },
+    { key: "graduationDate", value: "05/01/2028", confidence: 0.99 },
+    { key: "workAuthorized", value: "Yes", confidence: 1 },
+    { key: "criminalRecord", value: "No", confidence: 1 },
+    { key: "degree", value: "Guessed degree", confidence: 0.5 },
+  ]), {
+    firstName: "Ada",
+    lastName: "Lovelace",
+    school: "Example University",
+    graduationMonth: "May",
+    graduationYear: "2028",
+    startDate: "2027-01",
+    workTerm: "4–8 months",
+    gpa: "3.2",
+    gpaScale: "4.0",
+  });
+});
 
 test("ships blank candidate and credential templates", async () => {
   const profile = JSON.parse(await readFile(new URL("./data/profile.example.json", import.meta.url), "utf8"));

@@ -34,6 +34,7 @@ textarea { width: 100%; border: 1px solid #c7ced9; border-radius: 4px; padding: 
 input:focus,
 select:focus,
 textarea:focus { outline: 2px solid rgba(23, 105, 194, 0.14); border-color: var(--blue); }
+.resume-prefilled { border-color: #6aa3e8; background: #f5f9ff; }
 textarea { min-height: 220px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; }
 
 .help { margin: -8px 0 14px; font-size: 12px; }

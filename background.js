@@ -139,6 +139,20 @@ async function extractJobSkills(message) {
   };
 }
 
+async function extractResumeProfile(message) {
+  const response = await fetch(`${BACKEND_ENDPOINT}/api/extract-profile`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      resumeText: message.resumeText || "",
+      provider: message.backendProvider || "deepseek",
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `Local backend returned ${response.status}.`);
+  return { profile: payload.profile && typeof payload.profile === "object" ? payload.profile : {} };
+}
+
 async function resolveWorkdayDropdowns(message) {
   const response = await fetch(`${BACKEND_ENDPOINT}/api/resolve-fields`, {
     method: "POST",
@@ -558,6 +572,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     extractJobSkills(message)
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => sendResponse({ ok: false, error: error.message || "JD skill extraction failed." }));
+    return true;
+  }
+
+  if (message?.type === "extract-resume-profile") {
+    extractResumeProfile(message)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || "Resume profile extraction failed." }));
     return true;
   }
 

@@ -132,10 +132,89 @@ const neverAutomateQuestion = /\b(submit|send application|sign(?:ed|ing)?|signat
 function safeProfileForModel(profile) {
   const allowedKeys = [
     "firstName", "lastName", "preferredName", "email", "phone", "city", "province", "country",
-    "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy", "gpa", "educationStartYear",
+    "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy", "gpa", "gpaScale", "educationStartYear",
     "graduationMonth", "graduationDay", "graduationYear", "graduationDate", "startDate", "workTerm",
   ];
   return Object.fromEntries(allowedKeys.map((key) => [key, profile[key] || ""]));
+}
+
+const resumeProfileKeys = new Set([
+  "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
+  "postalCode", "country", "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy",
+  "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
+  "graduationDate", "startDate", "workTerm",
+]);
+const monthNames = new Set([
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+]);
+const gpaScales = new Set(["4.0", "4.3", "5.0", "10.0", "20.0", "100", "Letter", "Other"]);
+const workTerms = new Set(["3 months", "4 months", "6 months", "8 months", "12 months", "16 months", "4–8 months", "8–12 months", "Flexible"]);
+
+function validProfileYear(value) {
+  return /^\d{4}$/.test(value) && Number(value) >= 1950 && Number(value) <= 2100;
+}
+
+function validIsoProfileDate(value) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match || !validProfileYear(match[1])) return false;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return date.getUTCFullYear() === Number(match[1])
+    && date.getUTCMonth() + 1 === Number(match[2])
+    && date.getUTCDate() === Number(match[3]);
+}
+
+export function validateResumeProfileFields(rawFields) {
+  const result = {};
+  for (const field of Array.isArray(rawFields) ? rawFields : []) {
+    const key = String(field?.key || "").trim();
+    let value = String(field?.value || "").replace(/\s+/g, " ").trim();
+    if (!resumeProfileKeys.has(key) || !value || confidenceScore(field?.confidence) < 0.78) continue;
+    if (value.length > 200) value = value.slice(0, 200).trim();
+    if (key === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) continue;
+    if (["linkedin", "github", "portfolio"].includes(key) && !/^https?:\/\//i.test(value)) continue;
+    if (["educationStartYear", "graduationYear"].includes(key) && !validProfileYear(value)) continue;
+    if (key === "graduationDay" && (!/^\d{1,2}$/.test(value) || Number(value) < 1 || Number(value) > 31)) continue;
+    if (key === "graduationMonth" && !monthNames.has(value)) continue;
+    if (key === "graduationDate" && !validIsoProfileDate(value)) continue;
+    if (key === "startDate" && (!/^(\d{4})-(?:0[1-9]|1[0-2])$/.test(value) || !validProfileYear(value.slice(0, 4)))) continue;
+    if (key === "gpa" && (!/^\d{1,3}(?:\.\d{1,3})?$/.test(value) || Number(value) > 100)) continue;
+    if (key === "gpaScale" && !gpaScales.has(value)) continue;
+    if (key === "workTerm" && !workTerms.has(value)) continue;
+    result[key] = value;
+  }
+  return result;
+}
+
+async function extractResumeProfile({ resumeText, provider }) {
+  const profile = await getProfile();
+  const resume = String(resumeText || profile.resumeText || await getResumeText().catch(() => "")).trim();
+  if (!resume) throw Object.assign(new Error("No resume text is available to analyze."), { statusCode: 400 });
+  const aiStrategy = selectedAiStrategy(profile, provider);
+  const system = [
+    "Extract candidate profile facts from a resume. Return JSON only in this exact shape:",
+    '{"fields":[{"key":"school","value":"University name","confidence":0.98}]}',
+    `Allowed keys: ${[...resumeProfileKeys].join(", ")}.`,
+    "Include a field only when its value is explicitly supported by the resume. Never guess or infer missing facts.",
+    "Never extract or infer work authorization, sponsorship, age, government identifiers, criminal history, medical/disability information, demographics, gender, race, veteran status, consent, preferences, or other legal facts.",
+    "Preserve names and organization capitalization exactly. Do not truncate names.",
+    "Use YYYY-MM-DD for an exact graduation date, YYYY-MM for available start date, full English month names, and four digits for years.",
+    "If only a graduation month and year are stated, return graduationMonth and graduationYear separately; never invent a day.",
+    "GPA scale must be one of 4.0, 4.3, 5.0, 10.0, 20.0, 100, Letter, Other. Omit it when unstated.",
+    `workTerm must be one of: ${[...workTerms].join(", ")}. Omit it when the resume does not state availability.`,
+  ].join(" ");
+  const completion = await aiStrategy.completeJson({
+    system,
+    request: { resume: resume.slice(0, 24000) },
+    maxTokens: 2500,
+    temperature: 0,
+  });
+  return {
+    profile: validateResumeProfileFields(completion.data.fields),
+    usage: completion.usage,
+    model: completion.model,
+    provider: completion.provider,
+  };
 }
 
 function normalize(value) {
@@ -249,7 +328,7 @@ function decisionProfileForModel(profile) {
   const keys = [
     "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
     "postalCode", "country", "linkedin", "github", "portfolio", "school", "degree",
-    "fieldOfStudy", "gpa", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
+    "fieldOfStudy", "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
     "graduationDate", "startDate", "workTerm", "workAuthorized", "sponsorship",
     "willingToCommute", "willingToRelocate", "willingToTravel", "willingToWorkOnsite",
     "willingFlexibleSchedule", "backgroundCheckConsent", "drugScreeningConsent", "criminalRecord",
@@ -621,6 +700,12 @@ export function createServer() {
           maxNonTechnicalSkills: body.maxNonTechnicalSkills,
           provider: body.provider,
         });
+        return sendJson(response, 200, result);
+      }
+
+      if (request.method === "POST" && request.url === "/api/extract-profile") {
+        const body = await readJson(request, 2_000_000);
+        const result = await extractResumeProfile({ resumeText: body.resumeText, provider: body.provider });
         return sendJson(response, 200, result);
       }
 

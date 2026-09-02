@@ -322,26 +322,30 @@ test("Ollama network failures receive a useful local-service message", async () 
   assert.match(result.error, /Could not reach Ollama/);
 });
 
-test("skill, dropdown, and DOM-plan messages use their dedicated endpoints", async () => {
+test("skill, resume profile, dropdown, and DOM-plan messages use their dedicated endpoints", async () => {
   const calls = [];
   const background = loadBackground({
     fetchImpl: async (url, options) => {
       calls.push({ url, body: JSON.parse(options.body) });
       if (url.endsWith("/api/extract-skills")) return new Response(JSON.stringify({ skills: ["SQL"], rankedSkills: [], maxSkills: 4, maxNonTechnicalSkills: 1 }));
+      if (url.endsWith("/api/extract-profile")) return new Response(JSON.stringify({ profile: { school: "Example University" } }));
       if (url.endsWith("/api/resolve-fields")) return new Response(JSON.stringify({ answers: [{ id: 1, value: "Yes" }] }));
       return new Response(JSON.stringify({ plans: [{ id: 2, value: "Toronto" }] }));
     },
   });
 
   const skills = await background.send({ type: "extract-job-skills", maxSkills: 4, maxNonTechnicalSkills: 1 });
+  const resumeProfile = await background.send({ type: "extract-resume-profile", resumeText: "Resume text", backendProvider: "openai" });
   const dropdowns = await background.send({ type: "resolve-workday-dropdowns", questions: [{ id: 1 }], useSensitiveProfile: true });
   const plans = await background.send({ type: "plan-dom-fields", fields: [{ id: 2 }], backendProvider: "openai" });
   assert.deepEqual(JSON.parse(JSON.stringify(skills.skills)), ["SQL"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(resumeProfile.profile)), { school: "Example University" });
   assert.deepEqual(JSON.parse(JSON.stringify(dropdowns.answers)), [{ id: 1, value: "Yes" }]);
   assert.deepEqual(JSON.parse(JSON.stringify(plans.plans)), [{ id: 2, value: "Toronto" }]);
-  assert.deepEqual(calls.map((call) => call.url.split("/").at(-1)), ["extract-skills", "resolve-fields", "plan-fields"]);
-  assert.equal(calls[1].body.useSensitiveProfile, true);
-  assert.equal(calls[2].body.provider, "openai");
+  assert.deepEqual(calls.map((call) => call.url.split("/").at(-1)), ["extract-skills", "extract-profile", "resolve-fields", "plan-fields"]);
+  assert.equal(calls[1].body.provider, "openai");
+  assert.equal(calls[2].body.useSensitiveProfile, true);
+  assert.equal(calls[3].body.provider, "openai");
 });
 
 test("backend sync merges nonblank values without erasing browser-only values", async () => {

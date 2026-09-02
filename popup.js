@@ -95,6 +95,42 @@ function arrayBufferToBase64(buffer) {
   return btoa(binary);
 }
 
+const RESUME_PREFILL_KEYS = new Set([
+  "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
+  "postalCode", "country", "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy",
+  "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
+  "graduationDate", "startDate", "workTerm",
+]);
+
+async function prefillProfileFromSavedResume(resumeText) {
+  const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
+  const extracted = await chrome.runtime.sendMessage({
+    type: "extract-resume-profile",
+    resumeText,
+    backendProvider: jobAutofillProfile.backendAiProvider || "deepseek",
+  });
+  if (!extracted?.ok) throw new Error(extracted?.error || "AI could not analyze the resume.");
+  const nextProfile = { ...jobAutofillProfile };
+  let filled = 0;
+  for (const [key, rawValue] of Object.entries(extracted.profile || {})) {
+    const value = String(rawValue || "").trim();
+    if (!RESUME_PREFILL_KEYS.has(key) || !value || String(nextProfile[key] || "").trim()) continue;
+    if (key === "graduationDate" && ["graduationMonth", "graduationDay", "graduationYear"].some((part) => String(nextProfile[part] || "").trim())) continue;
+    if (["graduationMonth", "graduationDay", "graduationYear"].includes(key) && String(nextProfile.graduationDate || "").trim()) continue;
+    nextProfile[key] = value;
+    filled += 1;
+  }
+  if (!filled) return 0;
+  await chrome.storage.local.set({ jobAutofillProfile: nextProfile });
+  const response = await fetch("http://127.0.0.1:17840/api/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(nextProfile),
+  });
+  if (!response.ok) throw new Error(`Profile prefill could not be saved (${response.status}).`);
+  return filled;
+}
+
 async function saveResume(file) {
   if (!file) return;
   if (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name)) {
@@ -115,7 +151,13 @@ async function saveResume(file) {
   if (!saved?.ok) throw new Error(saved?.error || "The local backend could not save the resume.");
   showResume(saved.resume || resume);
   status.className = "";
-  status.textContent = "CV saved locally and will remain selected until you replace it.";
+  status.textContent = "CV saved locally. Analyzing supported profile facts…";
+  try {
+    const filled = await prefillProfileFromSavedResume(saved.resumeText || "");
+    status.textContent = `CV saved · AI filled ${filled} previously blank profile field${filled === 1 ? "" : "s"}.`;
+  } catch (error) {
+    status.textContent = `CV saved, but profile prefill was unavailable: ${error.message}`;
+  }
 }
 
 resumeFile.addEventListener("change", async (event) => {

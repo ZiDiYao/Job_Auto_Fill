@@ -9,6 +9,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Fills common contact, education, availability, work-authorization, and portfolio fields.
 - Optionally fills user-configured gender, pronoun, sexual-orientation, Indigenous-identity, race/ethnicity, disability, and veteran-status answers.
 - Stores a user-selected resume locally and attaches it to recognizable Resume/CV upload fields.
+- Uses the configured backend AI after a resume upload to prefill only blank, evidence-backed contact and education fields; validated legal, demographic, medical, and criminal-history fields are never inferred from a resume.
 - Optionally uses a free local Ollama model to draft unmatched open-ended questions from resume text and visible job context.
 - Provides a popup window for pasting a job description or detecting it from the current page.
 - Fills the current application without opening the popup through `Command+Shift+Y` on macOS or `Ctrl+Shift+Y` on Windows/Linux.
@@ -160,7 +161,7 @@ Chrome profile; they are not included in Git, Docker images, profile exports, or
 
 ## Resume upload and AI
 
-The saved PDF/DOCX is used for the application page's file-upload control. PDF and TXT content is extracted automatically into the **Resume text used as AI evidence** box. DOCX files can still be attached automatically, but their text must currently be pasted into that box manually.
+The saved PDF is used for the application page's file-upload control. Its text is extracted automatically for AI evidence and for safe, empty-only profile prefilling. Existing profile values are never overwritten by resume extraction.
 
 DeepSeek through the local backend is the default adapter. Select **OpenAI** under **Backend AI provider** after configuring its key and model in the active configuration file (`local-data/local-config.json` for Docker). An entirely local Ollama fallback remains available:
 

@@ -54,3 +54,12 @@ test("container bootstrap seeds only blank config and profile files", async () =
   assert.match(entrypoint, /profile\.example\.json/);
   assert.equal(/resume/i.test(entrypoint), false);
 });
+
+test("structured education settings use constrained browser controls", async () => {
+  const html = await readFile(path.join(repositoryRoot, "options.html"), "utf8");
+  assert.match(html, /name="educationStartYear" type="number" min="1950" max="2100"/);
+  assert.match(html, /name="graduationDate" type="date" min="1950-01-01" max="2100-12-31"/);
+  assert.match(html, /name="startDate" type="month" min="1950-01" max="2100-12"/);
+  assert.match(html, /<select name="workTerm">[\s\S]*?<option value="4–8 months">/);
+  assert.match(html, /<select name="gpaScale">/);
+});

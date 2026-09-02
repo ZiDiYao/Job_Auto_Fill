@@ -119,6 +119,7 @@
     { key: "school", pattern: /\b(school|university|college|institution)\b/ },
     { key: "degree", pattern: /\b(degree|degree type)\b/ },
     { key: "fieldOfStudy", pattern: /\b(field|area|major|program) of study\b|\bmajor\b/ },
+    { key: "gpaScale", pattern: /\b(gpa|grade point average).{0,30}\b(scale|out of)\b/ },
     { key: "gpa", pattern: /\b(gpa|grade point average|overall result|grade average)\b/ },
     { key: "educationStartYear", pattern: /\b(education|school|university|college).{0,40}\b(start|from|first).{0,20}\byear\b|\bfirst year attended\b/ },
     { key: "graduationDate", pattern: /\b(expected |anticipated )?(graduation|completion) date\b/ },
@@ -134,7 +135,7 @@
   const authoritativeProfileKeys = new Set([
     "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
     "postalCode", "country", "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy",
-    "gpa", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear", "graduationDate",
+    "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear", "graduationDate",
   ]);
 
   const onIndeed = /(^|\.)indeed\.(com|ca)$/i.test(location.hostname)
