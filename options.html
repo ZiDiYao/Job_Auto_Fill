@@ -120,20 +120,55 @@
         </section>
 
         <section id="interview-notes">
-          <h2>Interview notes folder</h2>
+          <h2>Application history exports</h2>
           <p class="help">
-            Choose a folder once. The extension creates one Markdown note per job with the original URL, complete job
-            description, resume name, and an interview-preparation template. The folder stays on this device and can be changed at any time.
+            Save each application as a local Markdown note, an Excel-compatible data row, a Notion database page, or any
+            combination. Re-saving the same posting updates its existing record.
           </p>
+          <div class="export-destinations">
+            <label class="check"><input id="exportMarkdown" type="checkbox" /> Local Markdown interview note</label>
+            <label class="check"><input id="exportSpreadsheet" type="checkbox" /> Excel-compatible application list (.csv)</label>
+            <label class="check"><input id="exportNotion" type="checkbox" /> Notion Application List and detail pages</label>
+          </div>
+          <h3>Local Markdown and Excel</h3>
           <div class="resume-row">
-            <button id="chooseNotesFolder" class="primary" type="button">Choose notes folder</button>
+            <button id="chooseNotesFolder" class="secondary" type="button">Choose local folder</button>
             <button id="forgetNotesFolder" class="danger" type="button">Forget folder</button>
-            <span id="notesFolderStatus">No notes folder selected</span>
+            <span id="notesFolderStatus">No local folder selected</span>
+          </div>
+          <div class="grid export-grid">
+            <label>Excel filename<input id="spreadsheetFilename" value="Job Applications.csv" /></label>
+            <label>
+              New record status
+              <select id="applicationStatus">
+                <option value="Saved">Saved</option>
+                <option value="Applied">Applied</option>
+                <option value="Interview">Interview</option>
+                <option value="Offer">Offer</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </label>
+          </div>
+          <h3>Notion</h3>
+          <p class="help">
+            Create an internal integration in Notion, share one parent page with it, then paste the token and that page's URL
+            or ID below. Credentials stay in this browser profile and are never committed to source control.
+          </p>
+          <div class="grid export-grid">
+            <label>Integration token<input id="notionToken" type="password" autocomplete="off" placeholder="Paste your Notion token" /></label>
+            <label>Parent page URL or ID<input id="notionParentPageId" autocomplete="off" placeholder="Notion page URL or 32-character ID" /></label>
+            <label>Root page name<input id="notionRootPageTitle" value="Job Application" /></label>
+          </div>
+          <div class="resume-row">
+            <button id="setupNotion" class="secondary" type="button">Connect and create Notion pages</button>
+            <button id="resetNotion" class="danger" type="button">Reset Notion link</button>
+            <span id="notionStatus">Notion is not connected</span>
           </div>
           <label class="check">
             <input id="autoSaveJobNotes" type="checkbox" />
-            Automatically save or update the job note when I click Fill with CV + JD
+            Automatically save or update enabled exports when I click Fill with CV + JD
           </label>
+          <button id="saveExportSettings" class="primary export-save" type="button">Save export settings</button>
         </section>
 
         <section>

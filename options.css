@@ -41,6 +41,7 @@ header {
 
 h1 { margin: 5px 0 8px; font-size: 32px; }
 h2 { margin: 0 0 18px; font-size: 19px; }
+h3 { margin: 22px 0 10px; color: #174a83; font-size: 15px; }
 p { margin: 0; color: #5d6678; line-height: 1.5; }
 
 section {
@@ -165,6 +166,21 @@ input[type="checkbox"] { accent-color: #0969da; }
   color: #5d6678;
   font-size: 13px;
 }
+
+#notionStatus {
+  color: #5d6678;
+  font-size: 13px;
+}
+
+.export-destinations {
+  display: flex;
+  gap: 8px 22px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.export-grid { margin-top: 12px; }
+.export-save { margin-top: 18px; }
 
 #interview-notes:target {
   outline: 4px solid rgba(9, 105, 218, 0.18);

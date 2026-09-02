@@ -3,11 +3,16 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 import {
+  APPLICATION_CSV_COLUMNS,
+  createApplicationRecord,
   createJobNote,
   createJobNoteFilename,
+  createJobSummary,
   hasDirectoryPermission,
   sanitizeFileSegment,
   stableJobHash,
+  upsertApplicationCsv,
+  writeApplicationSpreadsheet,
   writeJobNote,
 } from "../job-notes.js";
 
@@ -48,8 +53,32 @@ test("generates a complete Markdown interview note", () => {
   assert.match(note, /source_url: "https:\/\/example\.com\/jobs\/123"/);
   assert.match(note, /resume: "Resume_2027\.pdf"/);
   assert.match(note, /## Interview preparation/);
+  assert.match(note, /## Summary/);
   assert.match(note, /## Original job description/);
   assert.match(note, /Build reliable software systems\./);
+});
+
+test("creates chart-friendly application records with deterministic summaries", () => {
+  const record = createApplicationRecord({ ...sampleJob, status: "Applied" });
+  assert.equal(record.applicationDate, "2026-09-02");
+  assert.equal(record.applicationMonth, "2026-09");
+  assert.equal(record.status, "Applied");
+  assert.match(record.summary, /Software Developer, AI at Example/);
+  assert.equal(createJobSummary({ ...sampleJob, summary: "Custom summary" }), "Custom summary");
+});
+
+test("Excel-compatible CSV export inserts and updates by stable job key", () => {
+  const first = upsertApplicationCsv("", sampleJob);
+  assert.ok(first.startsWith("\uFEFF"));
+  assert.match(first, new RegExp(APPLICATION_CSV_COLUMNS[0]));
+  assert.match(first, /"2026-09-02"/);
+  assert.match(first, /"2026-09"/);
+  assert.match(first, /"Build reliable software systems\.\r?\nWork with an Agile team\."/);
+
+  const updated = upsertApplicationCsv(first, { ...sampleJob, status: "Interview", summary: "Updated" });
+  assert.equal(updated.match(new RegExp(stableJobHash(sampleJob.url), "g"))?.length, 1);
+  assert.match(updated, /"Interview"/);
+  assert.match(updated, /"Updated"/);
 });
 
 test("refuses to create an empty job-description note", () => {
@@ -109,6 +138,31 @@ test("does not write without a configured or authorized directory", async () => 
   );
 });
 
+test("writes an Excel-compatible application list through the saved directory", async () => {
+  let written = "";
+  const directory = {
+    kind: "directory",
+    name: "Applications",
+    queryPermission: async () => "granted",
+    async getFileHandle(filename) {
+      assert.equal(filename, "My Applications.csv");
+      return {
+        async getFile() { return { async text() { return ""; } }; },
+        async createWritable() {
+          return {
+            async write(value) { written = value; },
+            async close() {},
+          };
+        },
+      };
+    },
+  };
+  const result = await writeApplicationSpreadsheet(directory, sampleJob, { filename: "My Applications.csv" });
+  assert.equal(result.filename, "My Applications.csv");
+  assert.match(written, /Application Date/);
+  assert.match(written, /Software Developer, AI/);
+});
+
 test("popup and settings expose the notes workflow through module scripts", async () => {
   const [popupHtml, popupSource, optionsHtml, optionsSource] = await Promise.all([
     readFile(new URL("../popup.html", import.meta.url), "utf8"),
@@ -122,6 +176,8 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(popupSource, /autoSaveOnFill/);
   assert.match(optionsHtml, /id="chooseNotesFolder"/);
   assert.match(optionsHtml, /id="autoSaveJobNotes"/);
+  assert.match(optionsHtml, /id="exportNotion"/);
+  assert.match(optionsHtml, /id="exportSpreadsheet"/);
   assert.match(optionsSource, /chooseNotesDirectory/);
   assert.match(optionsSource, /refreshNotesFolderStatus/);
 });

@@ -34,8 +34,11 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Normalizes expected-graduation dates from the saved month/day/year and commits masked Workday date widgets through sequential input events so values such as `05/01/2028` are accepted by React validation.
 - Supports Workday tenants that identify the school control as either `schoolName` or `school`, detects Education From/To years both by stable field IDs and row order, and verifies the React-controlled values after filling.
 - Lets users drop a PDF into the popup and persists it in the local Docker-mounted resume file until another PDF replaces it.
-- Lets users choose a local interview-notes folder once, then save or automatically update one Markdown note per job with the
-  source URL, complete job description, resume name, application metadata, and a reusable interview-preparation template.
+- Saves application history to any combination of local Markdown, Notion, and an Excel-compatible CSV workbook.
+- Creates a user-named Notion root page with an inline **Application List** whose rows open into job-detail pages containing a
+  summary, the complete JD, source URL, resume name, application date, status, and interview-preparation template.
+- Upserts the same posting instead of duplicating it and includes date/month/status columns suitable for Excel pivot tables and
+  application-trend charts.
 - Uses a Strategy + Factory provider layer to switch between DeepSeek and OpenAI without coupling application logic to either API.
 - Uses structured JSON output to draft answers from CV evidence plus the job description.
 - Works on ordinary HTML forms and dispatches the events commonly required by React-based forms.
@@ -50,7 +53,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 3. Click **Load unpacked**.
 4. Select this `job-application-autofill` folder.
 5. Pin **Local Job Application Autofill** to the toolbar.
-6. Open the extension and choose **Edit profile & answers**.
+6. Open the extension and choose **Edit profile**.
 7. Save your information, open an application form, paste or detect the JD, and click **Fill with CV + JD**.
 
 The same process works in Edge or another Chromium browser from its extensions management page.
@@ -104,6 +107,25 @@ npm run test:coverage
 ```
 
 The suite exercises provider Strategy/Factory adapters, HTTP endpoints with isolated temporary storage and a local mock AI server, answer and skill validation, Chrome background-message routing, deterministic content-script form filling, privacy invariants, and Docker bootstrap configuration. The coverage command enforces minimum thresholds for the backend and AI adapter modules.
+
+## Application history: Markdown, Notion, and Excel
+
+Open **Edit profile → Application history exports** and enable any combination of destinations. Local Markdown and Excel share
+the folder selected through the browser's directory picker. The `.csv` file is UTF-8 Excel-compatible and stores one row per
+posting with application date, month, company, role, location, status, URL, resume, summary, complete JD, and last-saved time.
+Saving the same posting again updates its row.
+
+For Notion:
+
+1. Create a Notion internal integration with read, insert, and update-content capabilities.
+2. Create or choose a parent Notion page and share it with that integration.
+3. Paste the integration token and the parent page URL or ID into extension settings.
+4. Optionally rename the default root page, then click **Connect and create Notion pages**.
+
+The extension creates the **Job Application** root page (or your chosen name) and an inline **Application List** database. Every database row is a clickable application
+page containing the summary, full JD, and interview sections. Notion credentials and generated IDs are stored only in that
+Chrome profile; they are not included in Git, Docker images, profile exports, or application webpages. For a published public
+extension, a future OAuth connection should replace manual integration tokens.
 
 ## Custom rules
 

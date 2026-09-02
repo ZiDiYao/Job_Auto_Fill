@@ -5,6 +5,10 @@ import {
   getSavedNotesDirectory,
   hasDirectoryPermission,
 } from "./job-notes.js";
+import {
+  createNotionWorkspace,
+  verifyNotionWorkspace,
+} from "./notion-export.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("vendor/pdf.worker.mjs");
 
@@ -15,7 +19,82 @@ const customAnswers = document.querySelector("#customAnswers");
 const saveStatus = document.querySelector("#saveStatus");
 const notesFolderStatus = document.querySelector("#notesFolderStatus");
 const autoSaveJobNotes = document.querySelector("#autoSaveJobNotes");
+const exportMarkdown = document.querySelector("#exportMarkdown");
+const exportSpreadsheet = document.querySelector("#exportSpreadsheet");
+const exportNotion = document.querySelector("#exportNotion");
+const spreadsheetFilename = document.querySelector("#spreadsheetFilename");
+const applicationStatus = document.querySelector("#applicationStatus");
+const notionToken = document.querySelector("#notionToken");
+const notionParentPageId = document.querySelector("#notionParentPageId");
+const notionRootPageTitle = document.querySelector("#notionRootPageTitle");
+const notionStatus = document.querySelector("#notionStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
+
+function normalizeExportSettings(value = {}) {
+  return {
+    autoSaveOnFill: value.autoSaveOnFill !== false,
+    destinations: {
+      markdown: value.destinations?.markdown !== false,
+      spreadsheet: value.destinations?.spreadsheet === true,
+      notion: value.destinations?.notion === true,
+    },
+    spreadsheetFilename: String(value.spreadsheetFilename || "Job Applications.csv"),
+    applicationStatus: String(value.applicationStatus || "Saved"),
+    notion: {
+      token: String(value.notion?.token || ""),
+      parentPageId: String(value.notion?.parentPageId || ""),
+      rootPageTitle: String(value.notion?.rootPageTitle || "Job Application"),
+      rootPageId: String(value.notion?.rootPageId || ""),
+      databaseId: String(value.notion?.databaseId || ""),
+      dataSourceId: String(value.notion?.dataSourceId || ""),
+    },
+  };
+}
+
+function renderExportSettings(value) {
+  const settings = normalizeExportSettings(value);
+  autoSaveJobNotes.checked = settings.autoSaveOnFill;
+  exportMarkdown.checked = settings.destinations.markdown;
+  exportSpreadsheet.checked = settings.destinations.spreadsheet;
+  exportNotion.checked = settings.destinations.notion;
+  spreadsheetFilename.value = settings.spreadsheetFilename;
+  applicationStatus.value = settings.applicationStatus;
+  notionToken.value = settings.notion.token;
+  notionParentPageId.value = settings.notion.parentPageId;
+  notionRootPageTitle.value = settings.notion.rootPageTitle;
+  notionStatus.textContent = settings.notion.dataSourceId
+    ? "Connected · Application List is ready"
+    : "Notion is not connected";
+  return settings;
+}
+
+async function collectExportSettings() {
+  const cached = await chrome.storage.local.get(NOTE_SETTINGS_KEY);
+  const current = normalizeExportSettings(cached[NOTE_SETTINGS_KEY]);
+  return {
+    ...current,
+    autoSaveOnFill: autoSaveJobNotes.checked,
+    destinations: {
+      markdown: exportMarkdown.checked,
+      spreadsheet: exportSpreadsheet.checked,
+      notion: exportNotion.checked,
+    },
+    spreadsheetFilename: String(spreadsheetFilename.value || "Job Applications.csv").trim(),
+    applicationStatus: applicationStatus.value || "Saved",
+    notion: {
+      ...current.notion,
+      token: notionToken.value.trim(),
+      parentPageId: notionParentPageId.value.trim(),
+      rootPageTitle: notionRootPageTitle.value.trim() || "Job Application",
+    },
+  };
+}
+
+async function persistExportSettings(settings = null) {
+  const next = settings || await collectExportSettings();
+  await chrome.storage.local.set({ [NOTE_SETTINGS_KEY]: next });
+  return next;
+}
 
 const defaultProfile = {
   firstName: "",
@@ -289,19 +368,19 @@ document.querySelector("#removeResume").addEventListener("click", async () => {
 async function refreshNotesFolderStatus() {
   const handle = await getSavedNotesDirectory();
   if (!handle) {
-    notesFolderStatus.textContent = "No notes folder selected";
+    notesFolderStatus.textContent = "No local folder selected";
     return;
   }
   const granted = await hasDirectoryPermission(handle, false);
   notesFolderStatus.textContent = granted
-    ? `${handle.name} · ready for Markdown notes`
-    : `${handle.name} · click Choose notes folder to restore access`;
+    ? `${handle.name} · ready for Markdown and Excel exports`
+    : `${handle.name} · click Choose local folder to restore access`;
 }
 
 document.querySelector("#chooseNotesFolder").addEventListener("click", async () => {
   try {
     const handle = await chooseNotesDirectory();
-    notesFolderStatus.textContent = `${handle.name} · ready for Markdown notes`;
+    notesFolderStatus.textContent = `${handle.name} · ready for Markdown and Excel exports`;
   } catch (error) {
     if (error?.name !== "AbortError") notesFolderStatus.textContent = error.message || "Could not select the notes folder.";
   }
@@ -312,16 +391,49 @@ document.querySelector("#forgetNotesFolder").addEventListener("click", async () 
   await refreshNotesFolderStatus();
 });
 
-autoSaveJobNotes.addEventListener("change", async () => {
-  await chrome.storage.local.set({
-    [NOTE_SETTINGS_KEY]: { autoSaveOnFill: autoSaveJobNotes.checked },
-  });
+document.querySelector("#saveExportSettings").addEventListener("click", async () => {
+  await persistExportSettings();
+  notionStatus.textContent = "Export settings saved";
+});
+
+document.querySelector("#setupNotion").addEventListener("click", async () => {
+  notionStatus.textContent = "Connecting to Notion and preparing Application List…";
+  try {
+    let settings = await collectExportSettings();
+    settings.destinations.notion = true;
+    settings.notion = await createNotionWorkspace(settings.notion, {
+      onProgress: async (notion) => {
+        settings = { ...settings, notion };
+        await persistExportSettings(settings);
+      },
+    });
+    await verifyNotionWorkspace(settings.notion);
+    exportNotion.checked = true;
+    await persistExportSettings(settings);
+    notionStatus.textContent = "Connected · Job Application / Application List is ready";
+  } catch (error) {
+    notionStatus.textContent = error.message || "Could not connect to Notion.";
+  }
+});
+
+document.querySelector("#resetNotion").addEventListener("click", async () => {
+  const settings = await collectExportSettings();
+  settings.destinations.notion = false;
+  settings.notion = {
+    ...settings.notion,
+    rootPageId: "",
+    databaseId: "",
+    dataSourceId: "",
+  };
+  exportNotion.checked = false;
+  await persistExportSettings(settings);
+  notionStatus.textContent = "Notion link reset; existing Notion pages were not deleted";
 });
 
 async function initialize() {
   const cached = await chrome.storage.local.get([PROFILE_KEY, NOTE_SETTINGS_KEY]);
   renderProfile(cached[PROFILE_KEY]);
-  autoSaveJobNotes.checked = cached[NOTE_SETTINGS_KEY]?.autoSaveOnFill !== false;
+  renderExportSettings(cached[NOTE_SETTINGS_KEY]);
   await refreshResumeStatus();
   await refreshNotesFolderStatus();
   try {

@@ -1,8 +1,10 @@
 import {
   getSavedNotesDirectory,
   hasDirectoryPermission,
+  writeApplicationSpreadsheet,
   writeJobNote,
 } from "./job-notes.js";
+import { saveJobToNotion } from "./notion-export.js";
 
 const fillButton = document.querySelector("#fill");
 const settingsButton = document.querySelector("#settings");
@@ -17,6 +19,27 @@ const saveNoteButton = document.querySelector("#saveNote");
 const notesSettingsButton = document.querySelector("#notesSettings");
 const notesFolderStatus = document.querySelector("#notesFolderStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
+
+function normalizeExportSettings(value = {}) {
+  return {
+    autoSaveOnFill: value.autoSaveOnFill !== false,
+    destinations: {
+      markdown: value.destinations?.markdown !== false,
+      spreadsheet: value.destinations?.spreadsheet === true,
+      notion: value.destinations?.notion === true,
+    },
+    spreadsheetFilename: String(value.spreadsheetFilename || "Job Applications.csv"),
+    applicationStatus: String(value.applicationStatus || "Saved"),
+    notion: {
+      token: String(value.notion?.token || ""),
+      parentPageId: String(value.notion?.parentPageId || ""),
+      rootPageTitle: String(value.notion?.rootPageTitle || "Job Application"),
+      rootPageId: String(value.notion?.rootPageId || ""),
+      databaseId: String(value.notion?.databaseId || ""),
+      dataSourceId: String(value.notion?.dataSourceId || ""),
+    },
+  };
+}
 
 chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription", "jobAutofillResume"]).then(async ({ jobAutofillProfile, jobAutofillJobDescription, jobAutofillResume }) => {
   overwriteCheckbox.checked = true;
@@ -191,15 +214,32 @@ function extractJobMetadataFromPage() {
 
 async function refreshNotesFolderStatus() {
   try {
-    const handle = await getSavedNotesDirectory();
-    if (!handle) {
-      notesFolderStatus.textContent = "No folder selected";
+    const cached = await chrome.storage.local.get(NOTE_SETTINGS_KEY);
+    const settings = normalizeExportSettings(cached[NOTE_SETTINGS_KEY]);
+    const enabled = [];
+    if (settings.destinations.markdown) enabled.push("Markdown");
+    if (settings.destinations.spreadsheet) enabled.push("Excel");
+    if (settings.destinations.notion) enabled.push("Notion");
+    if (!enabled.length) {
+      notesFolderStatus.textContent = "No export destination enabled";
       return;
     }
-    const ready = await hasDirectoryPermission(handle, false);
-    notesFolderStatus.textContent = ready ? `${handle.name} · ready` : `${handle.name} · access required`;
+    const handle = await getSavedNotesDirectory();
+    const needsFolder = settings.destinations.markdown || settings.destinations.spreadsheet;
+    if (needsFolder && !handle) {
+      notesFolderStatus.textContent = `${enabled.join(" + ")} · local folder required`;
+      return;
+    }
+    if (needsFolder) {
+      const ready = await hasDirectoryPermission(handle, false);
+      notesFolderStatus.textContent = ready
+        ? `${enabled.join(" + ")} · ready`
+        : `${enabled.join(" + ")} · folder access required`;
+      return;
+    }
+    notesFolderStatus.textContent = settings.notion.dataSourceId ? "Notion · ready" : "Notion setup required";
   } catch (error) {
-    notesFolderStatus.textContent = error.message || "Folder unavailable";
+    notesFolderStatus.textContent = error.message || "Export destination unavailable";
   }
 }
 
@@ -225,26 +265,72 @@ async function currentJobRecord() {
     location: (savedMetadataMatches && jobAutofillJobMetadata.location) || metadata.location || "",
     url: tab.url,
     resumeName: jobAutofillResume.name || "",
+    status: normalizeExportSettings((await chrome.storage.local.get(NOTE_SETTINGS_KEY))[NOTE_SETTINGS_KEY]).applicationStatus,
     savedAt: new Date(),
   };
 }
 
 async function saveCurrentJobNote({ showSuccess = true } = {}) {
+  const cached = await chrome.storage.local.get(NOTE_SETTINGS_KEY);
+  const settings = normalizeExportSettings(cached[NOTE_SETTINGS_KEY]);
+  const job = await currentJobRecord();
   const directory = await getSavedNotesDirectory();
-  const result = await writeJobNote(directory, await currentJobRecord(), { requestPermission: false });
+  const saved = [];
+  const failures = [];
+  let latestSettings = settings;
+
+  if (settings.destinations.markdown) {
+    try {
+      await writeJobNote(directory, job, { requestPermission: false });
+      saved.push("Markdown");
+    } catch (error) {
+      failures.push(`Markdown: ${error.message}`);
+    }
+  }
+  if (settings.destinations.spreadsheet) {
+    try {
+      await writeApplicationSpreadsheet(directory, job, {
+        requestPermission: false,
+        filename: settings.spreadsheetFilename,
+      });
+      saved.push("Excel");
+    } catch (error) {
+      failures.push(`Excel: ${error.message}`);
+    }
+  }
+  if (settings.destinations.notion) {
+    try {
+      const notionResult = await saveJobToNotion(settings.notion, job, {
+        onProgress: async (notion) => {
+          latestSettings = { ...latestSettings, notion };
+          await chrome.storage.local.set({ [NOTE_SETTINGS_KEY]: latestSettings });
+        },
+      });
+      latestSettings = { ...latestSettings, notion: notionResult.workspace };
+      await chrome.storage.local.set({ [NOTE_SETTINGS_KEY]: latestSettings });
+      saved.push("Notion");
+    } catch (error) {
+      failures.push(`Notion: ${error.message}`);
+    }
+  }
+  if (!settings.destinations.markdown && !settings.destinations.spreadsheet && !settings.destinations.notion) {
+    throw new Error("Enable at least one application-history export in settings.");
+  }
+  if (!saved.length) throw new Error(failures.join(" · ") || "No application record was saved.");
+
   await chrome.storage.local.set({
     jobAutofillLastSavedNote: {
-      filename: result.filename,
-      directoryName: result.directoryName,
+      destinations: saved,
+      warnings: failures,
       savedAt: new Date().toISOString(),
     },
   });
-  notesFolderStatus.textContent = `${result.directoryName} · ${result.filename}`;
+  notesFolderStatus.textContent = `Saved to ${saved.join(" + ")}`;
   if (showSuccess) {
-    status.className = "";
-    status.textContent = `Saved ${result.filename}`;
+    status.className = failures.length ? "error" : "";
+    status.textContent = `Saved to ${saved.join(" + ")}${failures.length ? ` · ${failures.join(" · ")}` : ""}`;
   }
-  return result;
+  return { saved, failures };
 }
 
 saveNoteButton.addEventListener("click", async () => {
@@ -326,10 +412,14 @@ fillButton.addEventListener("click", async () => {
     const jd = jobDescription.value.trim();
     await chrome.storage.local.set({ jobAutofillJobDescription: jd });
     const noteSettings = await chrome.storage.local.get(NOTE_SETTINGS_KEY);
-    if (noteSettings[NOTE_SETTINGS_KEY]?.autoSaveOnFill !== false) {
+    const exportSettings = normalizeExportSettings(noteSettings[NOTE_SETTINGS_KEY]);
+    if (exportSettings.autoSaveOnFill) {
       try {
-        const directory = await getSavedNotesDirectory();
-        if (directory) {
+        const localEnabled = exportSettings.destinations.markdown || exportSettings.destinations.spreadsheet;
+        const notionReady = exportSettings.destinations.notion && exportSettings.notion.token
+          && (exportSettings.notion.dataSourceId || exportSettings.notion.parentPageId);
+        const directory = localEnabled ? await getSavedNotesDirectory() : null;
+        if ((localEnabled && directory) || notionReady) {
           await saveCurrentJobNote({ showSuccess: false });
           noteSaved = true;
         }
