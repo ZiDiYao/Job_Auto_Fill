@@ -92,3 +92,13 @@ test("saved-state copy is rendered as quiet secondary text", async () => {
   const css = await readFile(path.join(repositoryRoot, "options.css"), "utf8");
   assert.match(css, /#saveStatus \{[^}]*color: #98a2b3;[^}]*font-size: 10px;/);
 });
+
+test("extension icons ship at every manifest size with transparent RGBA corners", async () => {
+  for (const size of [16, 32, 48, 128]) {
+    const png = await readFile(path.join(repositoryRoot, "icons", `icon-${size}.png`));
+    assert.equal(png.toString("ascii", 1, 4), "PNG");
+    assert.equal(png.readUInt32BE(16), size);
+    assert.equal(png.readUInt32BE(20), size);
+    assert.equal(png[25], 6);
+  }
+});
