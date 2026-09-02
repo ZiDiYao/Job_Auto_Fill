@@ -63,3 +63,10 @@ test("structured education settings use constrained browser controls", async () 
   assert.match(html, /<select name="workTerm">[\s\S]*?<option value="4–8 months">/);
   assert.match(html, /<select name="gpaScale">/);
 });
+
+test("profile settings expose common developer and generic URL fields", async () => {
+  const html = await readFile(path.join(repositoryRoot, "options.html"), "utf8");
+  for (const name of ["linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter", "otherSocialUrl", "otherWebsiteUrl"]) {
+    assert.match(html, new RegExp(`name="${name}" type="url"`));
+  }
+});

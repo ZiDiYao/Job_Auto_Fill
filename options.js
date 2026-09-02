@@ -227,6 +227,11 @@ const defaultProfile = {
   linkedin: "",
   github: "",
   portfolio: "",
+  stackoverflow: "",
+  gitlab: "",
+  xTwitter: "",
+  otherSocialUrl: "",
+  otherWebsiteUrl: "",
   school: "",
   degree: "",
   fieldOfStudy: "",
@@ -636,7 +641,8 @@ async function refreshResumeStatus() {
 
 const RESUME_PREFILL_KEYS = new Set([
   "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
-  "postalCode", "country", "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy",
+  "postalCode", "country", "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter",
+  "otherSocialUrl", "otherWebsiteUrl", "school", "degree", "fieldOfStudy",
   "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
   "graduationDate", "startDate", "workTerm",
 ]);

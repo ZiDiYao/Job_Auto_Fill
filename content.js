@@ -115,6 +115,11 @@
     { key: "country", pattern: /\bcountry\b/ },
     { key: "linkedin", pattern: /\blinked ?in\b/ },
     { key: "github", pattern: /\bgithub\b/ },
+    { key: "stackoverflow", pattern: /\bstack ?overflow\b/ },
+    { key: "gitlab", pattern: /\bgitlab\b/ },
+    { key: "xTwitter", pattern: /\b(?:x|twitter)(?:\.com)?\b/ },
+    { key: "otherSocialUrl", pattern: /\b(other|additional).{0,30}\b(social|profile).{0,20}\b(url|link)\b|\bsocial (?:network|media|profile) url\b/ },
+    { key: "otherWebsiteUrl", pattern: /\b(other|additional).{0,30}\b(website|web site).{0,20}\b(url|link)\b/ },
     { key: "portfolio", pattern: /\b(portfolio|personal website|website url)\b/ },
     { key: "school", pattern: /\b(school|university|college|institution)\b/ },
     { key: "degree", pattern: /\b(degree|degree type)\b/ },
@@ -134,7 +139,8 @@
 
   const authoritativeProfileKeys = new Set([
     "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
-    "postalCode", "country", "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy",
+    "postalCode", "country", "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter",
+    "otherSocialUrl", "otherWebsiteUrl", "school", "degree", "fieldOfStudy",
     "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear", "graduationDate",
   ]);
 
@@ -373,6 +379,12 @@
       }
     }
     if (blockedQuestion.test(label)) return null;
+    if (/\bsocial (?:network|media|profile) url\b/.test(label) && !/\b(linked ?in|github|gitlab|stack ?overflow|twitter)\b/.test(label)) {
+      return String(profile.otherSocialUrl || profile.linkedin || profile.xTwitter || "").trim() || null;
+    }
+    if (/\b(other|additional).{0,30}\b(website|web site).{0,20}\b(url|link)\b/.test(label)) {
+      return String(profile.otherWebsiteUrl || profile.portfolio || "").trim() || null;
+    }
     for (const rule of builtInRules) {
       if (rule.pattern.test(label)) {
         if (rule.key === "graduationDate") return graduationDateValue(field);

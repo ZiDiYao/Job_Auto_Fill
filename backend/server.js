@@ -132,7 +132,8 @@ const neverAutomateQuestion = /\b(submit|send application|sign(?:ed|ing)?|signat
 function safeProfileForModel(profile) {
   const allowedKeys = [
     "firstName", "lastName", "preferredName", "email", "phone", "city", "province", "country",
-    "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy", "gpa", "gpaScale", "educationStartYear",
+    "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter", "otherSocialUrl", "otherWebsiteUrl",
+    "school", "degree", "fieldOfStudy", "gpa", "gpaScale", "educationStartYear",
     "graduationMonth", "graduationDay", "graduationYear", "graduationDate", "startDate", "workTerm",
   ];
   return Object.fromEntries(allowedKeys.map((key) => [key, profile[key] || ""]));
@@ -140,7 +141,8 @@ function safeProfileForModel(profile) {
 
 const resumeProfileKeys = new Set([
   "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
-  "postalCode", "country", "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy",
+  "postalCode", "country", "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter",
+  "otherSocialUrl", "otherWebsiteUrl", "school", "degree", "fieldOfStudy",
   "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
   "graduationDate", "startDate", "workTerm",
 ]);
@@ -172,7 +174,7 @@ export function validateResumeProfileFields(rawFields) {
     if (!resumeProfileKeys.has(key) || !value || confidenceScore(field?.confidence) < 0.78) continue;
     if (value.length > 200) value = value.slice(0, 200).trim();
     if (key === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) continue;
-    if (["linkedin", "github", "portfolio"].includes(key) && !/^https?:\/\//i.test(value)) continue;
+    if (["linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter", "otherSocialUrl", "otherWebsiteUrl"].includes(key) && !/^https?:\/\//i.test(value)) continue;
     if (["educationStartYear", "graduationYear"].includes(key) && !validProfileYear(value)) continue;
     if (key === "graduationDay" && (!/^\d{1,2}$/.test(value) || Number(value) < 1 || Number(value) > 31)) continue;
     if (key === "graduationMonth" && !monthNames.has(value)) continue;
@@ -327,7 +329,8 @@ async function answerQuestions({ jobDescription, pageContext, questions, provide
 function decisionProfileForModel(profile) {
   const keys = [
     "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
-    "postalCode", "country", "linkedin", "github", "portfolio", "school", "degree",
+    "postalCode", "country", "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter",
+    "otherSocialUrl", "otherWebsiteUrl", "school", "degree",
     "fieldOfStudy", "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
     "graduationDate", "startDate", "workTerm", "workAuthorized", "sponsorship",
     "willingToCommute", "willingToRelocate", "willingToTravel", "willingToWorkOnsite",

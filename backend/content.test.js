@@ -185,6 +185,24 @@ test("fills the configured GPA scale independently from the GPA value", async ()
   assert.equal(result.filled, 1);
 });
 
+test("fills generic social and other-website URL fields from user-selected link fallbacks", async () => {
+  const social = new FakeInput({ ariaLabel: "Social Network URL" });
+  const website = new FakeInput({ ariaLabel: "Other Website URL" });
+  const result = await runContent({
+    profile: {
+      linkedin: "https://www.linkedin.com/in/example",
+      portfolio: "https://example.dev",
+      otherSocialUrl: "https://social.example/profile",
+      otherWebsiteUrl: "https://writing.example",
+      aiEnabled: false,
+    },
+    fields: [social, website],
+  });
+  assert.equal(social.value, "https://social.example/profile");
+  assert.equal(website.value, "https://writing.example");
+  assert.equal(result.filled, 2);
+});
+
 test("commits the expected graduation date through a masked Workday date input", async () => {
   const graduation = new FakeInput({
     ariaLabel: "What is your expected graduation date?",

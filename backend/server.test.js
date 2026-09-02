@@ -24,6 +24,8 @@ test("resume profile extraction keeps only high-confidence, safe, well-formed fa
     { key: "workTerm", value: "4–8 months", confidence: 0.88 },
     { key: "gpa", value: "3.2", confidence: 0.91 },
     { key: "gpaScale", value: "4.0", confidence: 0.91 },
+    { key: "stackoverflow", value: "https://stackoverflow.com/users/123/example", confidence: 0.9 },
+    { key: "otherWebsiteUrl", value: "javascript:alert(1)", confidence: 1 },
     { key: "email", value: "not-an-email", confidence: 0.99 },
     { key: "graduationDate", value: "05/01/2028", confidence: 0.99 },
     { key: "workAuthorized", value: "Yes", confidence: 1 },
@@ -39,6 +41,7 @@ test("resume profile extraction keeps only high-confidence, safe, well-formed fa
     workTerm: "4–8 months",
     gpa: "3.2",
     gpaScale: "4.0",
+    stackoverflow: "https://stackoverflow.com/users/123/example",
   });
 });
 
