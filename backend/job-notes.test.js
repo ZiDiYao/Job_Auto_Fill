@@ -171,6 +171,8 @@ test("popup and settings expose the notes workflow through module scripts", asyn
     readFile(new URL("../options.js", import.meta.url), "utf8"),
   ]);
   assert.match(popupHtml, /id="saveNote"/);
+  assert.match(popupHtml, /id="autoNext"/);
+  assert.match(popupHtml, /Stops before Submit/);
   assert.match(popupHtml, /type="module" src="popup\.js"/);
   assert.match(popupSource, /saveCurrentJobNote/);
   assert.match(popupSource, /autoSaveOnFill/);

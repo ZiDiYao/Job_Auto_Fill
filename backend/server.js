@@ -18,6 +18,7 @@ async function loadRuntimeConfig() {
 }
 
 const runtimeConfig = await loadRuntimeConfig();
+const profileDefaults = JSON.parse(await readFile(path.join(currentDirectory, "data", "profile.example.json"), "utf8"));
 
 function resolveLocalPath(configuredPath, fallback) {
   if (!configuredPath) return path.join(currentDirectory, fallback);
@@ -116,7 +117,7 @@ function getResumeText() {
 }
 
 async function getProfile() {
-  return JSON.parse(await readFile(profilePath, "utf8"));
+  return { ...profileDefaults, ...JSON.parse(await readFile(profilePath, "utf8")) };
 }
 
 const sensitiveQuestion = /\b(salary|compensation|criminal|background|security clearance|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security|authori[sz]ed to work|work authori[sz]ation|sponsor|sponsorship|visa|gender|sex|sexual orientation|race|racial|ethnic|disability|disabled|veteran|indigenous|aboriginal|first nations?|m[eé]tis|inuit|pronouns?)\b/i;
@@ -584,7 +585,7 @@ export function createServer() {
       if (request.method === "PUT" && request.url === "/api/profile") {
         const nextProfile = await readJson(request);
         const currentProfile = await getProfile();
-        const allowed = new Set(Object.keys(currentProfile));
+        const allowed = new Set(Object.keys(profileDefaults));
         const sanitized = Object.fromEntries(Object.entries(nextProfile).filter(([key]) => allowed.has(key)));
         await writeFile(profilePath, `${JSON.stringify({ ...currentProfile, ...sanitized }, null, 2)}\n`, "utf8");
         return sendJson(response, 200, { saved: true });

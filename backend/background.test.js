@@ -5,7 +5,7 @@ import vm from "node:vm";
 
 const source = await readFile(new URL("../background.js", import.meta.url), "utf8");
 
-function loadBackground({ fetchImpl, initialStorage = {} } = {}) {
+function loadBackground({ fetchImpl, initialStorage = {}, scripting, setTimeoutImpl = setTimeout } = {}) {
   const listeners = [];
   const storage = structuredClone(initialStorage);
   const chrome = {
@@ -23,6 +23,9 @@ function loadBackground({ fetchImpl, initialStorage = {} } = {}) {
         },
       },
     },
+    scripting: scripting || {
+      async executeScript() { throw new Error("Unexpected script injection"); },
+    },
   };
   const context = vm.createContext({
     AbortController,
@@ -30,7 +33,7 @@ function loadBackground({ fetchImpl, initialStorage = {} } = {}) {
     console,
     fetch: fetchImpl || (async () => { throw new Error("Unexpected fetch"); }),
     Response,
-    setTimeout,
+    setTimeout: setTimeoutImpl,
     TypeError,
     chrome,
   });
@@ -51,8 +54,56 @@ function loadBackground({ fetchImpl, initialStorage = {} } = {}) {
     });
   }
 
-  return { listener: listeners[0], send, storage };
+  return { context, listener: listeners[0], send, storage };
 }
+
+test("auto-advance button policy permits navigation but blocks final and consent actions", () => {
+  const { context } = loadBackground();
+  const classify = (label) => vm.runInContext(`classifyAdvanceLabel(${JSON.stringify(label)})`, context);
+  assert.equal(classify("Next"), "advance");
+  assert.equal(classify("Save and Continue"), "advance");
+  assert.equal(classify("Review"), "advance");
+  assert.equal(classify("Submit Application"), "terminal");
+  assert.equal(classify("Continue and Submit"), "terminal");
+  assert.equal(classify("Accept and Continue"), "terminal");
+  assert.equal(classify("Delete account"), "ignore");
+});
+
+test("auto-advance fills the next page and stops before the final Submit button", async () => {
+  let navigationChecks = 0;
+  const scripting = {
+    async executeScript(details) {
+      if (details.func) {
+        navigationChecks += 1;
+        return navigationChecks === 1
+          ? [{ result: { clicked: true, terminal: false, label: "Next" } }]
+          : [{ result: { clicked: false, terminal: true, label: "Submit Application" } }];
+      }
+      return [{ result: { filled: 3, review: 0, aiFilled: 1 } }];
+    },
+  };
+  const background = loadBackground({ scripting, setTimeoutImpl: (callback) => { callback(); return 0; } });
+  const started = await background.send({ type: "start-auto-advance", tabId: 42, maxSteps: 5, delayMs: 800 });
+  assert.equal(started.started, true);
+  for (let index = 0; index < 20 && background.storage.jobAutofillAutoAdvanceStatus?.state !== "awaiting-submit"; index += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(background.storage.jobAutofillAutoAdvanceStatus.running, false);
+  assert.equal(background.storage.jobAutofillAutoAdvanceStatus.state, "awaiting-submit");
+  assert.match(background.storage.jobAutofillAutoAdvanceStatus.message, /submit it yourself/i);
+});
+
+test("auto-advance does not click Next while required fields need review", async () => {
+  let injected = false;
+  const background = loadBackground({
+    scripting: { async executeScript() { injected = true; return []; } },
+    setTimeoutImpl: (callback) => { callback(); return 0; },
+  });
+  await background.send({ type: "start-auto-advance", tabId: 9, initialReview: 2 });
+  for (let index = 0; index < 4; index += 1) await Promise.resolve();
+  assert.equal(injected, false);
+  assert.equal(background.storage.jobAutofillAutoAdvanceStatus.state, "needs-review");
+});
 
 test("backend answer messages forward normalized request data", async () => {
   let captured;

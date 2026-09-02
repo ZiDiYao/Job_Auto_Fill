@@ -256,6 +256,9 @@ const defaultProfile = {
   raceEthnicity: "",
   disabilityStatus: "",
   veteranStatus: "",
+  autoAdvanceEnabled: false,
+  autoAdvanceMaxSteps: 10,
+  autoAdvanceDelayMs: 1800,
   aiEnabled: false,
   includeJdSkills: false,
   maxSkills: 15,
@@ -321,6 +324,8 @@ function collectProfile() {
     if (field?.type === "checkbox") profile[key] = field.checked;
     else if (key === "maxSkills") profile[key] = Math.min(50, Math.max(1, Number(data.get(key) || 15)));
     else if (key === "maxNonTechnicalSkills") profile[key] = Math.min(5, Math.max(0, Number(data.get(key) || 0)));
+    else if (key === "autoAdvanceMaxSteps") profile[key] = Math.min(30, Math.max(1, Number(data.get(key) || 10)));
+    else if (key === "autoAdvanceDelayMs") profile[key] = Math.min(10000, Math.max(800, Number(data.get(key) || 1800)));
     else profile[key] = String(data.get(key) ?? "").trim();
   }
   profile.customAnswers = parseCustomAnswers();

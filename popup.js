@@ -5,6 +5,8 @@ const fillButton = document.querySelector("#fill");
 const settingsButton = document.querySelector("#settings");
 const detectButton = document.querySelector("#detect");
 const overwriteCheckbox = document.querySelector("#overwrite");
+const autoNextCheckbox = document.querySelector("#autoNext");
+const stopAutoNextButton = document.querySelector("#stopAutoNext");
 const jobDescription = document.querySelector("#jobDescription");
 const status = document.querySelector("#status");
 const resumeDrop = document.querySelector("#resumeDrop");
@@ -14,6 +16,7 @@ const saveNoteButton = document.querySelector("#saveNote");
 const notesSettingsButton = document.querySelector("#notesSettings");
 const notesFolderStatus = document.querySelector("#notesFolderStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
+const AUTO_ADVANCE_STATUS_KEY = "jobAutofillAutoAdvanceStatus";
 
 function normalizeExportSettings(value = {}) {
   return {
@@ -40,8 +43,9 @@ function normalizeExportSettings(value = {}) {
   };
 }
 
-chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription", "jobAutofillResume"]).then(async ({ jobAutofillProfile, jobAutofillJobDescription, jobAutofillResume }) => {
+chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY]).then(async ({ jobAutofillProfile, jobAutofillJobDescription, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus }) => {
   overwriteCheckbox.checked = true;
+  autoNextCheckbox.checked = jobAutofillProfile?.autoAdvanceEnabled === true;
   chrome.storage.local.set({
     jobAutofillProfile: {
       ...(jobAutofillProfile || {}),
@@ -60,6 +64,19 @@ chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription", "jo
   jobDescription.value = jobAutofillJobDescription || "";
   if (!jobDescription.value) detectJobDescription(false);
   await refreshNotesFolderStatus();
+  renderAutoAdvanceStatus(autoAdvanceStatus);
+});
+
+function renderAutoAdvanceStatus(autoAdvanceStatus) {
+  stopAutoNextButton.hidden = autoAdvanceStatus?.running !== true;
+  if (autoAdvanceStatus?.message) {
+    status.className = "";
+    status.textContent = autoAdvanceStatus.message;
+  }
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes[AUTO_ADVANCE_STATUS_KEY]) renderAutoAdvanceStatus(changes[AUTO_ADVANCE_STATUS_KEY].newValue);
 });
 
 function showResume(resume) {
@@ -368,6 +385,24 @@ overwriteCheckbox.addEventListener("change", async () => {
   await chrome.storage.local.set({ jobAutofillProfile: nextProfile });
 });
 
+autoNextCheckbox.addEventListener("change", async () => {
+  const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
+  const nextProfile = { ...jobAutofillProfile, autoAdvanceEnabled: autoNextCheckbox.checked };
+  await chrome.storage.local.set({ jobAutofillProfile: nextProfile });
+  fetch("http://127.0.0.1:17840/api/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(nextProfile),
+  }).catch(() => {});
+});
+
+stopAutoNextButton.addEventListener("click", async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id) await chrome.runtime.sendMessage({ type: "stop-auto-advance", tabId: tab.id });
+  stopAutoNextButton.hidden = true;
+  status.textContent = "Stopping auto-advance…";
+});
+
 settingsButton.addEventListener("click", () => chrome.runtime.openOptionsPage());
 
 fillButton.addEventListener("click", async () => {
@@ -442,6 +477,24 @@ fillButton.addEventListener("click", async () => {
       noteSaved ? "job note saved" : "",
       noteWarning ? `Note: ${noteWarning}` : "",
     ].filter(Boolean);
+    if (autoNextCheckbox.checked) {
+      if (totals.review > 0 || aiError) {
+        parts.push("auto-advance paused until required fields are reviewed");
+      } else {
+        const latestProfile = (await chrome.storage.local.get("jobAutofillProfile")).jobAutofillProfile || {};
+        const started = await chrome.runtime.sendMessage({
+          type: "start-auto-advance",
+          tabId: tab.id,
+          initialReview: totals.review,
+          maxSteps: latestProfile.autoAdvanceMaxSteps || 10,
+          delayMs: latestProfile.autoAdvanceDelayMs || 1800,
+        });
+        if (started?.ok) {
+          stopAutoNextButton.hidden = false;
+          parts.push("auto-advance started — final Submit remains manual");
+        } else parts.push(`auto-advance could not start: ${started?.error || "unknown error"}`);
+      }
+    }
     status.textContent = `${parts.join(" · ")}.`;
   } catch (error) {
     status.className = "error";

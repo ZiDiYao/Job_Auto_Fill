@@ -1,5 +1,10 @@
 const OLLAMA_ENDPOINT = "http://127.0.0.1:11434/api/chat";
 const BACKEND_ENDPOINT = "http://127.0.0.1:17840";
+const AUTO_ADVANCE_STATUS_KEY = "jobAutofillAutoAdvanceStatus";
+const AUTO_ADVANCE_ALLOW = "^(?:next(?: step)?|continue(?: application| to .+)?|save(?: and)? continue|save & continue|proceed|review(?: application)?|suivant|continuer|enregistrer et continuer|下一步|继续)$";
+const AUTO_ADVANCE_BLOCK = "submit|send application|apply now|finish application|complete application|certif|attest|signature|acknowledge|consent|agree|accept|terms|privacy|soumettre|envoyer|提交";
+const AUTO_ADVANCE_PAGE_BLOCK = "\\b(?:i certify|i attest|electronic signature|type (?:your|my) name as (?:a )?signature|consent to|agree to (?:the )?terms|declaration)\\b";
+const activeAutoAdvanceSessions = new Map();
 
 const answerSchema = {
   type: "object",
@@ -193,7 +198,144 @@ async function saveBackendResume(message) {
   return { resume: cachedResume, resumeText: payload.resumeText || "" };
 }
 
+function classifyAdvanceLabel(label) {
+  const normalized = String(label || "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!normalized) return "ignore";
+  if (new RegExp(AUTO_ADVANCE_BLOCK, "i").test(normalized)) return "terminal";
+  return new RegExp(AUTO_ADVANCE_ALLOW, "i").test(normalized) ? "advance" : "ignore";
+}
+
+function summarizeFrameResults(frameResults = []) {
+  return frameResults.reduce((summary, frame) => {
+    const result = frame?.result || {};
+    summary.filled += Number(result.filled || 0);
+    summary.review += Number(result.review || 0);
+    summary.aiFilled += Number(result.aiFilled || 0);
+    summary.aiError ||= result.aiError || "";
+    return summary;
+  }, { filled: 0, review: 0, aiFilled: 0, aiError: "" });
+}
+
+function clickSafeAdvanceButton(allowPattern, blockPattern, pageBlockPattern) {
+  const visible = (element) => {
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+  };
+  const labelOf = (element) => String(
+    element.innerText || element.value || element.getAttribute("aria-label") || element.getAttribute("title") || "",
+  ).replace(/\s+/g, " ").trim();
+  const blocked = new RegExp(blockPattern, "i");
+  const allowed = new RegExp(allowPattern, "i");
+  const pageBlocked = new RegExp(pageBlockPattern, "i");
+  const manualGateText = [...document.querySelectorAll("label, legend, h1, h2, h3")]
+    .filter(visible)
+    .map(labelOf)
+    .join(" ");
+  if (pageBlocked.test(manualGateText)) {
+    return { clicked: false, terminal: true, label: "manual declaration or consent step" };
+  }
+  const candidates = [...document.querySelectorAll("button, input[type='button'], input[type='submit'], [role='button'], a")]
+    .filter((element) => visible(element) && !element.disabled && element.getAttribute("aria-disabled") !== "true")
+    .map((element) => ({ element, label: labelOf(element) }))
+    .filter(({ label }) => label);
+  const terminal = candidates.find(({ label }) => blocked.test(label));
+  const next = candidates.find(({ label }) => !blocked.test(label) && allowed.test(label.toLowerCase()));
+  if (!next) return { clicked: false, terminal: Boolean(terminal), label: terminal?.label || "" };
+  next.element.scrollIntoView({ block: "center", behavior: "auto" });
+  next.element.click();
+  return { clicked: true, terminal: false, label: next.label };
+}
+
+function pause(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function updateAutoAdvanceStatus(tabId, value) {
+  const status = { tabId, updatedAt: new Date().toISOString(), ...value };
+  await chrome.storage.local.set({ [AUTO_ADVANCE_STATUS_KEY]: status });
+  return status;
+}
+
+async function executeFillWithRetry(tabId, delayMs) {
+  let lastError;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      return await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ["content.js"] });
+    } catch (error) {
+      lastError = error;
+      await pause(Math.min(1200, Math.max(300, delayMs / 2)));
+    }
+  }
+  throw lastError || new Error("The next application page did not become ready.");
+}
+
+async function runAutoAdvanceSession({ tabId, maxSteps, delayMs, initialReview = 0 }) {
+  const session = { cancelled: false };
+  activeAutoAdvanceSessions.get(tabId)?.cancel?.();
+  session.cancel = () => { session.cancelled = true; };
+  activeAutoAdvanceSessions.set(tabId, session);
+  const stepLimit = Math.min(30, Math.max(1, Math.trunc(Number(maxSteps || 10))));
+  const waitMs = Math.min(10000, Math.max(800, Math.trunc(Number(delayMs || 1800))));
+  try {
+    if (Number(initialReview) > 0) {
+      return updateAutoAdvanceStatus(tabId, { running: false, state: "needs-review", step: 0, message: `${initialReview} required field(s) need review before continuing.` });
+    }
+    await updateAutoAdvanceStatus(tabId, { running: true, state: "running", step: 0, maxSteps: stepLimit, message: "Looking for the next completed application page…" });
+    for (let step = 1; step <= stepLimit; step += 1) {
+      if (session.cancelled) return updateAutoAdvanceStatus(tabId, { running: false, state: "cancelled", step: step - 1, message: "Auto-advance stopped by the user." });
+      const [advanceResult] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: clickSafeAdvanceButton,
+        args: [AUTO_ADVANCE_ALLOW, AUTO_ADVANCE_BLOCK, AUTO_ADVANCE_PAGE_BLOCK],
+      });
+      const advance = advanceResult?.result || {};
+      if (!advance.clicked) {
+        return updateAutoAdvanceStatus(tabId, {
+          running: false,
+          state: advance.terminal ? "awaiting-submit" : "no-next-button",
+          step: step - 1,
+          message: advance.terminal
+            ? `Stopped before “${advance.label}”. Review the application and submit it yourself.`
+            : "No safe Next or Continue button was found.",
+        });
+      }
+      await updateAutoAdvanceStatus(tabId, { running: true, state: "advancing", step, maxSteps: stepLimit, message: `Clicked “${advance.label}”; waiting for the next page…` });
+      await pause(waitMs);
+      if (session.cancelled) continue;
+      const summary = summarizeFrameResults(await executeFillWithRetry(tabId, waitMs));
+      if (summary.aiError || summary.review > 0) {
+        return updateAutoAdvanceStatus(tabId, {
+          running: false,
+          state: "needs-review",
+          step,
+          message: summary.aiError
+            ? `Stopped because AI needs attention: ${summary.aiError}`
+            : `Filled page ${step}, then stopped because ${summary.review} required field(s) need review.`,
+        });
+      }
+      await updateAutoAdvanceStatus(tabId, { running: true, state: "filled", step, maxSteps: stepLimit, message: `Filled page ${step}; checking for the next page…` });
+    }
+    return updateAutoAdvanceStatus(tabId, { running: false, state: "step-limit", step: stepLimit, message: `Stopped after the configured ${stepLimit}-page limit.` });
+  } catch (error) {
+    return updateAutoAdvanceStatus(tabId, { running: false, state: "error", message: error.message || "Auto-advance failed." });
+  } finally {
+    if (activeAutoAdvanceSessions.get(tabId) === session) activeAutoAdvanceSessions.delete(tabId);
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "start-auto-advance") {
+    runAutoAdvanceSession(message);
+    sendResponse({ ok: true, started: true });
+    return false;
+  }
+
+  if (message?.type === "stop-auto-advance") {
+    activeAutoAdvanceSessions.get(message.tabId)?.cancel?.();
+    sendResponse({ ok: true });
+    return false;
+  }
   if (message?.type === "sync-backend-context") {
     fetch(`${BACKEND_ENDPOINT}/api/context`)
       .then(async (response) => {

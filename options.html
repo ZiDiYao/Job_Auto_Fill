@@ -365,6 +365,14 @@
             <input name="overwriteExisting" type="checkbox" />
             Overwrite existing values by default
           </label>
+          <label class="check">
+            <input name="autoAdvanceEnabled" type="checkbox" />
+            Automatically click Next / Continue after a page is fully completed; always stop before final Submit
+          </label>
+          <div class="grid auto-advance-grid">
+            <label>Maximum pages per run<input name="autoAdvanceMaxSteps" type="number" min="1" max="30" step="1" /></label>
+            <label>Wait after each Next click (milliseconds)<input name="autoAdvanceDelayMs" type="number" min="800" max="10000" step="100" /></label>
+          </div>
         </section>
 
         <footer id="profileFooter">

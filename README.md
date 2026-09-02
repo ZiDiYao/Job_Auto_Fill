@@ -21,6 +21,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Supports explicit employer-friendly defaults for travel, onsite work, flexible schedules, screenings, and criminal-record questions while keeping unsupported factual claims out of AI-generated answers.
 - Uses AI to rank skills found in both the JD and resume first, followed by job-relevant technical skills and resume-only skills; user-editable total and non-technical limits prevent overcrowded skill lists.
 - Includes a browser-only Skills Preview mock page that visualizes the ATS tags, ranking reasons, and exclusions produced by the current total/soft-skill limits without calling an AI provider.
+- Optionally auto-advances through multi-page applications by clicking only recognized Next, Continue, Save and Continue, or Review controls; it stops on unresolved required fields, declarations/consent, the user-defined page limit, and every final Submit action.
 - Reconciles existing Workday skill tokens in overwrite mode, inserts each retained skill through a real portal search result, and stops at the configured maximum.
 - Creates missing Workday language rows and fills each language and proficiency level saved by the user, with aliases for tenant-specific proficiency labels.
 - Creates missing Workday experience rows with Add Another so every saved work experience receives its own structured entry.
