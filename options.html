@@ -394,10 +394,17 @@
             Automatically click Next / Continue after a page is fully completed; always stop before final Submit
           </label>
           <label class="check">
+            <input name="autoCaptureJobDescriptions" type="checkbox" />
+            <span>
+              Automatically capture job descriptions while I browse
+              <small>Saves detected JD text locally and keeps the popup ready for the current job. It does not fill or submit a form.</small>
+            </span>
+          </label>
+          <label class="check">
             <input name="autoFillOnPageChange" type="checkbox" />
             <span>
               Automatically recognize and fill new application pages
-              <small>Requires one-time access to job websites. Watches full page loads and single-page application steps, but never clicks final Submit.</small>
+              <small>Watches full page loads and single-page application steps, but never clicks final Submit.</small>
             </span>
           </label>
           <p class="help shortcut-help">

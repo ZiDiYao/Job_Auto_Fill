@@ -49,18 +49,43 @@
       for (const element of document.querySelectorAll(selector)) {
         if (!visible(element)) continue;
         const text = compactText(element);
-        if (text.length >= 180) candidates.push(text);
+        if (text.length >= 180) candidates.push({ text, source: "job-description element", priority: 3 });
       }
     }
-    candidates.sort((left, right) => right.length - left.length);
-    return (candidates[0] || "").slice(0, 30000);
+    for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+      try {
+        const parsed = JSON.parse(script.textContent || "null");
+        const roots = Array.isArray(parsed) ? parsed : [parsed];
+        for (const root of roots) {
+          const graph = Array.isArray(root?.["@graph"]) ? root["@graph"] : [root];
+          for (const item of graph) {
+            if (item?.["@type"] !== "JobPosting" || !item.description) continue;
+            const text = compactText(new DOMParser().parseFromString(String(item.description), "text/html").body);
+            if (text.length >= 180) candidates.push({ text, source: "JobPosting structured data", priority: 4 });
+          }
+        }
+      } catch {
+        // Ignore malformed page-owned structured data.
+      }
+    }
+    if (!candidates.length) {
+      const descriptionSignals = /\b(?:responsibilities|qualifications|requirements|about (?:the|this) (?:role|job|position)|what you(?:'|’)ll do|who you are|preferred qualifications)\b/gi;
+      for (const selector of ["article", "main"]) {
+        for (const element of document.querySelectorAll(selector)) {
+          if (!visible(element)) continue;
+          const text = compactText(element);
+          const signalCount = (text.match(descriptionSignals) || []).length;
+          if (text.length >= 350 && signalCount >= 2) candidates.push({ text, source: selector, priority: 1 });
+        }
+      }
+    }
+    candidates.sort((left, right) => right.priority - left.priority || right.text.length - left.text.length);
+    return candidates[0] ? { ...candidates[0], text: candidates[0].text.slice(0, 30000) } : { text: "", source: "", priority: 0 };
   }
 
   function inspectPage() {
     const controls = [...document.querySelectorAll("input, select, textarea, [contenteditable='true']")]
       .filter((control) => visible(control) && !control.disabled && !["hidden", "search"].includes(String(control.type || "").toLowerCase()));
-    if (controls.length < 2) return null;
-
     const labelText = [...document.querySelectorAll("label, legend, h1, h2, h3")]
       .filter(visible)
       .map(compactText)
@@ -69,7 +94,9 @@
       .slice(0, 12000);
     const signalCount = applicationSignals.filter((pattern) => pattern.test(labelText)).length;
     const applyUrl = /(?:apply|application|candidate|recruit|career|job)/i.test(location.href);
-    if (signalCount < 2 && !(signalCount >= 1 && applyUrl)) return null;
+    const applicationReady = controls.length >= 2 && (signalCount >= 2 || (signalCount >= 1 && applyUrl));
+    const detected = detectJobDescription();
+    if (!applicationReady && !detected.text) return null;
 
     const controlShape = controls.slice(0, 80).map((control) => [
       control.tagName,
@@ -79,12 +106,14 @@
       control.getAttribute("aria-label") || "",
     ].join(":")).join("|");
     return {
-      signature: `${location.href}|${controls.length}|${hash(`${labelText}|${controlShape}`)}`,
-      jobDescription: detectJobDescription(),
+      signature: `${location.href}|${controls.length}|${hash(`${labelText}|${controlShape}|${detected.text.slice(0, 1000)}`)}`,
+      applicationReady,
+      jobDescription: detected.text,
       metadata: {
         jobTitle: compactText(document.querySelector("h1")),
         company: compactText(document.querySelector("[data-automation-id='company'], [data-testid*='company' i], .company")),
         sourceUrl: location.href,
+        detectionSource: detected.source,
       },
     };
   }
@@ -94,7 +123,7 @@
     const page = inspectPage();
     if (!page || page.signature === lastSignature) return;
     lastSignature = page.signature;
-    chrome.runtime.sendMessage({ type: "auto-fill-page-ready", ...page }).catch(() => {});
+    chrome.runtime.sendMessage({ type: "job-page-observed", ...page }).catch(() => {});
   }
 
   function scheduleInspection() {

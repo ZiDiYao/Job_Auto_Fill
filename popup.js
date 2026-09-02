@@ -17,6 +17,8 @@ const notesSettingsButton = document.querySelector("#notesSettings");
 const notesFolderStatus = document.querySelector("#notesFolderStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 const AUTO_ADVANCE_STATUS_KEY = "jobAutofillAutoAdvanceStatus";
+const LAST_DETECTED_JOB_KEY = "jobAutofillDetectedJobContext";
+let activeTabId = 0;
 
 function normalizeExportSettings(value = {}) {
   return {
@@ -43,7 +45,9 @@ function normalizeExportSettings(value = {}) {
   };
 }
 
-chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY]).then(async ({ jobAutofillProfile, jobAutofillJobDescription, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus }) => {
+chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANCE_STATUS_KEY, LAST_DETECTED_JOB_KEY]).then(async ({ jobAutofillProfile, jobAutofillResume, [AUTO_ADVANCE_STATUS_KEY]: autoAdvanceStatus, [LAST_DETECTED_JOB_KEY]: detectedJob }) => {
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  activeTabId = Number(activeTab?.id || 0);
   overwriteCheckbox.checked = true;
   autoNextCheckbox.checked = jobAutofillProfile?.autoAdvanceEnabled === true;
   chrome.storage.local.set({
@@ -61,8 +65,10 @@ chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription", "jo
       if (synced?.ok) showResume(synced.resume);
     });
   }
-  jobDescription.value = jobAutofillJobDescription || "";
-  if (!jobDescription.value) detectJobDescription(false);
+  jobDescription.value = Number(detectedJob?.tabId || 0) === activeTabId
+    ? String(detectedJob?.jobDescription || "")
+    : "";
+  await detectJobDescription(false);
   await refreshNotesFolderStatus();
   renderAutoAdvanceStatus(autoAdvanceStatus);
 });
@@ -77,6 +83,14 @@ function renderAutoAdvanceStatus(autoAdvanceStatus) {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes[AUTO_ADVANCE_STATUS_KEY]) renderAutoAdvanceStatus(changes[AUTO_ADVANCE_STATUS_KEY].newValue);
+  if (area === "local" && changes[LAST_DETECTED_JOB_KEY]) {
+    const detected = changes[LAST_DETECTED_JOB_KEY].newValue;
+    if (Number(detected?.tabId || 0) === activeTabId && String(detected?.jobDescription || "").length >= 180) {
+      jobDescription.value = detected.jobDescription;
+      status.className = "";
+      status.textContent = `Job description captured automatically · ${detected.jobDescription.length.toLocaleString()} characters.`;
+    }
+  }
 });
 
 function showResume(resume) {
@@ -217,8 +231,6 @@ function extractJobDescriptionFromPage() {
     ".job-description",
     "[class*='jobDescription']",
     "[class*='job-description']",
-    "article",
-    "main",
   ];
   const candidates = [];
   for (const selector of selectors) {
@@ -226,14 +238,40 @@ function extractJobDescriptionFromPage() {
       const style = getComputedStyle(element);
       if (style.display === "none" || style.visibility === "hidden") continue;
       const text = String(element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
-      if (text.length >= 180) candidates.push({ text, selector });
+      if (text.length >= 180) candidates.push({ text, source: selector, priority: 3 });
     }
   }
-  candidates.sort((left, right) => right.text.length - left.text.length);
+  for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+    try {
+      const parsed = JSON.parse(script.textContent || "null");
+      const roots = Array.isArray(parsed) ? parsed : [parsed];
+      for (const root of roots) {
+        const graph = Array.isArray(root?.["@graph"]) ? root["@graph"] : [root];
+        for (const item of graph) {
+          if (item?.["@type"] !== "JobPosting" || !item.description) continue;
+          const body = new DOMParser().parseFromString(String(item.description), "text/html").body;
+          const text = String(body.innerText || body.textContent || "").replace(/\s+/g, " ").trim();
+          if (text.length >= 180) candidates.push({ text, source: "JobPosting structured data", priority: 4 });
+        }
+      }
+    } catch {
+      // Ignore malformed page-owned structured data.
+    }
+  }
+  if (!candidates.length) {
+    const signals = /\b(?:responsibilities|qualifications|requirements|about (?:the|this) (?:role|job|position)|what you(?:'|’)ll do|who you are|preferred qualifications)\b/gi;
+    for (const selector of ["article", "main"]) {
+      for (const element of document.querySelectorAll(selector)) {
+        const style = getComputedStyle(element);
+        if (style.display === "none" || style.visibility === "hidden") continue;
+        const text = String(element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
+        if (text.length >= 350 && (text.match(signals) || []).length >= 2) candidates.push({ text, source: selector, priority: 1 });
+      }
+    }
+  }
+  candidates.sort((left, right) => right.priority - left.priority || right.text.length - left.text.length);
   const best = candidates[0];
-  if (best) return { text: best.text.slice(0, 30000), source: best.selector };
-  const fallback = String(document.body?.innerText || "").replace(/\s+/g, " ").trim();
-  return { text: fallback.slice(0, 30000), source: "page" };
+  return best ? { text: best.text.slice(0, 30000), source: best.source } : { text: "", source: "" };
 }
 
 function extractJobMetadataFromPage() {
@@ -416,9 +454,19 @@ async function detectJobDescription(showFailure = true) {
         sourceUrl: tab.url,
         descriptionStart: detected.slice(0, 240),
       },
+      [LAST_DETECTED_JOB_KEY]: {
+        tabId: tab.id,
+        jobDescription: detected,
+        metadata: {
+          ...(metadataResult?.result || {}),
+          sourceUrl: tab.url,
+          descriptionStart: detected.slice(0, 240),
+        },
+        capturedAt: new Date().toISOString(),
+      },
     });
     status.className = "";
-    status.textContent = `Detected ${detected.length.toLocaleString()} characters from ${result.result.source}.`;
+    status.textContent = `Job description captured automatically · ${detected.length.toLocaleString()} characters from ${result.result.source}.`;
   } catch (error) {
     if (showFailure) {
       status.className = "error";

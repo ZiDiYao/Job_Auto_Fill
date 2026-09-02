@@ -8,6 +8,7 @@ const AUTO_FILL_SCRIPT_ID = "job-autofill-page-watcher";
 const AUTO_FILL_ORIGINS = ["http://*/*", "https://*/*"];
 const LAST_FILL_STATUS_KEY = "jobAutofillLastFillStatus";
 const LAST_SKILL_SELECTION_KEY = "jobAutofillLastSkillSelection";
+const LAST_DETECTED_JOB_KEY = "jobAutofillDetectedJobContext";
 const activeAutoAdvanceSessions = new Map();
 const activeFillSessions = new Map();
 const lastAutomaticPageSignatures = new Map();
@@ -322,12 +323,38 @@ function detectJobContextFromPage() {
     for (const element of document.querySelectorAll(selector)) {
       if (!visible(element)) continue;
       const text = textOf(element);
-      if (text.length >= 180) candidates.push(text);
+      if (text.length >= 180) candidates.push({ text, priority: 3 });
     }
   }
-  candidates.sort((left, right) => right.length - left.length);
+  for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+    try {
+      const parsed = JSON.parse(script.textContent || "null");
+      const roots = Array.isArray(parsed) ? parsed : [parsed];
+      for (const root of roots) {
+        const graph = Array.isArray(root?.["@graph"]) ? root["@graph"] : [root];
+        for (const item of graph) {
+          if (item?.["@type"] !== "JobPosting" || !item.description) continue;
+          const text = textOf(new DOMParser().parseFromString(String(item.description), "text/html").body);
+          if (text.length >= 180) candidates.push({ text, priority: 4 });
+        }
+      }
+    } catch {
+      // Ignore malformed page-owned structured data.
+    }
+  }
+  if (!candidates.length) {
+    const signals = /\b(?:responsibilities|qualifications|requirements|about (?:the|this) (?:role|job|position)|what you(?:'|’)ll do|who you are|preferred qualifications)\b/gi;
+    for (const selector of ["article", "main"]) {
+      for (const element of document.querySelectorAll(selector)) {
+        if (!visible(element)) continue;
+        const text = textOf(element);
+        if (text.length >= 350 && (text.match(signals) || []).length >= 2) candidates.push({ text, priority: 1 });
+      }
+    }
+  }
+  candidates.sort((left, right) => right.priority - left.priority || right.text.length - left.text.length);
   return {
-    jobDescription: (candidates[0] || "").slice(0, 30000),
+    jobDescription: (candidates[0]?.text || "").slice(0, 30000),
     metadata: {
       jobTitle: textOf(document.querySelector("h1")),
       company: textOf(document.querySelector("[data-automation-id='company'], [data-testid*='company' i], .company")),
@@ -336,10 +363,10 @@ function detectJobContextFromPage() {
   };
 }
 
-async function persistDetectedJobContext(context = {}) {
+async function persistDetectedJobContext(context = {}, tabId = 0) {
   const description = String(context.jobDescription || "").trim();
   const metadata = context.metadata || {};
-  if (description.length < 180) return;
+  if (description.length < 180) return { captured: false };
   const values = {};
   values.jobAutofillJobDescription = description;
   if (Object.values(metadata).some(Boolean)) {
@@ -348,7 +375,14 @@ async function persistDetectedJobContext(context = {}) {
       descriptionStart: description ? description.slice(0, 240) : "",
     };
   }
+  values[LAST_DETECTED_JOB_KEY] = {
+    tabId: Number(tabId || 0),
+    jobDescription: description,
+    metadata: values.jobAutofillJobMetadata || {},
+    capturedAt: new Date().toISOString(),
+  };
   if (Object.keys(values).length) await chrome.storage.local.set(values);
+  return { captured: true, length: description.length };
 }
 
 async function captureJobContext(tabId) {
@@ -358,7 +392,7 @@ async function captureJobContext(tabId) {
       func: detectJobContextFromPage,
     });
     const context = injection?.result || {};
-    await persistDetectedJobContext(context);
+    await persistDetectedJobContext(context, tabId);
     return context;
   } catch {
     return {};
@@ -390,7 +424,7 @@ async function fillApplicationTab(tabId, { source = "shortcut", context = null }
   if (activeFillSessions.has(tabId)) return activeFillSessions.get(tabId);
   const task = (async () => {
     try {
-      if (context) await persistDetectedJobContext(context);
+      if (context) await persistDetectedJobContext(context, tabId);
       else await captureJobContext(tabId);
       const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
       const summary = summarizeFrameResults(await executeFillWithRetry(tabId, jobAutofillProfile.autoAdvanceDelayMs || 1800));
@@ -420,7 +454,7 @@ async function configureAutomaticFill(enabled) {
   if (registered.length) await chrome.scripting.unregisterContentScripts({ ids: [AUTO_FILL_SCRIPT_ID] });
   if (!enabled) return { enabled: false };
   const permitted = await chrome.permissions.contains({ origins: AUTO_FILL_ORIGINS });
-  if (!permitted) throw new Error("Automatic filling needs access to job application websites.");
+  if (!permitted) throw new Error("Automatic job-description capture needs access to job websites.");
   await chrome.scripting.registerContentScripts([{
     id: AUTO_FILL_SCRIPT_ID,
     matches: AUTO_FILL_ORIGINS,
@@ -433,7 +467,9 @@ async function configureAutomaticFill(enabled) {
 
 async function restoreAutomaticFill() {
   const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
-  return configureAutomaticFill(jobAutofillProfile.autoFillOnPageChange === true);
+  return configureAutomaticFill(
+    jobAutofillProfile.autoCaptureJobDescriptions !== false || jobAutofillProfile.autoFillOnPageChange === true,
+  );
 }
 
 async function runAutoAdvanceSession({ tabId, maxSteps, delayMs, initialReview = 0 }) {
@@ -507,7 +543,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "configure-auto-fill") {
     configureAutomaticFill(message.enabled === true)
       .then((result) => sendResponse({ ok: true, ...result }))
-      .catch((error) => sendResponse({ ok: false, error: error.message || "Could not configure automatic filling." }));
+      .catch((error) => sendResponse({ ok: false, error: error.message || "Could not configure page monitoring." }));
     return true;
   }
 
@@ -523,14 +559,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type === "auto-fill-page-ready") {
+  if (message?.type === "job-page-observed" || message?.type === "auto-fill-page-ready") {
     const tabId = sender.tab?.id;
     if (!tabId) {
-      sendResponse({ ok: false, error: "Automatic filling could not identify this tab." });
+      sendResponse({ ok: false, error: "Page monitoring could not identify this tab." });
       return false;
     }
-    chrome.storage.local.get("jobAutofillProfile")
-      .then(({ jobAutofillProfile = {} }) => {
+    persistDetectedJobContext({ jobDescription: message.jobDescription, metadata: message.metadata }, tabId)
+      .then(async (capture) => {
+        const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
+        const applicationReady = message.type === "auto-fill-page-ready" || message.applicationReady === true;
+        if (!applicationReady) return { ...capture, skipped: "job-description-only" };
         if (jobAutofillProfile.autoFillOnPageChange !== true) return { skipped: "disabled" };
         if (activeAutoAdvanceSessions.has(tabId)) return { skipped: "auto-advance-running" };
         const signature = String(message.signature || "");

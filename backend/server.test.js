@@ -65,6 +65,7 @@ test("ships blank candidate and credential templates", async () => {
   assert.deepEqual(profile.languages, []);
   assert.deepEqual(profile.skills, []);
   assert.deepEqual(profile.indeedPreferences, {});
+  assert.equal(profile.autoCaptureJobDescriptions, true);
   for (const key of ["aiEnabled", "includeJdSkills", "aiAnalyzeDom", "aiResolveDropdowns", "aiUseSensitiveProfile"]) {
     assert.equal(profile[key], true, `${key} should work without first-run setup`);
   }

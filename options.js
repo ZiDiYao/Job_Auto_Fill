@@ -259,6 +259,7 @@ const defaultProfile = {
   disabilityStatus: "",
   veteranStatus: "",
   autoAdvanceEnabled: false,
+  autoCaptureJobDescriptions: true,
   autoFillOnPageChange: false,
   autoAdvanceMaxSteps: 10,
   autoAdvanceDelayMs: 1800,
@@ -492,29 +493,21 @@ const exportAutosave = createDebouncedAutosave({
   onState: renderAutosaveState,
 });
 
-const AUTO_FILL_ORIGINS = ["http://*/*", "https://*/*"];
+const autoCaptureJobDescriptions = form.elements.namedItem("autoCaptureJobDescriptions");
 const autoFillOnPageChange = form.elements.namedItem("autoFillOnPageChange");
 
-autoFillOnPageChange.addEventListener("change", async () => {
-  if (autoFillOnPageChange.checked) {
-    const granted = await chrome.permissions.request({ origins: AUTO_FILL_ORIGINS });
-    if (!granted) {
-      autoFillOnPageChange.checked = false;
-      profileAutosave.schedule();
-      renderAutosaveState("error", { error: new Error("Automatic filling needs access to job application websites") });
-      return;
-    }
-  }
+async function configurePageWatcher() {
   const configured = await chrome.runtime.sendMessage({
     type: "configure-auto-fill",
-    enabled: autoFillOnPageChange.checked,
+    enabled: autoCaptureJobDescriptions.checked || autoFillOnPageChange.checked,
   });
   if (!configured?.ok) {
-    autoFillOnPageChange.checked = false;
-    profileAutosave.schedule();
-    renderAutosaveState("error", { error: new Error(configured?.error || "Could not configure automatic filling") });
+    renderAutosaveState("error", { error: new Error(configured?.error || "Could not configure page monitoring") });
   }
-});
+}
+
+autoCaptureJobDescriptions.addEventListener("change", configurePageWatcher);
+autoFillOnPageChange.addEventListener("change", configurePageWatcher);
 
 function queueChangedSetting(event) {
   const control = event.target;

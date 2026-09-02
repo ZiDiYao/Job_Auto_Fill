@@ -69,6 +69,7 @@
   "disabilityStatus": "",
   "veteranStatus": "",
   "autoAdvanceEnabled": false,
+  "autoCaptureJobDescriptions": true,
   "autoFillOnPageChange": false,
   "autoAdvanceMaxSteps": 10,
   "autoAdvanceDelayMs": 1800,

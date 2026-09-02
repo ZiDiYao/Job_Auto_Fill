@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local Job Application Autofill",
-  "version": "2.14.0",
+  "version": "2.15.0",
   "description": "Fill job applications from a local Docker profile, resume, and adaptive AI answer service.",
   "icons": {
     "16": "icons/icon-16.png",
@@ -10,13 +10,9 @@
     "128": "icons/icon-128.png"
   },
   "permissions": ["activeTab", "identity", "scripting", "storage", "unlimitedStorage"],
-  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "host_permissions": [
-    "http://127.0.0.1:11434/*",
-    "http://localhost:11434/*",
-    "http://127.0.0.1:17840/*",
-    "http://localhost:17840/*",
-    "https://api.notion.com/*"
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js"

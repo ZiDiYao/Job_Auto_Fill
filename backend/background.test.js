@@ -181,6 +181,28 @@ test("automatic page messages fill only when enabled and deduplicate page signat
   assert.equal(enabled.storage.jobAutofillJobDescription.length, 220);
 });
 
+test("passive page monitoring captures a JD without filling a form", async () => {
+  let injections = 0;
+  const background = loadBackground({
+    initialStorage: { jobAutofillProfile: { autoCaptureJobDescriptions: true, autoFillOnPageChange: false } },
+    scripting: { async executeScript() { injections += 1; return []; } },
+  });
+  const response = await background.send({
+    type: "job-page-observed",
+    signature: "posting-a",
+    applicationReady: false,
+    jobDescription: "J".repeat(640),
+    metadata: { jobTitle: "Platform Developer", company: "Example", sourceUrl: "https://jobs.example/42" },
+  }, { tab: { id: 23 } });
+
+  assert.equal(response.captured, true);
+  assert.equal(response.skipped, "job-description-only");
+  assert.equal(injections, 0);
+  assert.equal(background.storage.jobAutofillJobDescription.length, 640);
+  assert.equal(background.storage.jobAutofillDetectedJobContext.tabId, 23);
+  assert.equal(background.storage.jobAutofillDetectedJobContext.metadata.jobTitle, "Platform Developer");
+});
+
 test("automatic fill registration adds and removes the persistent page watcher", async () => {
   const registrations = [];
   let registered = [];
