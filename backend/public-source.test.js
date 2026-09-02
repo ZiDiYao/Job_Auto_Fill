@@ -127,7 +127,7 @@ test("public extension bundles local platform adapters for common ATS providers"
   for (const platform of ["workday", "dayforce", "indeed", "linkedin", "greenhouse", "lever", "smartrecruiters", "icims", "taleo", "successfactors", "ashby"]) {
     assert.match(adapters, new RegExp(`id: "${platform}"`));
   }
-  assert.deepEqual(manifest.version, "2.44.1");
+  assert.deepEqual(manifest.version, "2.45.0");
   assert.match(packager, /platform-adapters\.js/);
   assert.doesNotMatch(adapters, /eval\s*\(|new Function\s*\(/);
 });
@@ -140,8 +140,6 @@ test("saved-state copy is rendered as quiet secondary text", async () => {
 test("settings dropdown arrows are consistently inset from the right edge", async () => {
   const css = await readFile(path.join(repositoryRoot, "options.css"), "utf8");
   assert.match(css, /select \{[\s\S]*?appearance: none;[\s\S]*?padding-right: 42px;[\s\S]*?background-position: right 16px center;/);
-  assert.match(css, /:root\[data-theme="dark"\] select \{[\s\S]*?background-image:[\s\S]*?background-position: right 16px center;[\s\S]*?background-repeat: no-repeat;[\s\S]*?background-size: 12px 8px;/);
-  assert.doesNotMatch(css, /:root\[data-theme="dark"\][^{]*select,[\s\S]*?background:\s*#111419;/);
 });
 
 test("date and month picker icons share the select arrow alignment", async () => {
@@ -156,7 +154,7 @@ test("destructive icon controls use subtle round buttons instead of square boxes
   assert.match(css, /\.remove-language:hover,\n\.icon-button:hover \{[^}]*background: #fef3f2;/);
 });
 
-test("popup and settings pages ship green, blue-default, and dark themes", async () => {
+test("popup and settings pages default to white and green without a dark theme", async () => {
   const [html, optionsCss, popupCss, optionsSource, popupSource] = await Promise.all([
     readFile(path.join(repositoryRoot, "options.html"), "utf8"),
     readFile(path.join(repositoryRoot, "options.css"), "utf8"),
@@ -164,25 +162,22 @@ test("popup and settings pages ship green, blue-default, and dark themes", async
     readFile(path.join(repositoryRoot, "options.js"), "utf8"),
     readFile(path.join(repositoryRoot, "popup.js"), "utf8"),
   ]);
-  assert.match(html, /<select name="theme">[\s\S]*?value="green"[\s\S]*?value="blue"[\s\S]*?value="dark"/);
+  assert.match(html, /<html[^>]*data-theme="green"/);
+  assert.match(html, /<select name="theme">[\s\S]*?value="green" selected[\s\S]*?value="blue"/);
+  assert.doesNotMatch(html, /value="dark"|>Dark</);
   for (const css of [optionsCss, popupCss]) {
-    assert.match(css, /:root\[data-theme="green"\]/);
-    assert.match(css, /:root\[data-theme="dark"\]/);
+    assert.match(css, /--blue: #23845f;[\s\S]*?--blue-dark: #196b4d;/);
+    assert.match(css, /:root\[data-theme="blue"\]/);
+    assert.doesNotMatch(css, /data-theme="dark"|color-scheme:\s*dark/);
   }
-  assert.match(optionsSource, /function applyTheme\(/);
-  assert.match(popupSource, /function applyTheme\(/);
+  assert.match(optionsSource, /new Set\(\["green", "blue"\]\)/);
+  assert.match(popupSource, /new Set\(\["green", "blue"\]\)/);
+  assert.match(optionsSource, /THEMES\.has\(value\) \? value : "green"/);
+  assert.match(popupSource, /THEMES\.has\(value\) \? value : "green"/);
 });
 
-test("dark theme uses warm neutral contrast and folder cancel is non-destructive", async () => {
-  const [optionsCss, popupCss, optionsSource] = await Promise.all([
-    readFile(path.join(repositoryRoot, "options.css"), "utf8"),
-    readFile(path.join(repositoryRoot, "popup.css"), "utf8"),
-    readFile(path.join(repositoryRoot, "options.js"), "utf8"),
-  ]);
-  for (const css of [optionsCss, popupCss]) {
-    assert.match(css, /:root\[data-theme="dark"\][\s\S]*?--text: #f4efe6;[\s\S]*?--muted: #beb5a8;/);
-  }
-  assert.match(optionsCss, /:root\[data-theme="dark"\] \.folder-picker \.folder-cancel \{[^}]*color: #29251f;[^}]*background: #f4efe6;/);
+test("folder cancel remains a non-destructive secondary action", async () => {
+  const optionsSource = await readFile(path.join(repositoryRoot, "options.js"), "utf8");
   assert.match(optionsSource, /button\.classList\.add\("secondary", "folder-cancel"\)/);
   assert.doesNotMatch(optionsSource, /button\.classList\.add\("danger"\)/);
 });

@@ -33,10 +33,10 @@ let onboardingVisited = false;
 let hasDefaultResume = false;
 let automationPaused = false;
 
-const THEMES = new Set(["green", "blue", "dark"]);
+const THEMES = new Set(["green", "blue"]);
 
 function applyTheme(value) {
-  document.documentElement.dataset.theme = THEMES.has(value) ? value : "blue";
+  document.documentElement.dataset.theme = THEMES.has(value) ? value : "green";
 }
 
 function renderJobDescriptionSource(source) {

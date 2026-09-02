@@ -162,7 +162,7 @@ test("profile updates accept known fields and discard unknown fields", async () 
 
   const persisted = JSON.parse(await readFile(profilePath, "utf8"));
   assert.equal(persisted.firstName, "Test");
-  assert.equal(persisted.theme, "dark");
+  assert.equal(persisted.theme, "green");
   assert.deepEqual(persisted.skills, ["SQL", "Teamwork", "SQL"]);
   assert.equal("unknownPrivateField" in persisted, false);
 });

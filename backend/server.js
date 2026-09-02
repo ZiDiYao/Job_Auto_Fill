@@ -117,6 +117,7 @@ function getResumeText() {
 
 async function getProfile() {
   const savedProfile = JSON.parse(await readFile(profilePath, "utf8"));
+  if (!["green", "blue"].includes(savedProfile.theme)) savedProfile.theme = "green";
   if (!savedProfile.nationalTaxIdAvailable && savedProfile.validSin) savedProfile.nationalTaxIdAvailable = savedProfile.validSin;
   if (!savedProfile.meetsMinimumWorkingAge && savedProfile.age18OrOlder) savedProfile.meetsMinimumWorkingAge = savedProfile.age18OrOlder;
   return Object.fromEntries(Object.entries(profileDefaults).map(([key, defaultValue]) => [
@@ -779,6 +780,7 @@ export function createServer() {
         const currentProfile = await getProfile();
         const allowed = new Set(Object.keys(profileDefaults));
         const sanitized = Object.fromEntries(Object.entries(nextProfile).filter(([key]) => allowed.has(key)));
+        if (Object.hasOwn(sanitized, "theme") && !["green", "blue"].includes(sanitized.theme)) sanitized.theme = "green";
         await writeFile(profilePath, `${JSON.stringify({ ...currentProfile, ...sanitized }, null, 2)}\n`, "utf8");
         return sendJson(response, 200, { saved: true });
       }

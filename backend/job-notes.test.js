@@ -217,7 +217,8 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /data-settings-target="profile"/);
   assert.match(optionsHtml, /data-settings-target="general">General<\/button>/);
   assert.ok(optionsHtml.indexOf('data-settings-target="general"') < optionsHtml.indexOf('data-settings-target="profile"'));
-  assert.match(optionsHtml, /<select name="theme">[\s\S]*?White \+ Green[\s\S]*?Current Blue[\s\S]*?Dark/);
+  assert.match(optionsHtml, /<select name="theme">[\s\S]*?White \+ Green[\s\S]*?Blue/);
+  assert.doesNotMatch(optionsHtml, />Dark</);
   assert.match(optionsHtml, /data-settings-target="ai"/);
   assert.match(optionsHtml, /data-settings-page="profile"[^>]*class="default-resume-section"[^>]*hidden>[\s\S]*?<h2>Upload resume<\/h2>/);
   assert.match(optionsHtml, /data-settings-page="general">[\s\S]*?<h2>Behaviour<\/h2>/);

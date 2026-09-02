@@ -69,10 +69,10 @@ const SETTINGS_PAGES = {
   },
 };
 
-const THEMES = new Set(["green", "blue", "dark"]);
+const THEMES = new Set(["green", "blue"]);
 
 function applyTheme(value) {
-  document.documentElement.dataset.theme = THEMES.has(value) ? value : "blue";
+  document.documentElement.dataset.theme = THEMES.has(value) ? value : "green";
 }
 
 function pageFromHash(hash = location.hash) {
@@ -193,7 +193,7 @@ async function persistExportSettings(settings = null) {
 }
 
 const defaultProfile = {
-  theme: "blue",
+  theme: "green",
   firstName: "",
   lastName: "",
   preferredName: "",
@@ -293,6 +293,7 @@ let savedAiModel = defaultProfile.aiModel;
 
 function mergeProfile(profile = {}) {
   const migrated = { ...profile };
+  migrated.theme = THEMES.has(migrated.theme) ? migrated.theme : "green";
   if (!migrated.nationalTaxIdAvailable && migrated.validSin) migrated.nationalTaxIdAvailable = migrated.validSin;
   if (!migrated.meetsMinimumWorkingAge && migrated.age18OrOlder) migrated.meetsMinimumWorkingAge = migrated.age18OrOlder;
   migrated.graduationDate = normalizeDateValue(migrated.graduationDate);
