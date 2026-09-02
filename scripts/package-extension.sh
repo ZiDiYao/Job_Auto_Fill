@@ -25,7 +25,7 @@ for file in \
   onboarding.html onboarding.css onboarding.js \
   privacy.html privacy-consent.js \
   application-export-service.js application-record.js \
-  job-description-file.js job-notes.js local-directory.js \
+  job-notes.js local-directory.js \
   settings-autosave.mjs skills-preview.js
 do
   cp "$repository_root/$file" "$staging_directory/$file"

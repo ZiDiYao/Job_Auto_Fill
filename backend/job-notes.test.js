@@ -196,8 +196,8 @@ test("popup and settings expose the notes workflow through module scripts", asyn
   assert.match(optionsHtml, /id="behaviourSettings"[^>]*data-settings-page="general"/);
   assert.match(optionsSource, /settingsAnchorFromHash/);
   assert.match(popupHtml, /class="popup-card job-section"/);
-  assert.match(popupHtml, /id="jobDescriptionFile"[^>]*\.pdf[^>]*\.txt[^>]*\.md/);
-  assert.match(popupHtml, />\s*Upload JD\s*</);
+  assert.doesNotMatch(popupHtml, /jobDescriptionFile|Upload JD/);
+  assert.match(popupHtml, /id="jobDescription"[^>]*paste it here manually/);
   assert.match(popupHtml, /class="notes-copy">[\s\S]*?Job Application Record[\s\S]*?id="notesSettings"[\s\S]*?<\/div>[\s\S]*?id="saveNote"/);
   assert.match(popupCss, /\.notes-copy\s*\{[^}]*display:\s*grid;[^}]*gap:\s*3px;[^}]*justify-items:\s*start;/);
   assert.doesNotMatch(popupHtml, /notesFolderStatus|folder access req/);

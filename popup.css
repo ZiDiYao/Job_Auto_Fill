@@ -54,9 +54,7 @@ textarea:focus { outline: 2px solid rgba(35, 132, 95, 0.16); border-color: var(-
 .primary:hover { background: var(--blue-dark); }
 .secondary { color: #344054; background: #fff; border-color: #c7ced9; }
 .secondary:hover { border-color: #98a2b3; background: #f9fafb; }
-.job-actions { display: grid; grid-template-columns: 1fr 0.72fr; gap: 7px; margin-top: 7px; }
-.file-action { display: flex; min-height: 35px; align-items: center; justify-content: center; border: 1px solid #c7ced9; border-radius: 5px; padding: 9px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
-.file-action input { display: none; }
+.job-actions { margin-top: 7px; }
 
 .notes-panel { display: flex; min-height: 54px; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; }
 .notes-copy { display: grid; min-width: 0; gap: 3px; justify-items: start; white-space: nowrap; }
