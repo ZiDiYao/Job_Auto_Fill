@@ -19,6 +19,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Supports explicit employer-friendly defaults for travel, onsite work, flexible schedules, screenings, and criminal-record questions while keeping unsupported factual claims out of AI-generated answers.
 - Merges saved candidate skills with technical skills extracted from the current JD, inserts each as a confirmed Workday token, and reports JD-only additions for manual review.
 - Creates missing Workday language rows and fills English and Chinese as Fluent plus French as Classroom, with aliases for tenant-specific proficiency labels.
+- Adds Workday skills one at a time by waiting for and selecting a real suggestion, then verifies that each skill token appears before continuing.
 - Fills Workday questionnaire button/listbox controls by reading the enclosing fieldset question and selecting only explicit saved answers.
 - Re-scans Workday's React-rendered dropdowns and conditional checkbox groups after every answer so later questions and follow-up identity fields are not skipped.
 - Sends unresolved Workday questions and their exact option lists to the backend AI, which maps saved profile facts and preferences to a validated available option.

@@ -443,23 +443,50 @@
     input.dispatchEvent(new Event("input", { bubbles: true }));
 
     if (multi) {
-      await wait(140);
-      for (const type of ["keydown", "keypress", "keyup"]) {
-        input.dispatchEvent(new KeyboardEvent(type, {
-          key: "Enter",
-          code: "Enter",
-          keyCode: 13,
-          which: 13,
-          bubbles: true,
-        }));
+      const desired = normalize(value);
+      let match = null;
+      for (let attempt = 0; attempt < 15 && !match; attempt += 1) {
+        await wait(200);
+        const options = visiblePromptOptions()
+          .filter((option) => normalize(option.textContent) !== "no items");
+        match = options.find((option) => normalize(option.textContent) === desired)
+          || options.find((option) => normalize(option.textContent).includes(desired));
       }
-      await wait(180);
-      const updatedText = normalize(container?.querySelector('[role="listbox"]')?.textContent || "");
-      if (updatedText.includes(normalize(value))) {
+
+      if (!match) {
+        const availableOptions = visiblePromptOptions()
+          .filter((option) => normalize(option.textContent) !== "no items");
+        if (availableOptions.length === 1) match = availableOptions[0];
+      }
+
+      if (!match) {
+        const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+        descriptor?.set?.call(input, "");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        mark(input, "review");
+        return false;
+      }
+
+      match.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      match.click();
+
+      let confirmed = false;
+      for (let attempt = 0; attempt < 12 && !confirmed; attempt += 1) {
+        await wait(180);
+        const selectedList = [...container?.querySelectorAll('[role="listbox"]') || []]
+          .find((listbox) => normalize(listbox.getAttribute("aria-label")) === "items selected")
+          || container?.querySelector('[role="listbox"]');
+        confirmed = normalize(selectedList?.textContent || "").includes(desired);
+      }
+      if (confirmed) {
         mark(input, "filled");
         result.filled += 1;
         return true;
       }
+
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+      descriptor?.set?.call(input, "");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
       mark(input, "review");
       return false;
     }
