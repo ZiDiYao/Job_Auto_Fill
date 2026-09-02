@@ -9,6 +9,7 @@ import {
   verifyNotionWorkspace,
 } from "./notion-export.js";
 import { buildSkillPreview } from "./skills-preview.js";
+import { createDebouncedAutosave } from "./settings-autosave.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("vendor/pdf.worker.mjs");
 
@@ -29,7 +30,6 @@ const notionParentPageId = document.querySelector("#notionParentPageId");
 const notionRootPageTitle = document.querySelector("#notionRootPageTitle");
 const notionStatus = document.querySelector("#notionStatus");
 const notionConnectionAction = document.querySelector("#notionConnectionAction");
-const exportSaveStatus = document.querySelector("#exportSaveStatus");
 const NOTE_SETTINGS_KEY = "jobAutofillNoteSettings";
 
 const SETTINGS_PAGES = {
@@ -84,7 +84,6 @@ function showSettingsPage(page, { updateHash = false } = {}) {
   document.querySelector("#settingsTitle").textContent = SETTINGS_PAGES[selected].title;
   document.querySelector("#settingsDescription").textContent = SETTINGS_PAGES[selected].description;
   document.querySelector("#profileFooter").hidden = selected === "history";
-  document.querySelector("#saveTop").hidden = selected === "history";
   document.querySelector("#syncBackend").hidden = selected === "history";
   if (updateHash && location.hash !== SETTINGS_PAGES[selected].hash) {
     history.replaceState(null, "", SETTINGS_PAGES[selected].hash);
@@ -201,8 +200,8 @@ async function collectExportSettings() {
     applicationStatus: applicationStatus.value || "Saved",
     notion: {
       ...current.notion,
-      token: notionToken.value.trim(),
-      parentPageId: notionParentPageId.value.trim(),
+      token: notionToken.value.trim() || current.notion.token,
+      parentPageId: notionParentPageId.value.trim() || current.notion.parentPageId,
       rootPageTitle: notionRootPageTitle.value.trim() || "Job Application",
     },
   };
@@ -391,35 +390,65 @@ function renderSkillPreview() {
 }
 
 for (const id of ["previewMaxSkills", "previewMaxNonTechnicalSkills", "previewJdSkills", "previewResumeSkills"]) {
-  document.querySelector(`#${id}`).addEventListener("input", renderSkillPreview);
+  document.querySelector(`#${id}`).addEventListener("input", () => {
+    renderSkillPreview();
+    if (id === "previewMaxSkills" || id === "previewMaxNonTechnicalSkills") profileAutosave.schedule();
+  });
 }
-document.querySelector("#runSkillPreview").addEventListener("click", renderSkillPreview);
+document.querySelector("#runSkillPreview").addEventListener("click", () => {
+  renderSkillPreview();
+  profileAutosave.schedule();
+});
 
-async function saveProfile(event) {
-  event?.preventDefault();
+async function persistProfile() {
+  const profile = collectProfile();
+  await chrome.storage.local.set({ [PROFILE_KEY]: profile });
   try {
-    const profile = collectProfile();
-    await chrome.storage.local.set({ [PROFILE_KEY]: profile });
-    try {
-      const response = await fetch("http://127.0.0.1:17840/api/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || `backend returned ${response.status}`);
-      saveStatus.textContent = "Saved to Docker backend · browser cache updated";
-    } catch (error) {
-      saveStatus.textContent = `Backend unavailable · saved to browser cache only (${error.message})`;
-    }
-    setTimeout(() => { saveStatus.textContent = ""; }, 2200);
+    const response = await fetch("http://127.0.0.1:17840/api/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `backend returned ${response.status}`);
+    return { backendSaved: true };
   } catch (error) {
-    saveStatus.textContent = error.message;
+    return { backendSaved: false, error };
   }
 }
 
-document.querySelector("#saveTop").addEventListener("click", saveProfile);
-form.addEventListener("submit", saveProfile);
+function renderAutosaveState(state, detail = {}) {
+  saveStatus.dataset.state = state;
+  if (state === "pending") saveStatus.textContent = "Unsaved changes…";
+  else if (state === "saving") saveStatus.textContent = "Saving…";
+  else if (state === "error") saveStatus.textContent = `Could not save: ${detail.error?.message || "Unknown error"}`;
+  else if (detail.result?.backendSaved === false) saveStatus.textContent = "Saved locally · backend unavailable";
+  else saveStatus.textContent = "All changes saved";
+}
+
+const profileAutosave = createDebouncedAutosave({
+  save: persistProfile,
+  delay: 700,
+  onState: renderAutosaveState,
+});
+
+const exportAutosave = createDebouncedAutosave({
+  save: persistExportSettings,
+  delay: 700,
+  onState: renderAutosaveState,
+});
+
+function queueChangedSetting(event) {
+  const control = event.target;
+  if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement)) return;
+  if (control.type === "file") return;
+  if (control.closest('[data-settings-page="history"]')) exportAutosave.schedule();
+  else if (control.name) profileAutosave.schedule();
+}
+
+form.addEventListener("input", queueChangedSetting);
+form.addEventListener("change", queueChangedSetting);
+form.addEventListener("submit", (event) => event.preventDefault());
 
 async function syncFromBackend(showStatus = true) {
   if (showStatus) saveStatus.textContent = "Loading profile and resume from Docker backend…";
@@ -460,8 +489,11 @@ document.querySelector("#importProfile").addEventListener("change", async (event
   try {
     const profile = mergeProfile(JSON.parse(await file.text()));
     renderProfile(profile);
-    await saveProfile();
-    saveStatus.textContent = "Imported and saved to Docker backend";
+    const result = await persistProfile();
+    renderAutosaveState("saved", { result });
+    saveStatus.textContent = result.backendSaved
+      ? "Imported · all changes saved"
+      : "Imported · saved locally · backend unavailable";
   } catch (error) {
     saveStatus.textContent = `Import failed: ${error.message}`;
   } finally {
@@ -523,7 +555,8 @@ resumeFile.addEventListener("change", async (event) => {
     }
     if (extractedText) {
       form.elements.namedItem("resumeText").value = extractedText;
-      await saveProfile();
+      const result = await persistProfile();
+      renderAutosaveState("saved", { result });
     }
     await refreshResumeStatus();
     if (extractedText) resumeStatus.textContent += ` · ${extractedText.length.toLocaleString()} characters extracted for AI`;
@@ -537,6 +570,7 @@ resumeFile.addEventListener("change", async (event) => {
 document.querySelector("#removeResume").addEventListener("click", async () => {
   await chrome.storage.local.remove(RESUME_KEY);
   await refreshResumeStatus();
+  renderAutosaveState("saved");
 });
 
 async function refreshExportFolderStatus(destination, statusElement) {
@@ -559,17 +593,12 @@ for (const [destination, label, statusElement] of [
     try {
       const handle = await chooseExportDirectory(destination);
       statusElement.textContent = `Selected: ${handle.name}`;
+      renderAutosaveState("saved");
     } catch (error) {
       if (error?.name !== "AbortError") statusElement.textContent = error.message || `Could not select the ${label} folder.`;
     }
   });
 }
-
-document.querySelector("#saveExportSettings").addEventListener("click", async () => {
-  await persistExportSettings();
-  exportSaveStatus.textContent = "Export settings saved";
-  setTimeout(() => { exportSaveStatus.textContent = ""; }, 2200);
-});
 
 function randomOAuthState() {
   const bytes = crypto.getRandomValues(new Uint8Array(24));

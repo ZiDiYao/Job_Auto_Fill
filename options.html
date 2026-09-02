@@ -19,7 +19,7 @@
         </div>
         <div class="header-actions">
           <button id="syncBackend" class="secondary" type="button">Reload backend</button>
-          <button id="saveTop" class="primary" type="button">Save profile</button>
+          <span id="saveStatus" role="status" aria-live="polite">All changes saved</span>
         </div>
       </header>
 
@@ -207,8 +207,6 @@
             <input id="autoSaveJobNotes" type="checkbox" />
             Automatically save or update enabled exports when I click Fill with CV + JD
           </label>
-          <button id="saveExportSettings" class="primary export-save" type="button">Save export settings</button>
-          <span id="exportSaveStatus" role="status" aria-live="polite"></span>
           </div>
         </section>
 
@@ -356,13 +354,11 @@
         </section>
 
         <footer id="profileFooter">
-          <button id="saveBottom" class="primary" type="submit">Save profile</button>
           <button id="exportProfile" class="secondary" type="button">Export backup</button>
           <label class="secondary file-button">
             Import backup
             <input id="importProfile" type="file" accept="application/json" />
           </label>
-          <span id="saveStatus" role="status" aria-live="polite"></span>
         </footer>
       </form>
     </main>

@@ -62,6 +62,7 @@ header {
 
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
   flex-shrink: 0;
 }
@@ -177,8 +178,9 @@ input[type="checkbox"] { accent-color: #0969da; }
 .secondary { color: #075ebf; background: #eaf3ff; }
 .secondary:hover { background: #dbeaff; }
 .file-button input { display: none; }
-#saveStatus { margin-left: 4px; color: #0969da; font-size: 13px; font-weight: 700; }
-#exportSaveStatus { margin-left: 10px; color: #0969da; font-size: 13px; font-weight: 700; }
+#saveStatus { min-width: 112px; color: #0969da; font-size: 13px; font-weight: 700; text-align: right; }
+#saveStatus[data-state="pending"] { color: #657187; }
+#saveStatus[data-state="error"] { color: #a12f2f; }
 
 .resume-row {
   display: flex;
@@ -240,7 +242,6 @@ input[type="checkbox"] { accent-color: #0969da; }
 .manual-notion #setupNotion { margin-top: 12px; }
 .export-footer { border-top: 1px solid #d6e4f7; padding-top: 10px; }
 .export-grid { margin-top: 12px; }
-.export-save { margin-top: 18px; }
 
 #interview-notes:target {
   outline: 4px solid rgba(9, 105, 218, 0.18);
