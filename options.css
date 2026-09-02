@@ -39,6 +39,19 @@ select {
   background-repeat: no-repeat;
   background-size: 12px 8px;
 }
+input[type="date"],
+input[type="month"] {
+  min-height: 38px;
+  padding-right: 14px;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+}
 input:focus,
 select:focus,
 textarea:focus { outline: 2px solid rgba(23, 105, 194, 0.14); border-color: var(--blue); }

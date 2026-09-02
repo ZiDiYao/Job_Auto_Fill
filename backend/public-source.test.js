@@ -127,6 +127,12 @@ test("settings dropdown arrows are consistently inset from the right edge", asyn
   assert.doesNotMatch(css, /:root\[data-theme="dark"\][^{]*select,[\s\S]*?background:\s*#111419;/);
 });
 
+test("date and month picker icons share the select arrow alignment", async () => {
+  const css = await readFile(path.join(repositoryRoot, "options.css"), "utf8");
+  assert.match(css, /input\[type="date"\],[\s\S]*?input\[type="month"\] \{[\s\S]*?min-height: 38px;[\s\S]*?padding-right: 14px;/);
+  assert.match(css, /::-webkit-calendar-picker-indicator[\s\S]*?width: 16px;[\s\S]*?height: 16px;[\s\S]*?margin: 0;[\s\S]*?padding: 0;[\s\S]*?vertical-align: middle;/);
+});
+
 test("destructive icon controls use subtle round buttons instead of square boxes", async () => {
   const css = await readFile(path.join(repositoryRoot, "options.css"), "utf8");
   assert.match(css, /\.remove-language,\n\.icon-button \{[^}]*border: 0;[^}]*border-radius: 50%;[^}]*background: transparent;/);
