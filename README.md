@@ -22,6 +22,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Fills Workday questionnaire button/listbox controls by reading the enclosing fieldset question and selecting only explicit saved answers.
 - Re-scans Workday's React-rendered dropdowns and conditional checkbox groups after every answer so later questions and follow-up identity fields are not skipped.
 - Sends unresolved Workday questions and their exact option lists to the backend AI, which maps saved profile facts and preferences to a validated available option.
+- Corrects stale resume-import values in authoritative profile fields (for example, replacing a truncated Workday surname) and recognizes Workday questions outside fieldsets.
 - Uses DeepSeek JSON output to draft answers from CV evidence plus the job description.
 - Works on ordinary HTML forms and dispatches the events commonly required by React-based forms.
 - Highlights required fields that still need manual review.

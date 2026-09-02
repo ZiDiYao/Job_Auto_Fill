@@ -126,6 +126,12 @@
     { key: "sponsorship", pattern: /\b(sponsor|sponsorship|visa support)\b/ },
   ];
 
+  const authoritativeProfileKeys = new Set([
+    "firstName", "lastName", "preferredName", "email", "phone", "address", "city", "province",
+    "postalCode", "country", "linkedin", "github", "portfolio", "school", "degree", "fieldOfStudy",
+    "graduationMonth", "graduationYear",
+  ]);
+
   const onIndeed = /(^|\.)indeed\.(com|ca)$/i.test(location.hostname)
     || /(^|\.)smartapply\.indeed\.com$/i.test(location.hostname);
 
@@ -250,6 +256,7 @@
   function mappedValue(label) {
     const custom = customValue(label);
     if (custom !== null) return custom;
+    if (/\b(country phone code|phone country code|calling code|dialing code)\b/.test(label)) return null;
     const employerPreference = employerPreferenceValue(label);
     if (employerPreference !== null) return employerPreference;
     const indeedPreference = indeedPreferenceValue(label);
@@ -268,6 +275,10 @@
       }
     }
     return null;
+  }
+
+  function isAuthoritativeProfileField(label) {
+    return builtInRules.some((rule) => authoritativeProfileKeys.has(rule.key) && rule.pattern.test(label));
   }
 
   function hasValue(field) {
@@ -409,7 +420,11 @@
 
   function visiblePromptOptions() {
     return [...document.querySelectorAll('[role="option"], [data-automation-id="promptOption"]')]
-      .filter((option) => isVisible(option));
+      .filter((option) => {
+        if (!isVisible(option)) return false;
+        const selectedItems = option.closest('[role="listbox"]');
+        return normalize(selectedItems?.getAttribute("aria-label")) !== "items selected";
+      });
   }
 
   async function chooseWorkdayPrompt(input, value, { multi = false } = {}) {
@@ -514,9 +529,27 @@
 
   function workdayQuestionLabel(button) {
     const fieldset = button.closest("fieldset");
-    if (!fieldset) return "";
-    const question = fieldset.querySelector(":scope > legend, :scope > p, legend, p");
-    return normalize(question?.textContent || "");
+    if (fieldset) {
+      const question = fieldset.querySelector(":scope > legend, :scope > p, legend, p");
+      if (question?.textContent) return normalize(question.textContent);
+    }
+
+    const currentValue = normalize(button.textContent);
+    const stripCurrentValue = (text) => {
+      let label = normalize(text);
+      const requiredSuffix = `${currentValue} required`;
+      if (currentValue && label.endsWith(requiredSuffix)) label = label.slice(0, -requiredSuffix.length).trim();
+      else if (currentValue && label.endsWith(currentValue)) label = label.slice(0, -currentValue.length).trim();
+      return label.replace(/\brequired$/, "").trim();
+    };
+
+    const ariaLabel = stripCurrentValue(button.getAttribute("aria-label") || "");
+    if (ariaLabel) return ariaLabel;
+    const labelledBy = normalize(textFromIds(button.getAttribute("aria-labelledby")));
+    if (labelledBy) return stripCurrentValue(labelledBy);
+    const formField = button.closest('[data-automation-id^="formField-"]');
+    if (formField?.textContent) return stripCurrentValue(formField.textContent);
+    return "";
   }
 
   async function readWorkdayButtonOptions(button) {
@@ -562,7 +595,6 @@
       const candidates = [...document.querySelectorAll('button[aria-haspopup="listbox"]')]
         .filter((button) => (
           isVisible(button)
-          && button.closest("fieldset")
           && normalize(button.textContent) === "select one"
           && workdayQuestionLabel(button)
         ))
@@ -588,7 +620,7 @@
         response = await chrome.runtime.sendMessage({
           type: "resolve-workday-dropdowns",
           jobDescription,
-          pageContext: `${document.title}\n${String(document.body?.innerText || "").slice(0, 8000)}`,
+          pageContext: `${document.title}\nPage URL: ${location.href}\n${String(document.body?.innerText || "").slice(0, 8000)}`,
           questions,
           useSensitiveProfile: profile.aiUseSensitiveProfile === true,
         });
@@ -622,7 +654,7 @@
     const completed = new Set();
     for (let pass = 0; pass < 60; pass += 1) {
       const buttons = [...document.querySelectorAll('button[aria-haspopup="listbox"]')]
-        .filter((button) => isVisible(button) && button.closest("fieldset"));
+        .filter((button) => isVisible(button) && workdayQuestionLabel(button));
       const next = buttons.find((button) => {
         const key = button.id || workdayQuestionLabel(button);
         return key && !completed.has(key) && button.dataset.localJobAutofillStructured !== "true";
@@ -805,11 +837,15 @@
     const label = fieldLabel(field);
     const value = mappedValue(label);
     const existingText = String(field.value ?? field.textContent ?? "");
+    const authoritativeCorrection = value !== null
+      && hasValue(field)
+      && isAuthoritativeProfileField(label)
+      && existingText !== String(value);
     const correctCaseOnly = value !== null
       && hasValue(field)
       && normalize(existingText) === normalize(value)
       && existingText !== String(value);
-    if (value !== null && (!hasValue(field) || settings.overwriteExisting || correctCaseOnly)) {
+    if (value !== null && (!hasValue(field) || settings.overwriteExisting || correctCaseOnly || authoritativeCorrection)) {
       if (setNativeValue(field, value)) {
         mark(field, "filled");
         result.filled += 1;
