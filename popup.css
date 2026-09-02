@@ -48,7 +48,9 @@ textarea:focus { outline: 2px solid rgba(23, 105, 194, 0.14); border-color: var(
 .primary:hover { background: var(--blue-dark); }
 .secondary { color: #344054; background: #fff; border-color: #c7ced9; }
 .secondary:hover { border-color: #98a2b3; background: #f9fafb; }
-#detect { margin-top: 7px; }
+.job-actions { display: grid; grid-template-columns: 1fr 0.72fr; gap: 7px; margin-top: 7px; }
+.file-action { display: flex; min-height: 35px; align-items: center; justify-content: center; border: 1px solid #c7ced9; border-radius: 5px; padding: 9px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.file-action input { display: none; }
 
 .notes-panel { display: flex; min-height: 54px; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; }
 .notes-copy { display: flex; min-width: 0; align-items: baseline; gap: 8px; white-space: nowrap; }
@@ -100,6 +102,7 @@ button.link-button:hover { text-decoration: underline; }
 :root[data-theme="dark"] .popup-card,
 :root[data-theme="dark"] textarea,
 :root[data-theme="dark"] .secondary,
+:root[data-theme="dark"] .file-action,
 :root[data-theme="dark"] .automation-toggle.paused { border-color: #46505e; color: #d9dee7; background: #171a20; }
 :root[data-theme="dark"] .secondary:hover { border-color: #657184; background: #22262e; }
 :root[data-theme="dark"] button.header-settings { border-color: var(--blue); color: #0b1726; background: var(--blue); box-shadow: 0 1px 3px rgba(114, 174, 247, 0.2); }

@@ -28,6 +28,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Uses AI to rank skills found in both the JD and resume first, followed by job-relevant technical skills and resume-only skills; user-editable total and non-technical limits prevent overcrowded skill lists.
 - Shows the latest real AI skill selection directly below AI Settings, including its CV/JD evidence source and ranking reasons; uploading a CV creates the initial baseline and each detected JD refreshes it automatically. A user-managed permanent blacklist is enforced by both backend ranking and final browser insertion.
 - Passively detects substantial job descriptions on full page loads and single-page navigation, keeps the current tab's JD in local extension storage, and updates the popup without requiring copy/paste or a Detect click.
+- When automatic capture is unavailable, accepts a pasted description or a local PDF, TXT, or Markdown JD file from the popup.
 - Optionally auto-advances through multi-page applications by clicking only recognized Next, Continue, Save and Continue, or Review controls; the popup's pause/play control immediately suspends future field changes and page advances, resumes the same active flow, and always stops before final Submit.
 - Reconciles existing Workday skill tokens in overwrite mode, inserts each retained skill through a real portal search result, and stops at the configured maximum.
 - Creates missing Workday language rows and fills each language and proficiency level saved by the user, with aliases for tenant-specific proficiency labels.
@@ -77,7 +78,7 @@ The same process works in Edge or another Chromium browser from its extensions m
 Requirements for the double-click launcher: macOS and Node.js 20 or newer.
 
 1. Double-click **Start Job Autofill Backend.command** and leave that Terminal window open.
-2. Open a job posting or application. The extension captures the JD and fills recognized application pages automatically; use **Refresh current page** only when you want to recapture the page manually.
+2. Open a job posting or application. The extension captures the JD and fills recognized application pages automatically; use **Refresh page** only when you want to recapture the page manually.
 
 The direct Node.js launcher reads API credentials and connection settings from `backend/config/local-config.json`. That file is ignored by Git and Docker builds; keys are never copied into the image, extension, or application webpage. Copy `backend/config/local-config.example.json` to that filename before configuring a provider. **Configure DeepSeek Key.command** can instead save the DeepSeek key in macOS Keychain.
 

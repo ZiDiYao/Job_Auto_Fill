@@ -1,5 +1,6 @@
 import { getSavedExportDirectory } from "./local-directory.js";
 import { exportApplication } from "./application-export-service.js";
+import { readJobDescriptionFile } from "./job-description-file.js";
 
 const settingsButton = document.querySelector("#settings");
 const detectButton = document.querySelector("#detect");
@@ -8,6 +9,8 @@ const autoNextCheckbox = document.querySelector("#autoNext");
 const automationToggleButton = document.querySelector("#automationToggle");
 const automationToggleLabel = document.querySelector("#automationToggleLabel");
 const jobDescription = document.querySelector("#jobDescription");
+const jobDescriptionLabel = document.querySelector("#jobDescriptionLabel");
+const jobDescriptionFile = document.querySelector("#jobDescriptionFile");
 const status = document.querySelector("#status");
 const resumeDrop = document.querySelector("#resumeDrop");
 const resumeFile = document.querySelector("#resumeFile");
@@ -31,6 +34,14 @@ const THEMES = new Set(["green", "blue", "dark"]);
 
 function applyTheme(value) {
   document.documentElement.dataset.theme = THEMES.has(value) ? value : "blue";
+}
+
+function renderJobDescriptionSource(source) {
+  jobDescriptionLabel.textContent = source ? `Job description · ${source}` : "Job description";
+}
+
+function detectedJobSource(detectedJob) {
+  return String(detectedJob?.captureSource || "auto-captured");
 }
 
 function renderSetupState(visited) {
@@ -121,6 +132,7 @@ chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", AUTO_ADVANC
   jobDescription.value = Number(detectedJob?.tabId || 0) === activeTabId
     ? String(detectedJob?.jobDescription || "")
     : "";
+  renderJobDescriptionSource(jobDescription.value ? detectedJobSource(detectedJob) : "paste or upload if needed");
   await detectJobDescription(false);
   renderAutoAdvanceStatus(autoAdvanceStatus);
 });
@@ -142,12 +154,14 @@ chrome.storage.onChanged.addListener((changes, area) => {
       jobDescription.value = Number(detected?.tabId || 0) === activeTabId
         ? String(detected?.jobDescription || "")
         : "";
+      renderJobDescriptionSource(jobDescription.value ? detectedJobSource(detected) : "paste or upload if needed");
     });
   }
   if (area === "local" && changes[LAST_DETECTED_JOB_KEY]) {
     const detected = changes[LAST_DETECTED_JOB_KEY].newValue;
     if (Number(detected?.tabId || 0) === activeTabId && String(detected?.jobDescription || "").length >= 180) {
       jobDescription.value = detected.jobDescription;
+      renderJobDescriptionSource(detectedJobSource(detected));
       status.className = "";
       status.textContent = `Job description captured automatically · ${detected.jobDescription.length.toLocaleString()} characters.`;
     }
@@ -527,8 +541,9 @@ async function detectJobDescription(showFailure = true) {
       func: extractJobDescriptionFromPage,
     });
     const detected = result?.result?.text || "";
-    if (detected.length < 180) throw new Error("No substantial job description was detected. Paste it manually.");
+    if (detected.length < 180) throw new Error("No substantial job description was detected. Paste it or upload a JD file.");
     jobDescription.value = detected;
+    renderJobDescriptionSource("auto-captured");
     const [metadataResult] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: extractJobMetadataFromPage,
@@ -543,6 +558,7 @@ async function detectJobDescription(showFailure = true) {
       [LAST_DETECTED_JOB_KEY]: {
         tabId: tab.id,
         jobDescription: detected,
+        captureSource: "auto-captured",
         metadata: {
           ...(metadataResult?.result || {}),
           sourceUrl: tab.url,
@@ -562,8 +578,56 @@ async function detectJobDescription(showFailure = true) {
 }
 
 detectButton.addEventListener("click", () => detectJobDescription(true));
-jobDescription.addEventListener("change", () => {
-  chrome.storage.local.set({ jobAutofillJobDescription: jobDescription.value.trim() });
+jobDescription.addEventListener("change", async () => {
+  const text = jobDescription.value.trim();
+  const tab = await getTargetApplicationTab().catch(() => null);
+  renderJobDescriptionSource(text ? "entered manually" : "paste or upload if needed");
+  await chrome.storage.local.set({
+    jobAutofillJobDescription: text,
+    [LAST_DETECTED_JOB_KEY]: {
+      tabId: Number(tab?.id || activeTabId || 0),
+      jobDescription: text,
+      captureSource: text ? "entered manually" : "",
+      metadata: {
+        sourceUrl: tab?.url || "",
+        descriptionStart: text.slice(0, 240),
+      },
+      capturedAt: new Date().toISOString(),
+    },
+  });
+});
+
+jobDescriptionFile.addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    status.className = "";
+    status.textContent = "Reading job description…";
+    const text = await readJobDescriptionFile(file);
+    const tab = await getTargetApplicationTab().catch(() => null);
+    jobDescription.value = text;
+    renderJobDescriptionSource(`uploaded from ${file.name}`);
+    await chrome.storage.local.set({
+      jobAutofillJobDescription: text,
+      [LAST_DETECTED_JOB_KEY]: {
+        tabId: Number(tab?.id || activeTabId || 0),
+        jobDescription: text,
+        captureSource: `uploaded from ${file.name}`,
+        metadata: {
+          sourceUrl: tab?.url || "",
+          descriptionStart: text.slice(0, 240),
+        },
+        capturedAt: new Date().toISOString(),
+      },
+    });
+    renderJobDescriptionSource(`uploaded from ${file.name}`);
+    status.textContent = `Job description loaded from ${file.name} · ${text.length.toLocaleString()} characters.`;
+  } catch (error) {
+    status.className = "error";
+    status.textContent = error.message || "Could not read the job-description file.";
+  } finally {
+    event.target.value = "";
+  }
 });
 
 overwriteCheckbox.addEventListener("change", async () => {

@@ -29,9 +29,15 @@
       </section>
 
       <section class="popup-card job-section">
-        <label class="jd-label" for="jobDescription">Job description · auto-captured</label>
-        <textarea id="jobDescription" placeholder="Open a job posting and its description will appear here automatically."></textarea>
-        <button id="detect" class="secondary" type="button">Refresh current page</button>
+        <label id="jobDescriptionLabel" class="jd-label" for="jobDescription">Job description · auto-captured</label>
+        <textarea id="jobDescription" placeholder="Open a job posting to capture its description, or paste it here manually."></textarea>
+        <div class="job-actions">
+          <button id="detect" class="secondary" type="button">Refresh page</button>
+          <label class="secondary file-action" for="jobDescriptionFile">
+            <input id="jobDescriptionFile" type="file" accept="application/pdf,.pdf,text/plain,.txt,.md,.markdown" />
+            Upload JD
+          </label>
+        </div>
       </section>
 
       <section class="popup-card notes-panel">
