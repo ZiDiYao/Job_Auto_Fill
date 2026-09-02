@@ -31,6 +31,7 @@ The primary workflow uses a local Node.js backend. The backend stores the candid
 - Corrects stale resume-import values in authoritative profile fields (for example, replacing a truncated Workday surname) and recognizes Workday questions outside fieldsets.
 - Reads GPA and education start/end dates from editable profile fields, with those user-entered values overriding any older resume-import education record.
 - Commits Workday's segmented month/year controls through real focus transitions so the portal clears stale required-field errors after autofill.
+- Normalizes expected-graduation dates from the saved month/day/year and commits masked Workday date widgets through sequential input events so values such as `05/01/2028` are accepted by React validation.
 - Supports Workday tenants that identify the school control as either `schoolName` or `school`, detects Education From/To years both by stable field IDs and row order, and verifies the React-controlled values after filling.
 - Lets users drop a PDF into the popup and persists it in the local Docker-mounted resume file until another PDF replaces it.
 - Lets users choose a local interview-notes folder once, then save or automatically update one Markdown note per job with the

@@ -254,7 +254,63 @@
     return null;
   }
 
-  function mappedValue(label) {
+  function monthNumber(value) {
+    const text = normalize(value);
+    const monthNames = [
+      "january", "february", "march", "april", "may", "june",
+      "july", "august", "september", "october", "november", "december",
+    ];
+    const namedMonth = monthNames.findIndex((month) => text.startsWith(month.slice(0, 3)));
+    if (namedMonth >= 0) return namedMonth + 1;
+    const numeric = Number.parseInt(String(value || "").replace(/\D/g, ""), 10);
+    return numeric >= 1 && numeric <= 12 ? numeric : 0;
+  }
+
+  function validDateParts(month, day, year) {
+    const numericMonth = Number(month);
+    const numericDay = Number(day);
+    const numericYear = Number(year);
+    if (numericYear < 1000 || numericYear > 9999 || numericMonth < 1 || numericMonth > 12 || numericDay < 1 || numericDay > 31) return null;
+    const candidate = new Date(Date.UTC(numericYear, numericMonth - 1, numericDay));
+    if (
+      candidate.getUTCFullYear() !== numericYear
+      || candidate.getUTCMonth() + 1 !== numericMonth
+      || candidate.getUTCDate() !== numericDay
+    ) return null;
+    return { month: numericMonth, day: numericDay, year: numericYear };
+  }
+
+  function graduationDateParts() {
+    const configured = validDateParts(
+      monthNumber(profile.graduationMonth),
+      Number.parseInt(String(profile.graduationDay || ""), 10),
+      Number.parseInt(String(profile.graduationYear || ""), 10),
+    );
+    if (configured) return configured;
+
+    const text = String(profile.graduationDate || "").trim();
+    const iso = text.match(/\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b/);
+    if (iso) return validDateParts(iso[2], iso[3], iso[1]);
+    const northAmerican = text.match(/\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})\b/);
+    if (northAmerican) return validDateParts(northAmerican[1], northAmerican[2], northAmerican[3]);
+    const named = text.match(/\b([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s+(\d{4})\b/);
+    if (named) return validDateParts(monthNumber(named[1]), named[2], named[3]);
+    return null;
+  }
+
+  function graduationDateValue(field) {
+    const parts = graduationDateParts();
+    if (!parts) return String(profile.graduationDate || "").trim();
+    const month = String(parts.month).padStart(2, "0");
+    const day = String(parts.day).padStart(2, "0");
+    const year = String(parts.year);
+    const formatHint = normalize(`${field?.placeholder || ""} ${field?.getAttribute?.("aria-label") || ""}`);
+    if (field?.type === "date" || formatHint.includes("yyyy mm dd")) return `${year}-${month}-${day}`;
+    if (formatHint.includes("dd mm yyyy")) return `${day}/${month}/${year}`;
+    return `${month}/${day}/${year}`;
+  }
+
+  function mappedValue(label, field = null) {
     const custom = customValue(label);
     if (custom !== null) return custom;
     if (/\b(country phone code|phone country code|calling code|dialing code)\b/.test(label)) return null;
@@ -271,6 +327,7 @@
     if (blockedQuestion.test(label)) return null;
     for (const rule of builtInRules) {
       if (rule.pattern.test(label)) {
+        if (rule.key === "graduationDate") return graduationDateValue(field);
         const value = profile[rule.key];
         return value === undefined || value === null || value === "" ? null : String(value);
       }
@@ -347,6 +404,58 @@
     else field.value = value;
     dispatch(field);
     return true;
+  }
+
+  function dateDigits(value) {
+    return String(value || "").replace(/\D/g, "");
+  }
+
+  async function setCommittedDateValue(field, value) {
+    const desired = String(value || "").trim();
+    if (!desired) return false;
+    field.dataset.localJobAutofillStructured = "true";
+    if (field.type === "date") {
+      const changed = setNativeValue(field, desired);
+      field.focus();
+      field.blur();
+      await wait(140);
+      return changed && field.value === desired;
+    }
+
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+    const setValue = (nextValue) => {
+      if (descriptor?.set) descriptor.set.call(field, nextValue);
+      else field.value = nextValue;
+    };
+    const sendInput = (data, inputType = "insertText") => {
+      field.dispatchEvent(new InputEvent("input", { bubbles: true, data, inputType }));
+    };
+
+    field.focus();
+    setValue("");
+    sendInput(null, "deleteContentBackward");
+    const digits = dateDigits(desired);
+    for (const digit of digits) {
+      const current = String(field.value || "");
+      field.dispatchEvent(new KeyboardEvent("keydown", { key: digit, code: `Digit${digit}`, bubbles: true }));
+      setValue(`${current}${digit}`);
+      sendInput(digit);
+      field.dispatchEvent(new KeyboardEvent("keyup", { key: digit, code: `Digit${digit}`, bubbles: true }));
+      await wait(12);
+    }
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    field.blur();
+    await wait(180);
+
+    if (dateDigits(field.value) !== digits) {
+      field.focus();
+      setValue(desired);
+      sendInput(desired);
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+      field.blur();
+      await wait(180);
+    }
+    return dateDigits(field.value) === digits;
   }
 
   function mark(field, kind) {
@@ -1492,7 +1601,7 @@
     if (["hidden", "file", "password", "submit", "button", "reset", "image"].includes(field.type)) continue;
 
     const label = fieldLabel(field);
-    const value = mappedValue(label);
+    const value = mappedValue(label, field);
     const existingText = String(field.value ?? field.textContent ?? "");
     const authoritativeCorrection = value !== null
       && hasValue(field)
@@ -1503,7 +1612,13 @@
       && normalize(existingText) === normalize(value)
       && existingText !== String(value);
     if (value !== null && (!hasValue(field) || settings.overwriteExisting || correctCaseOnly || authoritativeCorrection)) {
-      if (setNativeValue(field, value)) {
+      const isExpectedGraduationDate = builtInRules.some((rule) => (
+        rule.key === "graduationDate" && rule.pattern.test(label)
+      ));
+      const accepted = isExpectedGraduationDate && field instanceof HTMLInputElement
+        ? await setCommittedDateValue(field, value)
+        : setNativeValue(field, value);
+      if (accepted) {
         mark(field, "filled");
         result.filled += 1;
       } else {

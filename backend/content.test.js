@@ -172,6 +172,66 @@ test("corrects authoritative capitalization even when overwrite is disabled", as
   assert.equal(result.filled, 1);
 });
 
+test("commits the expected graduation date through a masked Workday date input", async () => {
+  const graduation = new FakeInput({
+    ariaLabel: "What is your expected graduation date?",
+    required: true,
+  });
+  graduation.placeholder = "MM/DD/YYYY";
+  let enteredDigits = "";
+  graduation.dispatchEvent = function dispatchMaskedDate(event) {
+    this.events.push(event.type);
+    if (event.type === "input" && event.inputType === "deleteContentBackward") {
+      enteredDigits = "";
+      this._value = "";
+    } else if (event.type === "input" && /^\d$/.test(event.data || "")) {
+      enteredDigits += event.data;
+      const month = enteredDigits.slice(0, 2);
+      const day = enteredDigits.slice(2, 4);
+      const year = enteredDigits.slice(4, 8);
+      this._value = [month, day, year].filter(Boolean).join("/");
+    }
+    return true;
+  };
+
+  const result = await runContent({
+    profile: {
+      graduationDate: "05/05/0005",
+      graduationMonth: "May",
+      graduationDay: "1",
+      graduationYear: "2028",
+      aiEnabled: false,
+    },
+    fields: [graduation],
+  });
+
+  assert.equal(graduation.value, "05/01/2028");
+  assert.equal(graduation.dataset.localJobAutofillStructured, "true");
+  assert.equal(graduation.dataset.localJobAutofill, "filled");
+  assert.equal(result.filled, 1);
+  assert.equal(result.review, 0);
+});
+
+test("formats an expected graduation date for a native date input", async () => {
+  const graduation = new FakeInput({
+    type: "date",
+    ariaLabel: "Expected graduation date",
+    required: true,
+  });
+  const result = await runContent({
+    profile: {
+      graduationDate: "May 1, 2028",
+      graduationMonth: "May",
+      graduationDay: "1",
+      graduationYear: "2028",
+      aiEnabled: false,
+    },
+    fields: [graduation],
+  });
+  assert.equal(graduation.value, "2028-05-01");
+  assert.equal(result.filled, 1);
+});
+
 test("preserves non-authoritative existing values when overwrite is disabled", async () => {
   const startDate = new FakeInput({ ariaLabel: "Available Start Date", value: "Existing date" });
   const result = await runContent({
