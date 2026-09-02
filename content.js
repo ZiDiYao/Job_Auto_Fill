@@ -90,7 +90,7 @@
   }
 
   const blockedQuestion = /\b(salary|compensation|criminal|background check|security clearance|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security)\b/i;
-  const neverAutomateDomQuestion = /\b(submit|send application|save and continue|signature|e[ -]?signature|certif(?:y|ication)|attest|declaration|consent to|agree to|terms(?: of use)?|privacy policy|salary|compensation|expected pay|date of birth|birth date|social insurance number|\bsin\b|ssn|social security number)\b/i;
+  const neverAutomateDomQuestion = /\b(submit|send application|save and continue|sign(?:ed|ing)?|signature|e[ -]?signature|certif(?:y|ication)|attest|declaration|consent to|agree to|terms(?: of use)?|privacy policy|salary|compensation|expected pay|date of birth|birth date|social insurance number|\bsin\b|ssn|social security number)\b/i;
 
   const sensitiveRules = [
     { key: "sexualOrientation", pattern: /\bsexual orientation\b/ },
@@ -1508,6 +1508,10 @@
         result.filled += 1;
       } else {
         result.skipped += 1;
+        if (settings.highlightUnmatched && field.required && !hasValue(field)) {
+          mark(field, "review");
+          result.review += 1;
+        }
       }
       continue;
     }

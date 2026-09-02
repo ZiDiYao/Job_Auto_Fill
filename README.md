@@ -90,6 +90,18 @@ docker compose down
 
 No manual copying is required for a fresh clone. Open **Edit profile & answers** after startup, save that user's information, and upload a resume from the popup. Do not use `docker compose down -v` as a substitute for deleting the host `local-data/` directory; the bind-mounted files remain on that computer until deliberately removed.
 
+## Tests
+
+Run the complete test suite without contacting any real AI provider:
+
+```bash
+cd backend
+npm test
+npm run test:coverage
+```
+
+The suite exercises provider Strategy/Factory adapters, HTTP endpoints with isolated temporary storage and a local mock AI server, answer and skill validation, Chrome background-message routing, deterministic content-script form filling, privacy invariants, and Docker bootstrap configuration. The coverage command enforces minimum thresholds for the backend and AI adapter modules.
+
 ## Custom rules
 
 Custom rules override built-in mappings. Each rule has a case-insensitive regular expression and the answer to enter:

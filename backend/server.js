@@ -119,7 +119,7 @@ async function getProfile() {
 }
 
 const sensitiveQuestion = /\b(salary|compensation|criminal|background|security clearance|consent|terms|privacy|signature|agree|date of birth|birth date|sin|social insurance|ssn|social security|authori[sz]ed to work|work authori[sz]ation|sponsor|sponsorship|visa|gender|sex|sexual orientation|race|racial|ethnic|disability|disabled|veteran|indigenous|aboriginal|first nations?|m[eé]tis|inuit|pronouns?)\b/i;
-const neverAutomateQuestion = /\b(submit|send application|signature|e[ -]?signature|certif(?:y|ication)|attest|declaration|consent to|agree to|terms(?: of use)?|privacy policy|salary|compensation|expected pay|date of birth|birth date|social insurance number|\bsin\b|ssn|social security number)\b/i;
+const neverAutomateQuestion = /\b(submit|send application|sign(?:ed|ing)?|signature|e[ -]?signature|certif(?:y|ication)|attest|declaration|consent to|agree to|terms(?: of use)?|privacy policy|salary|compensation|expected pay|date of birth|birth date|social insurance number|\bsin\b|ssn|social security number)\b/i;
 
 function safeProfileForModel(profile) {
   const allowedKeys = [
@@ -134,14 +134,19 @@ function normalize(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function validateAnswers(rawAnswers, questions, { allowSensitive = false } = {}) {
+export function confidenceScore(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(1, Math.max(0, parsed)) : 0;
+}
+
+export function validateAnswers(rawAnswers, questions, { allowSensitive = false } = {}) {
   const byId = new Map(questions.map((question) => [question.id, question]));
   const validated = [];
   for (const answer of Array.isArray(rawAnswers) ? rawAnswers : []) {
     const question = byId.get(answer?.id);
     if (!question || (!allowSensitive && sensitiveQuestion.test(question.label || ""))) continue;
     let value = String(answer.value || "").trim();
-    const confidence = Math.min(1, Math.max(0, Number(answer.confidence || 0)));
+    const confidence = confidenceScore(answer.confidence);
     if (!value || confidence < 0.65) continue;
 
     if (question.type === "select" && Array.isArray(question.options)) {
@@ -162,7 +167,7 @@ export function validateFieldPlans(rawPlans, fields, { allowSensitive = false } 
     const field = byId.get(rawPlan?.id);
     if (!field || neverAutomateQuestion.test(field.label || "")) continue;
     if (!allowSensitive && sensitiveQuestion.test(field.label || "")) continue;
-    const confidence = Math.min(1, Math.max(0, Number(rawPlan.confidence || 0)));
+    const confidence = confidenceScore(rawPlan.confidence);
     if (confidence < 0.7) continue;
 
     const options = Array.isArray(field.options) ? field.options.map(String) : [];
@@ -352,9 +357,15 @@ async function planDomFields({ jobDescription, pageContext, fields, useSensitive
   };
 }
 
-function boundedInteger(value, fallback, minimum, maximum) {
+export function boundedInteger(value, fallback, minimum, maximum) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, Math.trunc(parsed))) : fallback;
+}
+
+const likelyNonTechnicalSkill = /\b(communication|teamwork|collaboration|leadership|negotiation|presentation|adaptability|interpersonal|time management|problem solving|critical thinking|mentoring|creativity)\b/i;
+
+export function isLikelyTechnicalSkill(value) {
+  return !likelyNonTechnicalSkill.test(String(value || ""));
 }
 
 export function rankSkillCandidates(rawSkills, { maxSkills = 15, maxNonTechnicalSkills = 2 } = {}) {
@@ -412,7 +423,7 @@ async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNon
   const resume = String(profile.resumeText || await getResumeText().catch(() => "")).trim();
   if (!description && !context) {
     const rankedSkills = rankSkillCandidates(
-      profileSkills.map((name) => ({ name, source: "resume", technical: true })),
+      profileSkills.map((name) => ({ name, source: "resume", technical: isLikelyTechnicalSkill(name) })),
       { maxSkills: totalLimit, maxNonTechnicalSkills: nonTechnicalLimit },
     );
     return { skills: rankedSkills.map(({ name }) => name), rankedSkills, maxSkills: totalLimit, maxNonTechnicalSkills: nonTechnicalLimit, model: aiStrategy.model, provider: aiStrategy.name.toLowerCase() };
@@ -454,7 +465,7 @@ async function extractJobSkills({ jobDescription, pageContext, maxSkills, maxNon
   };
 }
 
-function allowedOrigin(request) {
+export function allowedOrigin(request) {
   const origin = request.headers.origin || "";
   return !origin || origin === "null" || origin.startsWith("chrome-extension://");
 }
@@ -481,7 +492,11 @@ async function readJson(request, maxBytes = 1_000_000) {
     if (size > maxBytes) throw Object.assign(new Error("Request body is too large."), { statusCode: 413 });
     chunks.push(chunk);
   }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+  } catch {
+    throw Object.assign(new Error("Request body must contain valid JSON."), { statusCode: 400 });
+  }
 }
 
 export function createServer() {
