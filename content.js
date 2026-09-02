@@ -482,6 +482,36 @@
     return changed;
   }
 
+  async function setWorkdayMonthYear(prefix, fieldName, monthValue, yearValue) {
+    const month = workdayField(prefix, `${fieldName}-dateSectionMonth-input`);
+    const year = workdayField(prefix, `${fieldName}-dateSectionYear-input`);
+    if (!month || !year) {
+      const monthChanged = setStructuredValue(month, workdayMonthValue(monthValue));
+      const yearChanged = setStructuredValue(year, yearValue);
+      return monthChanged || yearChanged;
+    }
+
+    // Workday's segmented date control commits its form value on real focus
+    // transitions. Merely changing both visible inputs leaves an earlier
+    // required-field error on screen until the next validation pass.
+    month.focus();
+    const monthChanged = setStructuredValue(month, workdayMonthValue(monthValue));
+    await wait(70);
+    year.focus();
+    const yearChanged = setStructuredValue(year, yearValue);
+    await wait(70);
+    year.blur();
+    await wait(160);
+
+    if (String(month.value || "").trim() !== String(workdayMonthValue(monthValue)).trim()) {
+      await setVerifiedStructuredValue(month, workdayMonthValue(monthValue));
+    }
+    if (String(year.value || "").trim() !== String(yearValue || "").trim()) {
+      await setVerifiedStructuredValue(year, yearValue);
+    }
+    return monthChanged || yearChanged;
+  }
+
   function visiblePromptOptions() {
     return [...document.querySelectorAll('[role="option"], [data-automation-id="promptOption"]')]
       .filter((option) => {
@@ -1335,10 +1365,8 @@
       setStructuredValue(workdayField(prefix, "jobTitle"), experience.jobTitle);
       setStructuredValue(workdayField(prefix, "companyName"), experience.company);
       setStructuredValue(workdayField(prefix, "location"), experience.location);
-      setStructuredValue(workdayField(prefix, "startDate-dateSectionMonth-input"), experience.startMonth);
-      setStructuredValue(workdayField(prefix, "startDate-dateSectionYear-input"), experience.startYear);
-      setStructuredValue(workdayField(prefix, "endDate-dateSectionMonth-input"), experience.endMonth);
-      setStructuredValue(workdayField(prefix, "endDate-dateSectionYear-input"), experience.endYear);
+      await setWorkdayMonthYear(prefix, "startDate", experience.startMonth, experience.startYear);
+      await setWorkdayMonthYear(prefix, "endDate", experience.endMonth, experience.endYear);
       setStructuredValue(workdayField(prefix, "roleDescription"), experience.description);
       const current = workdayField(prefix, "currentlyWorkHere");
       if (current) {
@@ -1375,9 +1403,9 @@
       await chooseWorkdayButton(workdayField(prefix, "degree"), education.degree);
       await chooseWorkdayPrompt(workdayField(prefix, "fieldOfStudy"), education.fieldOfStudy);
       setStructuredValue(workdayField(prefix, "gradeAverage"), education.gpa);
-      setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionMonth-input"), workdayMonthValue(education.startMonth));
+      await setWorkdayMonthYear(prefix, "firstYearAttended", education.startMonth, education.startYear);
+      await setWorkdayMonthYear(prefix, "lastYearAttended", education.endMonth, education.endYear);
       setStructuredValue(workdayField(prefix, "firstYearAttended-dateSectionDay-input"), education.startDay);
-      setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionMonth-input"), workdayMonthValue(education.endMonth));
       setStructuredValue(workdayField(prefix, "lastYearAttended-dateSectionDay-input"), education.endDay);
       const educationYears = workdayEducationYearFields(prefix);
       await setVerifiedStructuredValue(educationYears.start, education.startYear);
