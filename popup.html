@@ -12,18 +12,18 @@
         <div>
           <h1>Job Autofill</h1>
         </div>
-        <button id="settings" class="header-settings" type="button">Edit profile</button>
+        <button id="settings" class="header-settings" type="button">Settings</button>
       </header>
-      <p>Detect or paste the job description, then fill the current application from your backend profile and resume.</p>
+      <p>Review the job description, then fill the current application.</p>
       <div class="resume-label">Saved CV</div>
       <label id="resumeDrop" class="resume-drop" for="resumeFile">
         <input id="resumeFile" type="file" accept="application/pdf,.pdf" />
-        <strong>Drop PDF here or choose a file</strong>
+        <strong>Choose or drop a resume PDF</strong>
         <span id="resumeStatus">Loading saved CV…</span>
       </label>
       <label class="jd-label" for="jobDescription">Job description</label>
       <textarea id="jobDescription" placeholder="Paste the job description here, or detect it from the current page."></textarea>
-      <button id="detect" class="secondary" type="button">Detect from current page</button>
+      <button id="detect" class="secondary" type="button">Use current page</button>
       <div class="notes-panel">
         <div>
           <strong>Application history</strong>
@@ -40,7 +40,7 @@
         <input id="autoNext" type="checkbox" />
         <span><strong>Auto-advance through completed pages</strong><small>Clicks only Next / Continue. Stops before Submit or whenever manual review is needed.</small></span>
       </label>
-      <button id="fill" class="primary" type="button">Fill with CV + JD</button>
+      <button id="fill" class="primary" type="button">Fill application</button>
       <button id="stopAutoNext" class="danger stop-auto-next" type="button" hidden>Stop auto-advance</button>
       <div id="status" role="status" aria-live="polite"></div>
     </main>
