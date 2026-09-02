@@ -74,6 +74,20 @@ test("profile settings expose common developer and generic URL fields", async ()
   }
 });
 
+test("language settings are user-managed and start without assumed languages", async () => {
+  const [html, source, defaults] = await Promise.all([
+    readFile(path.join(repositoryRoot, "options.html"), "utf8"),
+    readFile(path.join(repositoryRoot, "options.js"), "utf8"),
+    readFile(path.join(repositoryRoot, "backend/data/profile.example.json"), "utf8").then(JSON.parse),
+  ]);
+  assert.match(html, /id="languageList"/);
+  assert.match(html, /id="addLanguage"/);
+  assert.match(html, /id="languageChoices"/);
+  assert.match(source, /function collectLanguages\(/);
+  assert.match(source, /function renderLanguages\(/);
+  assert.deepEqual(defaults.languages, []);
+});
+
 test("saved-state copy is rendered as quiet secondary text", async () => {
   const css = await readFile(path.join(repositoryRoot, "options.css"), "utf8");
   assert.match(css, /#saveStatus \{[^}]*color: #98a2b3;[^}]*font-size: 10px;/);

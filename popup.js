@@ -128,8 +128,24 @@ const RESUME_PREFILL_KEYS = new Set([
   "postalCode", "country", "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter",
   "otherSocialUrl", "otherWebsiteUrl", "school", "degree", "fieldOfStudy",
   "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
-  "graduationDate", "startDate", "workTerm",
+  "graduationDate", "startDate", "workTerm", "languages",
 ]);
+
+function normalizeExtractedLanguages(languages) {
+  return (Array.isArray(languages) ? languages : []).flatMap((language) => {
+    const name = String(language?.name || "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const level = String(language?.overall || language?.level || "").trim();
+    if (!name || !level) return [];
+    return [{
+      name,
+      fluent: level === "Native or bilingual" || level === "Fluent",
+      overall: level,
+      reading: level,
+      speaking: level,
+      writing: level,
+    }];
+  }).slice(0, 12);
+}
 
 async function prefillProfileFromSavedResume(resumeText) {
   const { jobAutofillProfile = {} } = await chrome.storage.local.get("jobAutofillProfile");
@@ -142,6 +158,14 @@ async function prefillProfileFromSavedResume(resumeText) {
   const nextProfile = { ...jobAutofillProfile };
   let filled = 0;
   for (const [key, rawValue] of Object.entries(extracted.profile || {})) {
+    if (key === "languages") {
+      const languages = normalizeExtractedLanguages(rawValue);
+      if (languages.length && (!Array.isArray(nextProfile.languages) || nextProfile.languages.length === 0)) {
+        nextProfile.languages = languages;
+        filled += 1;
+      }
+      continue;
+    }
     const value = String(rawValue || "").trim();
     if (!RESUME_PREFILL_KEYS.has(key) || !value || String(nextProfile[key] || "").trim()) continue;
     if (key === "graduationDate" && ["graduationMonth", "graduationDay", "graduationYear"].some((part) => String(nextProfile[part] || "").trim())) continue;

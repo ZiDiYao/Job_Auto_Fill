@@ -11,6 +11,7 @@ import {
   rankSkillCandidates,
   validateAnswers,
   validateFieldPlans,
+  validateResumeLanguages,
   validateResumeProfileFields,
 } from "./server.js";
 
@@ -44,6 +45,19 @@ test("resume profile extraction keeps only high-confidence, safe, well-formed fa
     gpaScale: "4.0",
     stackoverflow: "https://stackoverflow.com/users/123/example",
   });
+});
+
+test("resume language extraction requires explicit supported proficiency", () => {
+  assert.deepEqual(validateResumeLanguages([
+    { name: "Spanish", level: "Fluent", confidence: 0.96 },
+    { name: "French", level: "Classroom", confidence: 0.9 },
+    { name: "Spanish", level: "Advanced", confidence: 0.99 },
+    { name: "Guessed language", level: "Fluent", confidence: 0.4 },
+    { name: "German", level: "Expert", confidence: 0.99 },
+  ]), [
+    { name: "Spanish", fluent: true, overall: "Fluent", reading: "Fluent", speaking: "Fluent", writing: "Fluent" },
+    { name: "French", fluent: false, overall: "Classroom", reading: "Classroom", speaking: "Classroom", writing: "Classroom" },
+  ]);
 });
 
 test("ships blank candidate and credential templates", async () => {

@@ -47,6 +47,10 @@ before(async () => {
           { key: "graduationYear", value: "2028", confidence: 0.92 },
           { key: "criminalRecord", value: "No", confidence: 1 },
         ],
+        languages: [
+          { name: "Spanish", level: "Fluent", confidence: 0.96 },
+          { name: "Unstated", level: "Advanced", confidence: 0.2 },
+        ],
       };
     } else if (payload.savedProfileSkills) {
       data = {
@@ -203,9 +207,13 @@ test("resume profile endpoint extracts only validated non-sensitive facts", asyn
     school: "Example University",
     graduationMonth: "May",
     graduationYear: "2028",
+    languages: [
+      { name: "Spanish", fluent: true, overall: "Fluent", reading: "Fluent", speaking: "Fluent", writing: "Fluent" },
+    ],
   });
   assert.equal(aiRequests.length, beforeCount + 1);
   assert.equal(aiRequests.at(-1).system.includes("Never extract or infer work authorization"), true);
+  assert.equal(aiRequests.at(-1).system.includes("never assume English"), true);
 });
 
 test("empty structured-field requests return empty validated results", async () => {

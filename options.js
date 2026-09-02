@@ -19,6 +19,8 @@ const RESUME_KEY = "jobAutofillResume";
 const LAST_SKILL_SELECTION_KEY = "jobAutofillLastSkillSelection";
 const ONBOARDING_VISITED_KEY = "jobAutofillOnboardingVisited";
 const form = document.querySelector("#profileForm");
+const languageList = document.querySelector("#languageList");
+const addLanguageButton = document.querySelector("#addLanguage");
 const saveStatus = document.querySelector("#saveStatus");
 const markdownFolderStatus = document.querySelector("#markdownFolderStatus");
 const excelFolderStatus = document.querySelector("#excelFolderStatus");
@@ -277,6 +279,7 @@ const defaultProfile = {
   aiModel: "qwen3:4b",
   resumeFileName: "",
   resumeText: "",
+  languages: [],
   settings: {
     highlightUnmatched: true,
     overwriteExisting: true,
@@ -290,11 +293,103 @@ function mergeProfile(profile = {}) {
   if (!migrated.meetsMinimumWorkingAge && migrated.age18OrOlder) migrated.meetsMinimumWorkingAge = migrated.age18OrOlder;
   migrated.graduationDate = normalizeDateValue(migrated.graduationDate);
   migrated.startDate = normalizeMonthValue(migrated.startDate);
+  migrated.languages = normalizeLanguageEntries(migrated.languages);
   return {
     ...defaultProfile,
     ...migrated,
     settings: { ...defaultProfile.settings, ...(migrated.settings || {}) },
   };
+}
+
+const LANGUAGE_LEVELS = ["Native or bilingual", "Fluent", "Advanced", "Intermediate", "Classroom"];
+
+function normalizeLanguageLevel(value) {
+  const text = String(value || "").trim();
+  const exact = LANGUAGE_LEVELS.find((level) => level.toLowerCase() === text.toLowerCase());
+  if (exact) return exact;
+  if (/native|bilingual/i.test(text)) return "Native or bilingual";
+  if (/fluent/i.test(text)) return "Fluent";
+  if (/advanced|professional/i.test(text)) return "Advanced";
+  if (/intermediate|conversational|limited working/i.test(text)) return "Intermediate";
+  if (/classroom|basic|beginner|elementary/i.test(text)) return "Classroom";
+  return "";
+}
+
+function normalizeLanguageEntries(languages) {
+  const unique = new Map();
+  for (const language of Array.isArray(languages) ? languages : []) {
+    const name = String(language?.name || "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const level = normalizeLanguageLevel(language?.overall || language?.level
+      || (language?.reading === language?.speaking && language?.speaking === language?.writing ? language?.reading : "")
+      || (language?.fluent ? "Fluent" : ""));
+    if (!name || !level) continue;
+    unique.set(name.toLowerCase(), {
+      name,
+      fluent: level === "Native or bilingual" || level === "Fluent",
+      overall: level,
+      reading: level,
+      speaking: level,
+      writing: level,
+    });
+  }
+  return [...unique.values()].slice(0, 12);
+}
+
+function createLanguageRow(language = {}) {
+  const row = document.createElement("div");
+  row.className = "language-row";
+  row.dataset.languageRow = "true";
+
+  const nameLabel = document.createElement("label");
+  nameLabel.textContent = "Language";
+  const nameInput = document.createElement("input");
+  nameInput.name = "languageName";
+  nameInput.setAttribute("list", "languageChoices");
+  nameInput.setAttribute("autocomplete", "off");
+  nameInput.maxLength = 80;
+  nameInput.placeholder = "Choose or enter a language";
+  nameInput.value = String(language.name || "");
+  nameLabel.append(nameInput);
+
+  const levelLabel = document.createElement("label");
+  levelLabel.textContent = "Proficiency";
+  const levelSelect = document.createElement("select");
+  levelSelect.name = "languageLevel";
+  const emptyOption = document.createElement("option");
+  emptyOption.value = "";
+  emptyOption.textContent = "Select level";
+  levelSelect.append(emptyOption);
+  for (const level of LANGUAGE_LEVELS) {
+    const option = document.createElement("option");
+    option.value = level;
+    option.textContent = level;
+    levelSelect.append(option);
+  }
+  levelSelect.value = normalizeLanguageLevel(language.overall || language.level || (language.fluent ? "Fluent" : ""));
+  levelLabel.append(levelSelect);
+
+  const removeButton = document.createElement("button");
+  removeButton.className = "secondary remove-language";
+  removeButton.type = "button";
+  removeButton.setAttribute("aria-label", `Remove ${nameInput.value || "language"}`);
+  removeButton.textContent = "×";
+  removeButton.addEventListener("click", () => {
+    row.remove();
+    profileAutosave.schedule();
+  });
+  row.append(nameLabel, levelLabel, removeButton);
+  return row;
+}
+
+function renderLanguages(languages) {
+  languageList.replaceChildren(...normalizeLanguageEntries(languages).map(createLanguageRow));
+}
+
+function collectLanguages() {
+  return normalizeLanguageEntries([...languageList.querySelectorAll("[data-language-row]")].map((row) => ({
+    name: row.querySelector('[name="languageName"]')?.value,
+    level: row.querySelector('[name="languageLevel"]')?.value,
+  })));
 }
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -323,11 +418,12 @@ function renderProfile(profile) {
   const merged = mergeProfile(profile);
   savedAiModel = String(merged.aiModel || defaultProfile.aiModel);
   for (const [key, value] of Object.entries(merged)) {
-    if (key === "settings") continue;
+    if (key === "settings" || key === "languages") continue;
     const field = form.elements.namedItem(key);
     if (field?.type === "checkbox") field.checked = Boolean(value);
     else if (field) field.value = value ?? "";
   }
+  renderLanguages(merged.languages);
   form.elements.namedItem("highlightUnmatched").checked = merged.settings.highlightUnmatched;
   form.elements.namedItem("overwriteExisting").checked = merged.settings.overwriteExisting;
 }
@@ -338,7 +434,8 @@ function collectProfile() {
   for (const key of Object.keys(defaultProfile)) {
     if (key === "settings") continue;
     const field = form.elements.namedItem(key);
-    if (field?.type === "checkbox") profile[key] = field.checked;
+    if (key === "languages") profile[key] = collectLanguages();
+    else if (field?.type === "checkbox") profile[key] = field.checked;
     else if (key === "maxSkills") profile[key] = Math.min(50, Math.max(1, Number(data.get(key) || 15)));
     else if (key === "maxNonTechnicalSkills") profile[key] = Math.min(5, Math.max(0, Number(data.get(key) || 0)));
     else if (key === "autoAdvanceMaxSteps") profile[key] = Math.min(30, Math.max(1, Number(data.get(key) || 10)));
@@ -488,6 +585,11 @@ const profileAutosave = createDebouncedAutosave({
   onState: renderAutosaveState,
 });
 
+addLanguageButton.addEventListener("click", () => {
+  languageList.append(createLanguageRow());
+  languageList.lastElementChild?.querySelector('[name="languageName"]')?.focus();
+});
+
 const exportAutosave = createDebouncedAutosave({
   save: persistExportSettings,
   delay: 700,
@@ -621,7 +723,7 @@ const RESUME_PREFILL_KEYS = new Set([
   "postalCode", "country", "linkedin", "github", "portfolio", "stackoverflow", "gitlab", "xTwitter",
   "otherSocialUrl", "otherWebsiteUrl", "school", "degree", "fieldOfStudy",
   "gpa", "gpaScale", "educationStartYear", "graduationMonth", "graduationDay", "graduationYear",
-  "graduationDate", "startDate", "workTerm",
+  "graduationDate", "startDate", "workTerm", "languages",
 ]);
 
 async function prefillEmptyProfileFields(resumeText) {
@@ -634,6 +736,14 @@ async function prefillEmptyProfileFields(resumeText) {
   const current = collectProfile();
   const filledKeys = [];
   for (const [key, rawValue] of Object.entries(response.profile || {})) {
+    if (key === "languages") {
+      const languages = normalizeLanguageEntries(rawValue);
+      if (languages.length && current.languages.length === 0) {
+        current.languages = languages;
+        filledKeys.push(key);
+      }
+      continue;
+    }
     const value = String(rawValue || "").trim();
     if (!RESUME_PREFILL_KEYS.has(key) || !value || String(current[key] || "").trim()) continue;
     if (key === "graduationDate" && ["graduationMonth", "graduationDay", "graduationYear"].some((part) => String(current[part] || "").trim())) continue;
@@ -643,7 +753,10 @@ async function prefillEmptyProfileFields(resumeText) {
   }
   if (!filledKeys.length) return [];
   renderProfile(current);
-  for (const key of filledKeys) form.elements.namedItem(key)?.classList.add("resume-prefilled");
+  for (const key of filledKeys) {
+    if (key === "languages") languageList.querySelectorAll("input, select").forEach((field) => field.classList.add("resume-prefilled"));
+    else form.elements.namedItem(key)?.classList.add("resume-prefilled");
+  }
   const result = await persistProfile();
   renderAutosaveState("saved", { result });
   return filledKeys;

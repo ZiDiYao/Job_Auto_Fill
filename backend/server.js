@@ -152,6 +152,7 @@ const monthNames = new Set([
 ]);
 const gpaScales = new Set(["4.0", "4.3", "5.0", "10.0", "20.0", "100", "Letter", "Other"]);
 const workTerms = new Set(["3 months", "4 months", "6 months", "8 months", "12 months", "16 months", "4–8 months", "8–12 months", "Flexible"]);
+const languageLevels = new Set(["Native or bilingual", "Fluent", "Advanced", "Intermediate", "Classroom"]);
 
 function validProfileYear(value) {
   return /^\d{4}$/.test(value) && Number(value) >= 1950 && Number(value) <= 2100;
@@ -188,6 +189,29 @@ export function validateResumeProfileFields(rawFields) {
   return result;
 }
 
+export function validateResumeLanguages(rawLanguages) {
+  const languages = [];
+  const seen = new Set();
+  for (const rawLanguage of Array.isArray(rawLanguages) ? rawLanguages : []) {
+    const name = String(rawLanguage?.name || "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const level = String(rawLanguage?.level || "").trim();
+    const key = name.toLocaleLowerCase("en");
+    if (!name || !/^[\p{L}\p{M} .()'’/-]+$/u.test(name) || !languageLevels.has(level)
+      || confidenceScore(rawLanguage?.confidence) < 0.78 || seen.has(key)) continue;
+    seen.add(key);
+    languages.push({
+      name,
+      fluent: level === "Native or bilingual" || level === "Fluent",
+      overall: level,
+      reading: level,
+      speaking: level,
+      writing: level,
+    });
+    if (languages.length >= 12) break;
+  }
+  return languages;
+}
+
 async function extractResumeProfile({ resumeText, provider }) {
   const profile = await getProfile();
   const resume = String(resumeText || profile.resumeText || await getResumeText().catch(() => "")).trim();
@@ -195,7 +219,7 @@ async function extractResumeProfile({ resumeText, provider }) {
   const aiStrategy = selectedAiStrategy(profile, provider);
   const system = [
     "Extract candidate profile facts from a resume. Return JSON only in this exact shape:",
-    '{"fields":[{"key":"school","value":"University name","confidence":0.98}]}',
+    '{"fields":[{"key":"school","value":"University name","confidence":0.98}],"languages":[{"name":"Spanish","level":"Fluent","confidence":0.95}]}',
     `Allowed keys: ${[...resumeProfileKeys].join(", ")}.`,
     "Include a field only when its value is explicitly supported by the resume. Never guess or infer missing facts.",
     "Never extract or infer work authorization, sponsorship, age, government identifiers, criminal history, medical/disability information, demographics, gender, race, veteran status, consent, preferences, or other legal facts.",
@@ -204,6 +228,7 @@ async function extractResumeProfile({ resumeText, provider }) {
     "If only a graduation month and year are stated, return graduationMonth and graduationYear separately; never invent a day.",
     "GPA scale must be one of 4.0, 4.3, 5.0, 10.0, 20.0, 100, Letter, Other. Omit it when unstated.",
     `workTerm must be one of: ${[...workTerms].join(", ")}. Omit it when the resume does not state availability.`,
+    `Language level must be one of: ${[...languageLevels].join(", ")}. Return a language only when both the language and proficiency are explicitly supported by the resume; never assume English or any other language.`,
   ].join(" ");
   const completion = await aiStrategy.completeJson({
     system,
@@ -211,8 +236,12 @@ async function extractResumeProfile({ resumeText, provider }) {
     maxTokens: 2500,
     temperature: 0,
   });
+  const languages = validateResumeLanguages(completion.data.languages);
   return {
-    profile: validateResumeProfileFields(completion.data.fields),
+    profile: {
+      ...validateResumeProfileFields(completion.data.fields),
+      ...(languages.length ? { languages } : {}),
+    },
     usage: completion.usage,
     model: completion.model,
     provider: completion.provider,
