@@ -34,6 +34,17 @@
     }
   }
 
+  function isExtensionContextInvalidated(error) {
+    return /extension context invalidated/i.test(String(error?.message || error || ""));
+  }
+
+  function onExtensionContextFailure(event) {
+    const error = event?.error || event?.reason;
+    if (!isExtensionContextInvalidated(error)) return;
+    event.preventDefault?.();
+    stopWatcher();
+  }
+
   function stopWatcher() {
     if (stopped) return;
     stopped = true;
@@ -42,6 +53,8 @@
     observer?.disconnect();
     removeEventListener("popstate", scheduleInspection);
     removeEventListener("hashchange", scheduleInspection);
+    removeEventListener("error", onExtensionContextFailure);
+    removeEventListener("unhandledrejection", onExtensionContextFailure);
     document.removeEventListener("submit", onDocumentSubmit, true);
     document.removeEventListener("click", onDocumentClick, true);
   }
@@ -179,13 +192,25 @@
     };
   }
 
+  function inspectPageSafely() {
+    try {
+      return inspectPage();
+    } catch (error) {
+      if (isExtensionContextInvalidated(error) || !extensionContextAvailable()) {
+        stopWatcher();
+        return null;
+      }
+      throw error;
+    }
+  }
+
   function notifyIfReady() {
     timer = null;
     if (stopped || !extensionContextAvailable()) {
       stopWatcher();
       return;
     }
-    const page = inspectPage();
+    const page = inspectPageSafely();
     if (page) lastObservedPage = page;
     if (!page || page.signature === lastSignature) return;
     lastSignature = page.signature;
@@ -211,7 +236,7 @@
       stopWatcher();
       return;
     }
-    const page = inspectPage() || lastObservedPage || {};
+    const page = inspectPageSafely() || lastObservedPage || {};
     const fingerprint = `${location.href}|${label.toLowerCase()}`;
     const now = Date.now();
     if (lastSubmission.fingerprint === fingerprint && now - lastSubmission.observedAt < 5000) return;
@@ -252,6 +277,8 @@
   }
 
   globalThis.__jobAutofillWatcherInstalled = { stop: stopWatcher };
+  addEventListener("error", onExtensionContextFailure);
+  addEventListener("unhandledrejection", onExtensionContextFailure);
   document.addEventListener("submit", onDocumentSubmit, true);
   document.addEventListener("click", onDocumentClick, true);
   observer = new MutationObserver(scheduleInspection);
