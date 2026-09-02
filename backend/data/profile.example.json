@@ -104,7 +104,7 @@
   "customAnswers": [],
   "settings": {
     "highlightUnmatched": true,
-    "overwriteExisting": false
+    "overwriteExisting": true
   },
   "aiEnabled": true,
   "includeJdSkills": false,

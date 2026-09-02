@@ -6,7 +6,16 @@ const jobDescription = document.querySelector("#jobDescription");
 const status = document.querySelector("#status");
 
 chrome.storage.local.get(["jobAutofillProfile", "jobAutofillJobDescription"]).then(({ jobAutofillProfile, jobAutofillJobDescription }) => {
-  overwriteCheckbox.checked = Boolean(jobAutofillProfile?.settings?.overwriteExisting);
+  overwriteCheckbox.checked = true;
+  chrome.storage.local.set({
+    jobAutofillProfile: {
+      ...(jobAutofillProfile || {}),
+      settings: {
+        ...(jobAutofillProfile?.settings || {}),
+        overwriteExisting: true,
+      },
+    },
+  });
   jobDescription.value = jobAutofillJobDescription || "";
   if (!jobDescription.value) detectJobDescription(false);
 });

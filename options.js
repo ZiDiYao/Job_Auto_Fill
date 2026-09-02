@@ -64,7 +64,7 @@ const defaultProfile = {
   customAnswers: [],
   settings: {
     highlightUnmatched: true,
-    overwriteExisting: false,
+    overwriteExisting: true,
   },
 };
 

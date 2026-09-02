@@ -5,7 +5,7 @@
     jobAutofillJobDescription: jobDescription = "",
   } = await chrome.storage.local.get(["jobAutofillProfile", "jobAutofillResume", "jobAutofillJobDescription"]);
   const settings = {
-    overwriteExisting: false,
+    overwriteExisting: true,
     highlightUnmatched: true,
     ...(profile.settings || {}),
   };
