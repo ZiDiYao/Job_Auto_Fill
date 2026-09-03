@@ -70,3 +70,22 @@ test("every adapter inherits fixed local controls, options, and job metadata sel
     assert.equal(typeof adapter.settleMs, "number", adapter.id);
   }
 });
+
+test("Workday field-of-study candidates fall back from Software Engineering", () => {
+  const registry = loadRegistry();
+  assert.deepEqual(Array.from(registry.workdayFieldOfStudyCandidates("Software Engineering")), [
+    "Software Engineering",
+    "Computer Science",
+    "Computer Engineering",
+    "Computer Science and Engineering",
+  ]);
+  assert.deepEqual(Array.from(registry.workdayFieldOfStudyCandidates("Mathematics")), ["Mathematics"]);
+});
+
+test("language fluency follows saved proficiency as well as the explicit checkbox", () => {
+  const registry = loadRegistry();
+  assert.equal(registry.languageShouldBeFluent({ fluent: true, overall: "Advanced" }), true);
+  assert.equal(registry.languageShouldBeFluent({ fluent: false, overall: "Fluent" }), true);
+  assert.equal(registry.languageShouldBeFluent({ level: "Native or bilingual" }), true);
+  assert.equal(registry.languageShouldBeFluent({ fluent: false, overall: "Classroom" }), false);
+});

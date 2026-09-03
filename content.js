@@ -880,11 +880,11 @@
         data: character,
       }));
       input.dispatchEvent(new KeyboardEvent("keyup", { key: character, bubbles: true }));
-      await wait(24);
+      await wait(10);
     }
   }
 
-  async function chooseWorkdayPrompt(input, value, { multi = false } = {}) {
+  async function chooseWorkdayPrompt(input, value, { multi = false, alternatives = [] } = {}) {
     if (!input || !value) return false;
     input.dataset.localJobAutofillStructured = "true";
     const container = input.closest('[data-automation-id="multiSelectContainer"]')
@@ -892,72 +892,27 @@
     if (multi && workdaySelectedSkillContext(input).items.some((item) => skillTokensEquivalent(item.textContent, value))) {
       return false;
     }
-    const selectedText = normalize(container?.querySelector('[role="listbox"]')?.textContent || "");
-    if (!multi && selectedText.includes(normalize(value))) return false;
-
     const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
     if (multi) {
       await typeWorkdaySearchValue(input, value);
-    } else {
-      descriptor?.set?.call(input, "");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.focus();
-      descriptor?.set?.call(input, String(value));
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    }
-
-    if (multi) {
-      const desired = normalize(value);
       let match = null;
       let previousSignature = "";
-      let stablePasses = 0;
-
-      await wait(280);
-      input.dispatchEvent(new KeyboardEvent("keydown", {
-        key: "Enter",
-        code: "Enter",
-        keyCode: 13,
-        which: 13,
-        bubbles: true,
-      }));
-      input.dispatchEvent(new KeyboardEvent("keypress", {
-        key: "Enter",
-        code: "Enter",
-        keyCode: 13,
-        which: 13,
-        bubbles: true,
-      }));
-      input.dispatchEvent(new KeyboardEvent("keyup", {
-        key: "Enter",
-        code: "Enter",
-        keyCode: 13,
-        which: 13,
-        bubbles: true,
-      }));
-
-      await wait(1600);
-      for (let attempt = 0; attempt < 14 && !match; attempt += 1) {
-        await wait(250);
+      for (let attempt = 0; attempt < 28 && !match; attempt += 1) {
+        await wait(100);
         const options = visiblePromptOptions()
           .filter((option) => normalize(option.textContent) !== "no items");
         const signature = options.map((option) => normalize(option.textContent)).join("|");
-        stablePasses = signature && signature === previousSignature ? stablePasses + 1 : 0;
-        previousSignature = signature;
-        if (stablePasses < 2) continue;
-        match = options
+        const ranked = options
           .map((option) => ({ option, score: scoreWorkdaySkillOption(option, value) }))
           .filter(({ score }) => Number.isFinite(score))
-          .sort((left, right) => left.score - right.score)[0]?.option || null;
+          .sort((left, right) => left.score - right.score);
+        if (ranked[0]?.score === 0 || (ranked[0] && signature && signature === previousSignature)) {
+          match = ranked[0].option;
+        }
+        previousSignature = signature;
       }
 
       if (!match) {
-        const availableOptions = visiblePromptOptions()
-          .filter((option) => normalize(option.textContent) !== "no items");
-        if (availableOptions.length === 1) match = availableOptions[0];
-      }
-
-      if (!match) {
-        const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
         descriptor?.set?.call(input, "");
         input.dispatchEvent(new Event("input", { bubbles: true }));
         input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
@@ -973,21 +928,16 @@
       clickTarget.click();
 
       let confirmed = false;
-      await wait(1400);
-      for (let attempt = 0; attempt < 12 && !confirmed; attempt += 1) {
-        await wait(250);
-        const selectedList = [...container?.querySelectorAll('[role="listbox"]') || []]
-          .find((listbox) => normalize(listbox.getAttribute("aria-label")) === "items selected")
-          || container?.querySelector('[role="listbox"]');
+      for (let attempt = 0; attempt < 22 && !confirmed; attempt += 1) {
+        await wait(100);
         confirmed = workdaySelectedSkillContext(input).items
           .some((item) => skillTokensEquivalent(item.textContent, value));
       }
       if (confirmed) {
-        const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
         descriptor?.set?.call(input, "");
         input.dispatchEvent(new Event("input", { bubbles: true }));
         input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
-        await wait(700);
+        await wait(100);
         mark(input, "filled");
         result.filled += 1;
         return true;
@@ -1001,43 +951,44 @@
       return false;
     }
 
-    let match = null;
-    for (let attempt = 0; attempt < 10 && !match; attempt += 1) {
-      await wait(180);
-      const desired = normalize(value);
-      const options = visiblePromptOptions();
-      match = options.find((option) => normalize(option.textContent) === desired)
-        || options.find((option) => desired.length > 2 && normalize(option.textContent).includes(desired));
-    }
+    const candidates = [...new Map([value, ...alternatives]
+      .map((candidate) => [normalize(candidate), String(candidate || "").trim()])
+      .filter(([key]) => key)).values()];
+    const selectedText = normalize(input.closest('[data-automation-id*="prompt" i]')?.textContent || "");
+    if (candidates.some((candidate) => selectedText.includes(normalize(candidate)))) return false;
 
-    if (!match) {
-      input.dispatchEvent(new KeyboardEvent("keydown", {
-        key: "Enter",
-        code: "Enter",
-        keyCode: 13,
-        which: 13,
-        bubbles: true,
-      }));
-      await wait(180);
-      const updatedText = normalize(container?.querySelector('[role="listbox"]')?.textContent || "");
-      if (!updatedText.includes(normalize(value))) {
-        descriptor?.set?.call(input, "");
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        mark(input, "review");
-        return false;
+    for (const candidate of candidates) {
+      descriptor?.set?.call(input, "");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.focus();
+      descriptor?.set?.call(input, candidate);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+
+      let match = null;
+      for (let attempt = 0; attempt < 12 && !match; attempt += 1) {
+        await wait(140);
+        const desired = normalize(candidate);
+        const options = visiblePromptOptions()
+          .filter((option) => normalize(option.textContent) !== "no items");
+        match = options.find((option) => normalize(option.textContent) === desired)
+          || options.find((option) => desired.length > 2 && normalize(option.textContent).includes(desired));
       }
+      if (!match) continue;
+
+      match.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      match.click();
+      await wait(140);
+      input.dispatchEvent(new Event("change", { bubbles: true }));
       mark(input, "filled");
       result.filled += 1;
       return true;
     }
 
-    match.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-    match.click();
-    await wait(180);
-    if (!multi) input.dispatchEvent(new Event("change", { bubbles: true }));
-    mark(input, "filled");
-    result.filled += 1;
-    return true;
+    descriptor?.set?.call(input, "");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+    mark(input, "review");
+    return false;
   }
 
   async function chooseWorkdayButton(button, value) {
@@ -1713,7 +1664,11 @@
       const prefix = workdayPrefix(schoolField);
       await chooseWorkdayPrompt(schoolField, education.school);
       await chooseWorkdayButton(workdayField(prefix, "degree"), education.degree);
-      await chooseWorkdayPrompt(workdayField(prefix, "fieldOfStudy"), education.fieldOfStudy);
+      const fieldOfStudyCandidates = globalThis.JobAutofillPlatformAdapters
+        ?.workdayFieldOfStudyCandidates?.(education.fieldOfStudy) || [education.fieldOfStudy];
+      await chooseWorkdayPrompt(workdayField(prefix, "fieldOfStudy"), fieldOfStudyCandidates[0], {
+        alternatives: fieldOfStudyCandidates.slice(1),
+      });
       setStructuredValue(workdayField(prefix, "gradeAverage"), education.gpa);
       await setWorkdayMonthYear(prefix, "firstYearAttended", education.startMonth, education.startYear);
       await setWorkdayMonthYear(prefix, "lastYearAttended", education.endMonth, education.endYear);
@@ -1730,18 +1685,27 @@
       if (await changesArePaused()) return;
       const languageButton = availableLanguageButtons[index];
       if (!language || !languageButton) continue;
-      const group = languageButton.closest('[role="group"]');
+      const prefix = workdayPrefix(languageButton);
       await chooseWorkdayButton(languageButton, language.name);
-      const fluent = group?.querySelector('input[name="native"]');
-      if (fluent && fluent.checked !== Boolean(language.fluent)) {
+      const currentLanguageButton = workdayField(prefix, "language")
+        || (languageButton.id ? document.getElementById(languageButton.id) : null)
+        || languageButton;
+      const group = currentLanguageButton.closest('[role="group"]');
+      const fluent = workdayField(prefix, "native")
+        || group?.querySelector('input[name="native"], input[type="checkbox"][data-automation-id*="native" i]')
+        || [...group?.querySelectorAll('input[type="checkbox"]') || []]
+          .find((checkbox) => /\bfluent\b/.test(normalize(fieldLabel(checkbox))));
+      const shouldBeFluent = globalThis.JobAutofillPlatformAdapters
+        ?.languageShouldBeFluent?.(language) ?? Boolean(language.fluent);
+      if (fluent && fluent.checked !== shouldBeFluent) {
         const checked = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
-        checked?.set?.call(fluent, Boolean(language.fluent));
+        checked?.set?.call(fluent, shouldBeFluent);
         dispatch(fluent);
         mark(fluent, "filled");
         result.filled += 1;
       }
       for (const button of group?.querySelectorAll('button[id^="language-"]') || []) {
-        if (button === languageButton) continue;
+        if (button === currentLanguageButton) continue;
         const label = normalize(button.getAttribute("aria-label"));
         if (label.startsWith("overall assessment") || label.startsWith("reading speaking writing")) {
           await chooseWorkdayButton(button, language.overall);

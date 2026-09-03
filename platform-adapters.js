@@ -345,10 +345,39 @@
       || generic;
   }
 
+  function workdayFieldOfStudyCandidates(value) {
+    const primary = String(value || "").replace(/\s+/g, " ").trim();
+    if (!primary) return [];
+    const normalized = primary.toLowerCase();
+    const fallbacks = /\bsoftware engineering\b/.test(normalized)
+      ? ["Computer Science", "Computer Engineering", "Computer Science and Engineering"]
+      : [];
+    const seen = new Set();
+    return [primary, ...fallbacks].filter((candidate) => {
+      const key = candidate.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function languageShouldBeFluent(language = {}) {
+    if (language.fluent === true) return true;
+    return /\b(fluent|native|bilingual)\b/i.test([
+      language.level,
+      language.overall,
+      language.reading,
+      language.speaking,
+      language.writing,
+    ].filter(Boolean).join(" "));
+  }
+
   globalThis.JobAutofillPlatformAdapters = Object.freeze({
     detect,
     generic,
+    languageShouldBeFluent,
     registry,
     supported: Object.freeze(registry.map(({ id, name }) => Object.freeze({ id, name }))),
+    workdayFieldOfStudyCandidates,
   });
 })();
